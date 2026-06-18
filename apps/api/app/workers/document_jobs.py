@@ -1,0 +1,122 @@
+from app.db.session import SessionLocal
+from app.models.document import MedicalDocument
+from app.models.jobs import IngestionJob
+from app.rag.indexer import MedicalVectorIndexer
+from app.services.image_embedding_service import BioMedClipImageIndexer
+from app.services.malware_service import MalwareScanner
+from app.services.medical_image_service import MedicalImageService
+from app.services.ocr_service import OcrService
+from app.services.storage_service import ObjectStorageService
+
+
+def process_document_pipeline(job_id: str) -> None:
+    db = SessionLocal()
+    try:
+        job = db.get(IngestionJob, job_id)
+        if job is None:
+            return
+        doc = db.get(MedicalDocument, job.document_id)
+        if doc is None:
+            job.status = "failed"
+            job.error = "Document not found"
+            db.commit()
+            return
+
+        job.status = "running"
+        job.attempts += 1
+        db.commit()
+
+        if job.job_type == "document_rag_ingest":
+            verified_for_rag = (
+                doc.verified_by_patient
+                or doc.image_review_status == "clinician_verified"
+            )
+            if not verified_for_rag or not doc.verified_text:
+                job.status = "failed"
+                job.error = "Document is not verified for RAG ingestion"
+                db.commit()
+                return
+            indexed = MedicalVectorIndexer().index_verified_document(
+                document_id=doc.id,
+                patient_id=doc.patient_id,
+                title=doc.original_filename,
+                text=doc.verified_text,
+            )
+            doc.ingested_to_rag = indexed > 0
+            job.status = "completed"
+            db.commit()
+            return
+
+        content = ObjectStorageService().get_bytes(bucket=doc.storage_bucket, key=doc.storage_key)
+        malware_status = MalwareScanner().scan_bytes(content)
+        doc.malware_status = malware_status
+        if malware_status != "clean":
+            doc.status = "blocked"
+            job.status = "failed"
+            job.error = f"Malware scan status: {malware_status}"
+            db.commit()
+            return
+
+        ocr_result = OcrService().extract(
+            content,
+            mime_type=doc.mime_type,
+            document_type=doc.document_type,
+            filename=doc.original_filename,
+        )
+        doc.ocr_text = ocr_result.text
+        doc.ocr_engine = ocr_result.engine
+        doc.ocr_confidence = f"{ocr_result.confidence:.3f}"
+        doc.ocr_review_status = ocr_result.review_status
+        doc.ocr_handwriting_detected = ocr_result.handwriting_detected
+        doc.ocr_warning = ocr_result.warning
+        image_service = MedicalImageService()
+        if image_service.requires_clinician_review(
+            mime_type=doc.mime_type,
+            document_type=doc.document_type,
+        ):
+            doc.image_modality = image_service.classify_modality(
+                filename=doc.original_filename,
+                document_type=doc.document_type,
+                mime_type=doc.mime_type,
+            )
+            doc.image_ai_observations = image_service.analyze_image(
+                image_bytes=content,
+                mime_type=doc.mime_type,
+                modality=doc.image_modality,
+                filename=doc.original_filename,
+            )
+            embedding = BioMedClipImageIndexer().index_image(
+                document_id=doc.id,
+                patient_id=doc.patient_id,
+                image_bytes=content,
+                mime_type=doc.mime_type,
+                filename=doc.original_filename,
+                modality=doc.image_modality,
+            )
+            doc.image_embedding_status = embedding.status
+            doc.image_embedding_model = embedding.model
+            doc.image_vector_id = embedding.vector_id
+            doc.image_review_status = "clinician_review_required"
+            doc.status = "image_ready_for_clinician_review"
+        else:
+            if ocr_result.review_status == "handwriting_human_transcription_required":
+                doc.status = "handwriting_review_required"
+            elif ocr_result.review_status == "ocr_dependency_missing":
+                doc.status = "ocr_dependency_missing"
+            elif ocr_result.review_status in {
+                "low_confidence_human_verification_required",
+                "ocr_failed",
+            }:
+                doc.status = "ocr_human_verification_required"
+            else:
+                doc.status = "ocr_ready_for_verification"
+        job.status = "completed"
+        db.commit()
+    except Exception as exc:
+        if "job" in locals() and job is not None:
+            job.status = "failed"
+            job.error = str(exc)
+            db.commit()
+        raise
+    finally:
+        db.close()

@@ -1,0 +1,291 @@
+:root {
+  color-scheme: light;
+  --bg: #f5f7f8;
+  --ink: #17211f;
+  --muted: #65736f;
+  --line: #dbe4e1;
+  --surface: #fff;
+  --teal: #0f766e;
+  --red: #b42318;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 270px 1fr;
+}
+
+.sidebar {
+  background: #10211f;
+  color: #effaf7;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.brand,
+.status,
+.panelTitle,
+.heroBadge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.panelTitle.compact {
+  margin-top: 4px;
+}
+
+.brandMark {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--teal);
+  font-weight: 800;
+}
+
+.brand span,
+.status,
+nav a,
+small,
+.eyebrow {
+  color: #a8c1bc;
+}
+
+.brand div:last-child {
+  display: grid;
+  gap: 3px;
+}
+
+nav {
+  display: grid;
+  gap: 8px;
+}
+
+nav a {
+  text-decoration: none;
+  padding: 11px 12px;
+  border-radius: 8px;
+}
+
+nav a:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.content {
+  padding: 28px;
+  display: grid;
+  gap: 20px;
+  align-content: start;
+}
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--teal);
+  text-transform: uppercase;
+  font-weight: 800;
+  font-size: 0.78rem;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  max-width: 850px;
+  margin-bottom: 0;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  line-height: 1.05;
+}
+
+h2 {
+  font-size: 1.05rem;
+  margin-bottom: 0;
+}
+
+.heroBadge,
+.panel,
+.alert {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.heroBadge {
+  align-self: flex-start;
+  padding: 10px 12px;
+  color: var(--teal);
+  font-weight: 800;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.panel {
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 0.86rem;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: white;
+  color: var(--ink);
+}
+
+.primary,
+.secondary,
+.segmented button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-weight: 800;
+}
+
+.primary {
+  background: var(--teal);
+  color: white;
+  border-color: var(--teal);
+}
+
+.primary:disabled {
+  opacity: 0.55;
+}
+
+.secondary {
+  background: white;
+  color: var(--teal);
+}
+
+.inlineButton {
+  margin-left: 10px;
+  padding: 6px 9px;
+}
+
+.secondary:disabled {
+  opacity: 0.55;
+}
+
+.segmented {
+  display: flex;
+  padding: 4px;
+  background: #edf1f0;
+  border-radius: 8px;
+}
+
+.segmented button {
+  flex: 1;
+  border: 0;
+  background: transparent;
+}
+
+.segmented button.active {
+  background: white;
+  color: var(--teal);
+}
+
+.answer {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcfc;
+}
+
+.answer p {
+  margin: 8px 0;
+  line-height: 1.55;
+}
+
+.metaGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.metaGrid span {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 8px;
+  background: white;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.alert {
+  color: var(--red);
+  border-color: #fecaca;
+  background: #fff5f5;
+  padding: 12px;
+}
+
+code {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #f8faf9;
+}
+
+@media (max-width: 920px) {
+  .shell,
+  .grid,
+  .grid2 {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    flex-direction: column;
+  }
+}

@@ -1,0 +1,297 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="1740" viewBox="0 0 1900 1740">
+  <defs>
+    <style>
+      .bg { fill: #f5f7f8; }
+      .title { font: 800 42px Inter, Arial, sans-serif; fill: #10211f; }
+      .subtitle { font: 500 20px Inter, Arial, sans-serif; fill: #5f6f6b; }
+      .section { font: 800 24px Inter, Arial, sans-serif; fill: #10211f; }
+      .boxTitle { font: 800 18px Inter, Arial, sans-serif; fill: #10211f; }
+      .boxText { font: 500 14px Inter, Arial, sans-serif; fill: #40504c; }
+      .small { font: 700 12px Inter, Arial, sans-serif; fill: #5f6f6b; }
+      .pill { font: 800 12px Inter, Arial, sans-serif; fill: #ffffff; }
+      .card { fill: #ffffff; stroke: #d9e4e1; stroke-width: 2; rx: 14; }
+      .green { fill: #e8f6ef; stroke: #168350; }
+      .teal { fill: #e7f5f3; stroke: #0f766e; }
+      .blue { fill: #eaf2ff; stroke: #2563a9; }
+      .amber { fill: #fff4e6; stroke: #b86b16; }
+      .red { fill: #fff0f0; stroke: #bd3434; }
+      .purple { fill: #f2edff; stroke: #6d4aff; }
+      .dark { fill: #10211f; }
+      .line { stroke: #7b8c88; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .dash { stroke: #9aa9a6; stroke-width: 2.5; fill: none; stroke-dasharray: 9 8; marker-end: url(#arrow); }
+      .note { fill: #ffffff; stroke: #b9c7c3; stroke-width: 2; rx: 12; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7b8c88"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#10211f" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1900" height="1740"/>
+
+  <text class="title" x="70" y="76">MedRAG India: Secure Intake + BGE/BioMedCLIP RAG + Agentic Care</text>
+  <text class="subtitle" x="70" y="112">India-first healthcare AI platform for records, scans, chat history, clinical RAG, yearly scan scheduling, appointments, and emergency escalation</text>
+
+  <rect class="dark" x="70" y="145" width="1760" height="56" rx="14"/>
+  <text class="pill" x="100" y="179">CORE PRINCIPLE</text>
+  <text class="pill" x="270" y="179">Patients get education only. Doctors get clinical decision support only with consent. Agentic actions use approved tools, safety gates, audit logs, and human-operational boundaries.</text>
+
+  <!-- Entry / Auth -->
+  <text class="section" x="90" y="250">1. Entry + Identity</text>
+  <rect class="card teal" filter="url(#shadow)" x="70" y="275" width="250" height="120"/>
+  <text class="boxTitle" x="95" y="310">React Web App</text>
+  <text class="boxText" x="95" y="340">Patient portal</text>
+  <text class="boxText" x="95" y="362">Doctor / hospital portal</text>
+  <text class="small" x="95" y="382">React + TypeScript + Vite</text>
+
+  <rect class="card blue" filter="url(#shadow)" x="365" y="275" width="260" height="120"/>
+  <text class="boxTitle" x="390" y="310">Authentication</text>
+  <text class="boxText" x="390" y="340">JWT login / register</text>
+  <text class="boxText" x="390" y="362">bcrypt password hashing</text>
+  <text class="small" x="390" y="382">roles: patient, doctor, admin</text>
+
+  <rect class="card amber" filter="url(#shadow)" x="670" y="275" width="280" height="120"/>
+  <text class="boxTitle" x="695" y="310">OTP + Verification</text>
+  <text class="boxText" x="695" y="340">WhatsApp / SMS / Email OTP</text>
+  <text class="boxText" x="695" y="362">Twilio + SMTP boundaries</text>
+  <text class="small" x="695" y="382">10-minute expiry, hashed code</text>
+
+  <rect class="card purple" filter="url(#shadow)" x="995" y="275" width="310" height="120"/>
+  <text class="boxTitle" x="1020" y="310">Consent + Care Team</text>
+  <text class="boxText" x="1020" y="340">Patient self-access allowed</text>
+  <text class="boxText" x="1020" y="362">Doctor needs consent + membership</text>
+  <text class="small" x="1020" y="382">403 if missing</text>
+
+  <rect class="card red" filter="url(#shadow)" x="1350" y="275" width="330" height="120"/>
+  <text class="boxTitle" x="1375" y="310">Privacy Guardrails</text>
+  <text class="boxText" x="1375" y="340">No staff document downloads</text>
+  <text class="boxText" x="1375" y="362">PHI redaction in stored traces</text>
+  <text class="small" x="1375" y="382">no-store, no-cache headers</text>
+
+  <line class="line" x1="320" y1="335" x2="365" y2="335"/>
+  <line class="line" x1="625" y1="335" x2="670" y2="335"/>
+  <line class="line" x1="950" y1="335" x2="995" y2="335"/>
+  <line class="line" x1="1305" y1="335" x2="1350" y2="335"/>
+
+  <!-- Registration intake -->
+  <text class="section" x="90" y="470">2. Patient Registration Intake</text>
+  <rect class="card blue" filter="url(#shadow)" x="70" y="495" width="245" height="130"/>
+  <text class="boxTitle" x="95" y="530">Patient Account</text>
+  <text class="boxText" x="95" y="558">Register patient user</text>
+  <text class="boxText" x="95" y="580">Create patient profile</text>
+  <text class="small" x="95" y="605">/auth/register/patient-intake</text>
+
+  <rect class="card teal" filter="url(#shadow)" x="360" y="495" width="260" height="130"/>
+  <text class="boxTitle" x="385" y="530">Profile Details</text>
+  <text class="boxText" x="385" y="558">DOB, gender, blood group</text>
+  <text class="boxText" x="385" y="580">Allergies, conditions, meds</text>
+  <text class="small" x="385" y="605">ABHA-ready field support</text>
+
+  <rect class="card amber" filter="url(#shadow)" x="665" y="495" width="280" height="130"/>
+  <text class="boxTitle" x="690" y="530">Past Records + Scans</text>
+  <text class="boxText" x="690" y="558">PDF reports and scan images</text>
+  <text class="boxText" x="690" y="580">past_record / health_scan</text>
+  <text class="small" x="690" y="605">20 MB limit + MIME allowlist</text>
+
+  <rect class="card green" filter="url(#shadow)" x="990" y="495" width="280" height="130"/>
+  <text class="boxTitle" x="1015" y="530">Secure Storage</text>
+  <text class="boxText" x="1015" y="558">S3 / MinIO object storage</text>
+  <text class="boxText" x="1015" y="580">SHA-256 content hash</text>
+  <text class="small" x="1015" y="605">patient-scoped storage key</text>
+
+  <rect class="card purple" filter="url(#shadow)" x="1315" y="495" width="285" height="130"/>
+  <text class="boxTitle" x="1340" y="530">Queued Processing</text>
+  <text class="boxText" x="1340" y="558">Redis / RQ ingestion job</text>
+  <text class="boxText" x="1340" y="580">ClamAV -> PaddleOCR / BioMedCLIP</text>
+  <text class="small" x="1340" y="605">handwriting requires human check</text>
+
+  <rect class="card red" filter="url(#shadow)" x="1645" y="495" width="185" height="130"/>
+  <text class="boxTitle" x="1670" y="530">Audit Event</text>
+  <text class="boxText" x="1670" y="558">intake_registered</text>
+  <text class="boxText" x="1670" y="580">document count</text>
+  <text class="small" x="1670" y="605">hash-chained</text>
+
+  <line class="line" x1="315" y1="560" x2="360" y2="560"/>
+  <line class="line" x1="620" y1="560" x2="665" y2="560"/>
+  <line class="line" x1="945" y1="560" x2="990" y2="560"/>
+  <line class="line" x1="1270" y1="560" x2="1315" y2="560"/>
+  <line class="line" x1="1600" y1="560" x2="1645" y2="560"/>
+
+  <!-- History import -->
+  <text class="section" x="90" y="710">3. Previous Chat Continuity</text>
+  <rect class="card teal" filter="url(#shadow)" x="70" y="735" width="300" height="120"/>
+  <text class="boxTitle" x="95" y="770">Previous Chat Import</text>
+  <text class="boxText" x="95" y="800">Patient / doctor messages</text>
+  <text class="boxText" x="95" y="822">from prior consultation</text>
+  <text class="small" x="95" y="842">/clinical/history/import</text>
+
+  <rect class="card red" filter="url(#shadow)" x="425" y="735" width="280" height="120"/>
+  <text class="boxTitle" x="450" y="770">PHI Redaction</text>
+  <text class="boxText" x="450" y="800">Aadhaar-like IDs, ABHA</text>
+  <text class="boxText" x="450" y="822">phone and email patterns</text>
+  <text class="small" x="450" y="842">minimum necessary text</text>
+
+  <rect class="card purple" filter="url(#shadow)" x="760" y="735" width="285" height="120"/>
+  <text class="boxTitle" x="785" y="770">Answer Trace Store</text>
+  <text class="boxText" x="785" y="800">model_provider: imported</text>
+  <text class="boxText" x="785" y="822">prompt: chat-import-v1</text>
+  <text class="small" x="785" y="842">trace_id retained</text>
+
+  <rect class="card amber" filter="url(#shadow)" x="1100" y="735" width="300" height="120"/>
+  <text class="boxTitle" x="1125" y="770">Consent-Aware History</text>
+  <text class="boxText" x="1125" y="800">Patient self-view</text>
+  <text class="boxText" x="1125" y="822">Doctor only with access</text>
+  <text class="small" x="1125" y="842">/clinical/history</text>
+
+  <rect class="card green" filter="url(#shadow)" x="1455" y="735" width="300" height="120"/>
+  <text class="boxTitle" x="1480" y="770">Continuity Context</text>
+  <text class="boxText" x="1480" y="800">Visible in care timeline</text>
+  <text class="boxText" x="1480" y="822">Supports safer follow-up</text>
+  <text class="small" x="1480" y="842">still no patient diagnosis</text>
+
+  <line class="line" x1="370" y1="795" x2="425" y2="795"/>
+  <line class="line" x1="705" y1="795" x2="760" y2="795"/>
+  <line class="line" x1="1045" y1="795" x2="1100" y2="795"/>
+  <line class="line" x1="1400" y1="795" x2="1455" y2="795"/>
+
+  <!-- AI workflow -->
+  <text class="section" x="90" y="940">4. Clinical AI Question Workflow</text>
+  <rect class="card blue" filter="url(#shadow)" x="70" y="965" width="215" height="135"/>
+  <text class="boxTitle" x="95" y="1000">Question Received</text>
+  <text class="boxText" x="95" y="1030">FastAPI validates request</text>
+  <text class="boxText" x="95" y="1052">Pydantic schema</text>
+  <text class="small" x="95" y="1077">patient_id resolved</text>
+
+  <rect class="card red" filter="url(#shadow)" x="325" y="965" width="230" height="135"/>
+  <text class="boxTitle" x="350" y="1000">AI Policy Filter</text>
+  <text class="boxText" x="350" y="1030">Patient: education only</text>
+  <text class="boxText" x="350" y="1052">No diagnosis / prescription</text>
+  <text class="small" x="350" y="1077">Doctor: decision support</text>
+
+  <rect class="card amber" filter="url(#shadow)" x="595" y="965" width="240" height="135"/>
+  <text class="boxTitle" x="620" y="1000">LangGraph Safety</text>
+  <text class="boxText" x="620" y="1030">Chest pain, stroke, bleeding</text>
+  <text class="boxText" x="620" y="1052">Breathing issue, self-harm</text>
+  <text class="small" x="620" y="1077">urgent skips normal answer</text>
+
+  <rect class="card blue" filter="url(#shadow)" x="875" y="965" width="250" height="135"/>
+  <text class="boxTitle" x="900" y="1000">Query Router</text>
+  <text class="boxText" x="900" y="1030">no RAG / guideline RAG</text>
+  <text class="boxText" x="900" y="1052">patient records / both</text>
+  <text class="small" x="900" y="1077">uncertain defaults to both</text>
+
+  <rect class="card green" filter="url(#shadow)" x="1165" y="965" width="260" height="135"/>
+  <text class="boxTitle" x="1190" y="1000">Hybrid Retrieval</text>
+  <text class="boxText" x="1190" y="1030">BGE-M3 dense vectors</text>
+  <text class="boxText" x="1190" y="1052">BM25 + BGE reranker</text>
+  <text class="small" x="1190" y="1077">Qdrant + metadata filters</text>
+
+  <rect class="card purple" filter="url(#shadow)" x="1465" y="965" width="300" height="135"/>
+  <text class="boxTitle" x="1490" y="1000">Fine-Tuned Generation</text>
+  <text class="boxText" x="1490" y="1030">BioMistral LoRA adapter</text>
+  <text class="boxText" x="1490" y="1052">RAG context injected</text>
+  <text class="small" x="1490" y="1077">prompt: clinical-rag-v1</text>
+
+  <line class="line" x1="285" y1="1032" x2="325" y2="1032"/>
+  <line class="line" x1="555" y1="1032" x2="595" y2="1032"/>
+  <line class="line" x1="835" y1="1032" x2="875" y2="1032"/>
+  <line class="line" x1="1125" y1="1032" x2="1165" y2="1032"/>
+  <line class="line" x1="1425" y1="1032" x2="1465" y2="1032"/>
+
+  <rect class="card red" filter="url(#shadow)" x="680" y="1130" width="270" height="105"/>
+  <text class="boxTitle" x="705" y="1165">Emergency Escalation</text>
+  <text class="boxText" x="705" y="1193">Seek urgent medical care</text>
+  <text class="small" x="705" y="1217">No normal AI answer</text>
+  <line class="dash" x1="815" y1="1100" x2="815" y2="1130"/>
+
+  <rect class="card blue" filter="url(#shadow)" x="875" y="1130" width="250" height="105"/>
+  <text class="boxTitle" x="900" y="1165">Skip Retrieval</text>
+  <text class="boxText" x="900" y="1193">App/help or no-RAG route</text>
+  <text class="small" x="900" y="1217">goes direct to generation</text>
+  <line class="dash" x1="1000" y1="1100" x2="1000" y2="1130"/>
+
+  <rect class="card teal" filter="url(#shadow)" x="995" y="1130" width="300" height="105"/>
+  <text class="boxTitle" x="1020" y="1165">Trace + Audit</text>
+  <text class="boxText" x="1020" y="1193">Model, adapter, prompt version</text>
+  <text class="small" x="1020" y="1217">sources + latency + safety label</text>
+  <line class="dash" x1="1615" y1="1100" x2="1295" y2="1162"/>
+
+  <rect class="card green" filter="url(#shadow)" x="1340" y="1130" width="320" height="105"/>
+  <text class="boxTitle" x="1365" y="1165">Frontend Response</text>
+  <text class="boxText" x="1365" y="1193">Answer + citations + trace ID</text>
+  <text class="small" x="1365" y="1217">Patient disclaimer if needed</text>
+  <line class="line" x1="1295" y1="1182" x2="1340" y2="1182"/>
+
+  <!-- Agentic care coordination -->
+  <text class="section" x="90" y="1315">5. Agentic Care Coordination</text>
+  <rect class="card blue" filter="url(#shadow)" x="70" y="1340" width="260" height="125"/>
+  <text class="boxTitle" x="95" y="1375">Care Agent API</text>
+  <text class="boxText" x="95" y="1405">/care-agent endpoints</text>
+  <text class="boxText" x="95" y="1427">LangGraph bounded agent</text>
+  <text class="small" x="95" y="1447">approved tools only</text>
+
+  <rect class="card teal" filter="url(#shadow)" x="380" y="1340" width="270" height="125"/>
+  <text class="boxTitle" x="405" y="1375">Yearly Scan Planner</text>
+  <text class="boxText" x="405" y="1405">Reads patient calendar preference</text>
+  <text class="boxText" x="405" y="1427">Creates scan event + health task</text>
+  <text class="small" x="405" y="1447">patient_calendar_events</text>
+
+  <rect class="card amber" filter="url(#shadow)" x="700" y="1340" width="275" height="125"/>
+  <text class="boxTitle" x="725" y="1375">Symptom Assessment</text>
+  <text class="boxText" x="725" y="1405">Safety red flags + severity</text>
+  <text class="boxText" x="725" y="1427">No AI diagnosis to patient</text>
+  <text class="small" x="725" y="1447">critical if urgent or severity >= 9</text>
+
+  <rect class="card green" filter="url(#shadow)" x="1025" y="1340" width="270" height="125"/>
+  <text class="boxTitle" x="1050" y="1375">Doctor Appointment</text>
+  <text class="boxText" x="1050" y="1405">Books symptom review</text>
+  <text class="boxText" x="1050" y="1427">Urgency based on severity</text>
+  <text class="small" x="1050" y="1447">appointments table</text>
+
+  <rect class="card red" filter="url(#shadow)" x="1345" y="1340" width="270" height="125"/>
+  <text class="boxTitle" x="1370" y="1375">Ambulance Escalation</text>
+  <text class="boxText" x="1370" y="1405">Emergency dispatch request</text>
+  <text class="boxText" x="1370" y="1427">108/112 provider boundary</text>
+  <text class="small" x="1370" y="1447">demo reference, prod integration</text>
+
+  <rect class="card purple" filter="url(#shadow)" x="1665" y="1340" width="165" height="125"/>
+  <text class="boxTitle" x="1685" y="1375">Agent Audit</text>
+  <text class="boxText" x="1685" y="1405">Action log</text>
+  <text class="boxText" x="1685" y="1427">Reasoning</text>
+  <text class="small" x="1685" y="1447">hash-chain audit</text>
+
+  <line class="line" x1="330" y1="1402" x2="380" y2="1402"/>
+  <line class="line" x1="650" y1="1402" x2="700" y2="1402"/>
+  <line class="line" x1="975" y1="1402" x2="1025" y2="1402"/>
+  <line class="line" x1="975" y1="1428" x2="1345" y2="1428"/>
+  <line class="line" x1="1615" y1="1402" x2="1665" y2="1402"/>
+  <line class="dash" x1="1160" y1="1340" x2="1160" y2="1235"/>
+  <line class="dash" x1="1480" y1="1340" x2="815" y2="1235"/>
+
+  <!-- Document workflow and modules -->
+  <text class="section" x="90" y="1545">6. Document Processing + Feature Modules</text>
+  <rect class="note" x="70" y="1570" width="410" height="115"/>
+  <text class="boxTitle" x="95" y="1605">Document Pipeline</text>
+  <text class="boxText" x="95" y="1633">Registration and later uploads share the same pipeline:</text>
+  <text class="boxText" x="95" y="1655">S3 -> ClamAV -> PaddleOCR/BioMedCLIP -> human verify -> Qdrant.</text>
+
+  <rect class="note" x="530" y="1570" width="410" height="115"/>
+  <text class="boxTitle" x="555" y="1605">Patient Modules</text>
+  <text class="boxText" x="555" y="1633">Timeline, calendar, family, reminders, symptoms, labs, vaccines,</text>
+  <text class="boxText" x="555" y="1655">pregnancy, PHQ-9/GAD-7, diet, PM-JAY, caregiver links.</text>
+
+  <rect class="note" x="990" y="1570" width="410" height="115"/>
+  <text class="boxTitle" x="1015" y="1605">Hospital + Doctor Modules</text>
+  <text class="boxText" x="1015" y="1633">Hospitals, departments, doctor assignments, consultation slots,</text>
+  <text class="boxText" x="1015" y="1655">booking, prescriptions, SOAP, referrals, analytics.</text>
+
+  <rect class="note" x="1450" y="1570" width="380" height="115"/>
+  <text class="boxTitle" x="1475" y="1605">India-Specific Modules</text>
+  <text class="boxText" x="1475" y="1633">WhatsApp reminders, ABHA-ready records, public facilities,</text>
+  <text class="boxText" x="1475" y="1655">108/112 EMS boundary, outbreak heatmap, weather-health.</text>
+
+  <line class="dash" x1="1458" y1="625" x2="1220" y2="965"/>
+  <line class="dash" x1="1605" y1="855" x2="1130" y2="965"/>
+</svg>
