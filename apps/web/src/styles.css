@@ -39,6 +39,27 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+.auth-shell {
+  min-height: 100vh;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+}
+
+.auth-card {
+  width: min(420px, 100%);
+  padding: 30px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 16px;
+  border: 1px solid var(--line);
+}
+
 button,
 input,
 select,

@@ -123,7 +123,8 @@ export const AuthModule: React.FC<AuthModuleProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div style={{ maxWidth: "420px", margin: "80px auto", padding: "30px", background: "rgba(255,255,255,0.03)", borderRadius: "16px", border: "1px solid var(--line)" }}>
+    <div className="auth-shell">
+    <div className="auth-card">
       <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
         <div style={{ background: "rgba(26,115,232,0.15)", padding: "12px", borderRadius: "12px", color: "var(--primary)" }}>
           <KeyRound size={28} />
@@ -250,6 +251,7 @@ export const AuthModule: React.FC<AuthModuleProps> = ({ onLoginSuccess }) => {
           </div>
         </form>
       )}
+    </div>
     </div>
   );
 };

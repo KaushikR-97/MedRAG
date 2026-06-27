@@ -278,8 +278,8 @@ export const api = {
       token,
     );
   },
-  getMe(token: string) {
-    return request<{
+  async getMe(token: string) {
+    type MeResponse = {
       id: string;
       email: string;
       full_name: string;
@@ -289,9 +289,17 @@ export const api = {
       age?: number;
       city?: string;
       speciality?: string;
-    }>("/auth/me", {}, token);
+    };
+    try {
+      return await request<MeResponse>("/auth/me", {}, token);
+    } catch (err: any) {
+      if (String(err?.message || "").includes("404")) {
+        return request<MeResponse>("/auth/profile", {}, token);
+      }
+      throw err;
+    }
   },
-  updateMe(
+  async updateMe(
     token: string,
     payload: {
       full_name?: string;
@@ -301,7 +309,7 @@ export const api = {
       speciality?: string;
     },
   ) {
-    return request<{
+    type MeResponse = {
       id: string;
       email: string;
       full_name: string;
@@ -311,11 +319,15 @@ export const api = {
       age?: number;
       city?: string;
       speciality?: string;
-    }>(
-      "/auth/me",
-      { method: "PUT", body: JSON.stringify(payload) },
-      token,
-    );
+    };
+    try {
+      return await request<MeResponse>("/auth/me", { method: "PUT", body: JSON.stringify(payload) }, token);
+    } catch (err: any) {
+      if (String(err?.message || "").includes("404")) {
+        return request<MeResponse>("/auth/profile", { method: "PUT", body: JSON.stringify(payload) }, token);
+      }
+      throw err;
+    }
   },
   async requestPasswordReset(payload: { email: string }) {
     return request<{ message: string, simulated_otp?: string }>("/auth/forgot-password", {

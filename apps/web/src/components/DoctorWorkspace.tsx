@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Users, FileText, Send, CheckCircle, AlertTriangle } from "lucide-react";
-import { api, AppointmentRecord } from "../api/client";
+import { api, AppointmentRecord, ConsultationMessageRecord } from "../api/client";
 import { encryptMessage, decryptMessage } from "../utils/crypto";
 
 type DoctorWorkspaceProps = {
@@ -51,6 +51,8 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
   
   const [chatInput, setChatInput] = useState("");
   const [activeChatRecipient, setActiveChatRecipient] = useState<{ id: string; name: string } | null>(null);
+  const [activeChatAppointment, setActiveChatAppointment] = useState<AppointmentRecord | null>(null);
+  const [serverMessages, setServerMessages] = useState<ConsultationMessageRecord[]>([]);
   const [decryptedText, setDecryptedText] = useState<{ [msgId: string]: string }>({});
   const [passphrase, setPassphrase] = useState("");
 
@@ -68,6 +70,30 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
     }
     decryptAll();
   }, [chatMessages, sessionUserId, passphrase]);
+
+  useEffect(() => {
+    if (!activeChatAppointment) {
+      setServerMessages([]);
+      return;
+    }
+    let cancelled = false;
+    const appointment = activeChatAppointment;
+    async function loadThread() {
+      try {
+        await api.joinConsultationRoom(token, appointment.id);
+        const messages = await api.listConsultationMessages(token, appointment.id);
+        if (!cancelled) setServerMessages(messages);
+      } catch (err: any) {
+        if (!cancelled) setError(err.message || "Could not load appointment chat");
+      }
+    }
+    loadThread();
+    const timer = window.setInterval(loadThread, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [activeChatAppointment?.id, token]);
 
   // Load patient record
   const handleLoadPatientRecord = async () => {
@@ -143,6 +169,16 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
 
   const handleSendMessage = async () => {
     if (!activeChatRecipient || !chatInput.trim()) return;
+    if (activeChatAppointment) {
+      try {
+        const sent = await api.sendConsultationMessage(token, activeChatAppointment.id, { body: chatInput.trim() });
+        setServerMessages((prev) => [...prev, sent]);
+        setChatInput("");
+        return;
+      } catch (err: any) {
+        setError(err.message || "Could not send appointment chat message");
+      }
+    }
     const derivedSecret = passphrase.trim()
       ? passphrase.trim()
       : [sessionUserId, activeChatRecipient.id].sort().join("-");
@@ -326,9 +362,21 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
                   </div>
                 </div>
                 {appt.status === "confirmed" && appt.consultation_mode === "video" && (
-                  <button onClick={() => onStartVideoCall(appt)} className="button" style={{ background: "#2ecc71", padding: "4px 8px", fontSize: "0.75rem" }}>
-                    Start Consultation Call
-                  </button>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <button
+                      onClick={() => {
+                        setActiveChatRecipient({ id: appt.patient_id, name: `Patient ${appt.patient_id.slice(0, 6)}` });
+                        setActiveChatAppointment(appt);
+                      }}
+                      className="button-sec"
+                      style={{ padding: "4px 8px", fontSize: "0.75rem" }}
+                    >
+                      Chat
+                    </button>
+                    <button onClick={() => onStartVideoCall(appt)} className="button" style={{ background: "#2ecc71", padding: "4px 8px", fontSize: "0.75rem" }}>
+                      Start Call
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
@@ -344,7 +392,10 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
               {activeConversations.map(c => (
                 <div 
                   key={c.id} 
-                  onClick={() => setActiveChatRecipient(c)}
+                  onClick={() => {
+                    setActiveChatRecipient(c);
+                    setActiveChatAppointment(c.appointment || null);
+                  }}
                   style={{ 
                     padding: "6px", 
                     borderRadius: "6px", 
@@ -363,19 +414,31 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "8px" }}>
               <div style={{ flex: 1, border: "1px solid var(--line)", borderRadius: "8px", padding: "8px", overflowY: "auto", background: "black", fontSize: "0.75rem" }}>
                 {activeChatRecipient ? (
-                  chatMessages
-                    .filter(m => (m.senderId === sessionUserId && m.recipientId === activeChatRecipient.id) || (m.senderId === activeChatRecipient.id && m.recipientId === sessionUserId))
-                    .map(m => {
-                      const decrypted = decryptedText[m.id] || "Decrypting...";
-                      const isMe = m.senderId === sessionUserId;
+                  <>
+                    {serverMessages.map((m) => {
+                      const isMe = m.sender_id === sessionUserId;
                       return (
                         <div key={m.id} style={{ display: "flex", justifyContent: isMe ? "flex-end" : "flex-start", marginBottom: "6px" }}>
                           <div style={{ background: isMe ? "var(--primary)" : "rgba(255,255,255,0.1)", padding: "6px 12px", borderRadius: "10px", maxWidth: "80%" }}>
-                            {decrypted}
+                            {m.body}
                           </div>
                         </div>
                       );
-                    })
+                    })}
+                    {chatMessages
+                      .filter(m => (m.senderId === sessionUserId && m.recipientId === activeChatRecipient.id) || (m.senderId === activeChatRecipient.id && m.recipientId === sessionUserId))
+                      .map(m => {
+                        const decrypted = decryptedText[m.id] || "Decrypting...";
+                        const isMe = m.senderId === sessionUserId;
+                        return (
+                          <div key={m.id} style={{ display: "flex", justifyContent: isMe ? "flex-end" : "flex-start", marginBottom: "6px" }}>
+                            <div style={{ background: isMe ? "var(--primary)" : "rgba(255,255,255,0.1)", padding: "6px 12px", borderRadius: "10px", maxWidth: "80%" }}>
+                              {decrypted}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </>
                 ) : (
                   <p style={{ textAlign: "center", color: "var(--muted)", margin: "40px 0 0 0" }}>Select a caregiver chat conversation.</p>
                 )}

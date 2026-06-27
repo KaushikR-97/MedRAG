@@ -1,10 +1,10 @@
 import React from "react";
-import { Home, Sparkles, FileText, Heart, Activity } from "lucide-react";
+import { Sparkles, FileText, Heart, Activity, Users, MessageSquare } from "lucide-react";
 import { AuthResponse } from "../api/client";
 
 type PatientDashboardProps = {
   session: AuthResponse;
-  onNavigate: (tab: "home" | "clinical" | "documents" | "care" | "hospitals" | "trust" | "doctor" | "profile" | "public-health") => void;
+  onNavigate: (tab: "home" | "clinical" | "documents" | "care" | "hospitals" | "trust" | "doctor" | "profile" | "public-health" | "family" | "chat") => void;
 };
 
 export const PatientDashboard: React.FC<PatientDashboardProps> = ({ session, onNavigate }) => {
@@ -67,6 +67,14 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ session, onN
             <button onClick={() => onNavigate("hospitals")} className="button-sec" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "20px", height: "auto", gridColumn: "span 2" }}>
               <span>Book Appointment Slot</span>
             </button>
+            <button onClick={() => onNavigate("chat")} className="button-sec" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "20px", height: "auto" }}>
+              <MessageSquare size={20} />
+              <span>Chat With Doctors</span>
+            </button>
+            <button onClick={() => onNavigate("family")} className="button-sec" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "20px", height: "auto" }}>
+              <Users size={20} />
+              <span>Family & Consent</span>
+            </button>
           </div>
         </div>
 
@@ -81,6 +89,9 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ session, onN
             </button>
             <button onClick={() => onNavigate("care")} className="button-sec" style={{ flex: 1 }}>
               Reminders & Family
+            </button>
+            <button onClick={() => onNavigate("family")} className="button-sec" style={{ flex: 1 }}>
+              Consent Grants
             </button>
           </div>
         </div>

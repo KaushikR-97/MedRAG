@@ -1,6 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.feature_modules import (
@@ -121,10 +122,19 @@ class HospitalService:
         if date:
             query = query.filter(ConsultationSlot.date == date)
         if speciality:
-            query = query.join(
+            query = query.outerjoin(
                 HospitalDepartment,
                 HospitalDepartment.id == ConsultationSlot.department_id,
-            ).filter(HospitalDepartment.speciality.ilike(f"%{speciality}%"))
+            ).outerjoin(
+                User,
+                User.id == ConsultationSlot.doctor_id,
+            ).filter(
+                or_(
+                    HospitalDepartment.speciality.ilike(f"%{speciality}%"),
+                    User.speciality.ilike(f"%{speciality}%"),
+                    ConsultationSlot.department_id.is_(None),
+                )
+            )
         query = query.filter(ConsultationSlot.booked_count < ConsultationSlot.capacity)
         return query.order_by(ConsultationSlot.date.asc(), ConsultationSlot.start_time.asc()).limit(100).all()
 

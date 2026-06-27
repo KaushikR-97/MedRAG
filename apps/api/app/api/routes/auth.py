@@ -279,6 +279,7 @@ def change_password(
 
 
 @router.get("/me")
+@router.get("/profile")
 def get_me(current_user: User = Depends(get_current_user)) -> dict:
     return {
         "id": current_user.id,
@@ -294,6 +295,7 @@ def get_me(current_user: User = Depends(get_current_user)) -> dict:
 
 
 @router.put("/me")
+@router.put("/profile")
 def update_me(
     payload: ProfileUpdateRequest,
     current_user: User = Depends(get_current_user),
@@ -461,4 +463,3 @@ def reset_password(request: Request, payload: ResetPasswordRequest, db: Session 
     user.hashed_password = hash_password(payload.new_password)
     db.commit()
     return {"message": "Password has been reset successfully. Please login with your new password."}
-

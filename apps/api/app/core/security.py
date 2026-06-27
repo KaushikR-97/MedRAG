@@ -109,7 +109,8 @@ def get_current_user(
 
 def require_role(*roles: str):
     def dependency(user: User = Depends(get_current_user)) -> User:
-        if user.role not in roles:
+        allowed_roles = {role.lower() for role in roles}
+        if (user.role or "").lower() not in allowed_roles:
             raise HTTPException(status.HTTP_403_FORBIDDEN, "Insufficient role")
         return user
 
@@ -125,5 +126,4 @@ def generate_12_digit_id(db: Session, model) -> str:
         exists = db.query(model).filter(model.id == candidate).first()
         if not exists:
             return candidate
-
 

@@ -17,6 +17,8 @@ import { DoctorWorkspace } from "./components/DoctorWorkspace";
 import { ComplianceModule } from "./components/ComplianceModule";
 import { PublicHealthModule } from "./components/PublicHealthModule";
 import { UserProfileModule } from "./components/UserProfileModule";
+import { PatientDoctorChatModule } from "./components/PatientDoctorChatModule";
+import { FamilyConsentModule } from "./components/FamilyConsentModule";
 import { translations, Language } from "./utils/translations";
 
 const SESSION_STORAGE_KEY = "medrag_session";
@@ -40,7 +42,7 @@ type ChatMessage = {
   timestamp: number;
 };
 
-type AppTab = "home" | "clinical" | "documents" | "care" | "hospitals" | "trust" | "doctor" | "profile" | "public-health";
+type AppTab = "home" | "clinical" | "documents" | "care" | "hospitals" | "trust" | "doctor" | "profile" | "public-health" | "family" | "chat";
 
 type NavItem = {
   tab: AppTab;
@@ -53,6 +55,8 @@ const patientNavItems: NavItem[] = [
   { tab: "clinical", label: "Clinical AI Hub", icon: Sparkles },
   { tab: "documents", label: "Medical Vault", icon: FileText },
   { tab: "care", label: "Care Reminders", icon: Clock },
+  { tab: "family", label: "Family & Consent", icon: Users },
+  { tab: "chat", label: "Chat With Doctors", icon: Users },
   { tab: "hospitals", label: "Telehealth & Slots", icon: Building2 },
   { tab: "trust", label: "Auditing & Trust", icon: ShieldCheck },
   { tab: "public-health", label: "Epidemiological Maps", icon: Globe },
@@ -84,6 +88,8 @@ const tabTitles: Record<AppTab, string> = {
   doctor: "Doctor Dashboard",
   profile: "Settings",
   "public-health": "Epidemiological Maps",
+  family: "Family & Consent",
+  chat: "Chat With Doctors",
 };
 
 function getRoleNavItems(role: string): NavItem[] {
@@ -109,6 +115,14 @@ function safeReadJson<T>(storage: Storage, key: string, fallback: T): T {
   }
 }
 
+function normalizeSession(session: AuthResponse): AuthResponse {
+  return {
+    ...session,
+    role: (session.role || "patient").toLowerCase(),
+    full_name: session.full_name || "",
+  };
+}
+
 function safeWriteJson<T>(storage: Storage, key: string, value: T): boolean {
   try {
     storage.setItem(key, JSON.stringify(value));
@@ -129,7 +143,8 @@ function readUserChatMessages(userId: string): ChatMessage[] {
 
 function App() {
   const [session, setSession] = useState<AuthResponse | null>(() => {
-    return safeReadJson<AuthResponse | null>(localStorage, SESSION_STORAGE_KEY, null);
+    const stored = safeReadJson<AuthResponse | null>(localStorage, SESSION_STORAGE_KEY, null);
+    return stored ? normalizeSession(stored) : null;
   });
   const token = session?.access_token || "";
 
@@ -156,10 +171,21 @@ function App() {
   const [error, setError] = useState("");
   const [myAppointmentsList, setMyAppointmentsList] = useState<AppointmentRecord[]>([]);
 
-  // Memoized conversations for local chat
+  // Memoized conversations for appointment chat plus local fallback messages
   const activeConversations = useMemo(() => {
     if (!session) return [];
-    const conversationsMap: { [key: string]: { id: string; name: string; lastMessage: string; timestamp: number } } = {};
+    const conversationsMap: { [key: string]: { id: string; name: string; lastMessage: string; timestamp: number; appointment?: AppointmentRecord } } = {};
+    myAppointmentsList.forEach((appointment) => {
+      const otherId = session.role === "doctor" ? appointment.patient_id : appointment.doctor_id;
+      if (!otherId) return;
+      conversationsMap[otherId] = {
+        id: otherId,
+        name: session.role === "doctor" ? `Patient ${otherId.slice(0, 6)}` : `Doctor ${otherId.slice(0, 6)}`,
+        lastMessage: appointment.booking_reference || "Booked consultation",
+        timestamp: Date.parse(appointment.date || "") || 0,
+        appointment,
+      };
+    });
     chatMessages.forEach(msg => {
       const otherId = msg.senderId === session.user_id ? msg.recipientId : msg.senderId;
       const otherName = msg.senderId === session.user_id ? msg.recipientName : msg.senderName;
@@ -177,7 +203,7 @@ function App() {
       }
     });
     return Object.values(conversationsMap).sort((a, b) => b.timestamp - a.timestamp);
-  }, [chatMessages, session]);
+  }, [chatMessages, session, myAppointmentsList]);
 
   // Load chat messages
   useEffect(() => {
@@ -200,6 +226,29 @@ function App() {
 
   useEffect(() => {
     refreshAppointments();
+  }, [token]);
+
+  useEffect(() => {
+    if (!token || !session) return;
+    let cancelled = false;
+    api.getMe(token)
+      .then((me) => {
+        if (cancelled) return;
+        const refreshed = normalizeSession({
+          ...session,
+          user_id: me.id || session.user_id,
+          role: me.role || session.role,
+          full_name: me.full_name || session.full_name,
+        });
+        setSession(refreshed);
+        safeWriteJson(localStorage, SESSION_STORAGE_KEY, refreshed);
+      })
+      .catch((err) => {
+        console.warn("Could not refresh signed-in profile", err);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   useEffect(() => {
@@ -412,8 +461,9 @@ function App() {
     return (
       <AuthModule 
         onLoginSuccess={(newSession, token) => {
-          setSession(newSession);
-          safeWriteJson(localStorage, SESSION_STORAGE_KEY, newSession);
+          const normalized = normalizeSession(newSession);
+          setSession(normalized);
+          safeWriteJson(localStorage, SESSION_STORAGE_KEY, normalized);
         }} 
       />
     );
@@ -474,6 +524,18 @@ function App() {
         {currentTab === "clinical" && <ClinicalAIModule token={token} patientId={session.user_id} userRole={session.role} />}
         {currentTab === "documents" && <DocumentManager token={token} activePatientId={session.user_id} userRole={session.role} />}
         {currentTab === "care" && <CareRemindersModule token={token} sessionRole={session.role} activePatientId={session.user_id} />}
+        {currentTab === "family" && <FamilyConsentModule token={token} />}
+        {currentTab === "chat" && (
+          <PatientDoctorChatModule
+            token={token}
+            sessionUserId={session.user_id}
+            sessionUserName={session.full_name || "Patient"}
+            chatMessages={chatMessages}
+            setChatMessages={setChatMessages}
+            appointments={myAppointmentsList}
+            onStartVideoCall={setActiveVideoCall}
+          />
+        )}
         {currentTab === "hospitals" && <HospitalSlotsModule token={token} sessionRole={session.role} onStartVideoCall={setActiveVideoCall} />}
         {currentTab === "trust" && <ComplianceModule token={token} sessionRole={session.role} />}
         {currentTab === "public-health" && <PublicHealthModule token={token} />}

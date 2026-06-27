@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { User, Lock, KeyRound } from "lucide-react";
 import { api, AuthResponse } from "../api/client";
 
@@ -24,6 +24,25 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({ token, ses
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getMe(token)
+      .then((me) => {
+        if (cancelled) return;
+        setFullName(me.full_name || session.full_name || "");
+        setPhone(me.phone || "");
+        setAge(me.age ? String(me.age) : "");
+        setCity(me.city || "");
+        setSpeciality(me.speciality || "");
+      })
+      .catch((err) => {
+        console.warn("Profile details could not be loaded", err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,6 +94,9 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({ token, ses
           <User size={18} style={{ color: "var(--primary)" }} />
           Account & Profile Settings
         </h3>
+        <p style={{ color: "var(--muted)", fontSize: "0.82rem", marginBottom: "14px" }}>
+          User ID: <span style={{ color: "var(--primary)", fontFamily: "monospace" }}>{session.user_id}</span> | Role: {session.role}
+        </p>
 
         {error && <div className="toast toast-error" style={{ marginBottom: "12px" }}>{error}</div>}
         {success && <div className="toast toast-success" style={{ marginBottom: "12px" }}>{success}</div>}
