@@ -157,6 +157,7 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
         date: slotDate,
         start_time: slotStartTime,
         end_time: slotEndTime,
+        slot_duration_minutes: Number(slotDurationMinutes),
         consultation_mode: "video",
         capacity: 1,
         consultation_fee: parseFloat(slotFee),
@@ -164,21 +165,25 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
         hospital_id: "personal",
         department_id: "personal"
       });
-      setSuccess("Consultation slot successfully released to patients!");
+      setSuccess("Availability released. Patients can pick from the generated open slots.");
       onAppointmentsChanged();
     } catch (err: any) {
       setError(err.message || "Slot creation failed");
     }
   };
 
-  const updateSlotEndFromDuration = (startTime: string, durationMinutes: string) => {
+  const previewSlotCount = () => {
+    const [startHour, startMinute] = slotStartTime.split(":").map(Number);
+    const [endHour, endMinute] = slotEndTime.split(":").map(Number);
+    const duration = Number(slotDurationMinutes);
+    if ([startHour, startMinute, endHour, endMinute, duration].some(Number.isNaN) || duration <= 0) return 0;
+    const start = startHour * 60 + startMinute;
+    const end = endHour * 60 + endMinute;
+    return Math.max(0, Math.floor((end - start) / duration));
+  };
+
+  const updateSlotStart = (startTime: string) => {
     setSlotStartTime(startTime);
-    const [hour, minute] = startTime.split(":").map(Number);
-    const duration = Number(durationMinutes);
-    if (Number.isNaN(hour) || Number.isNaN(minute) || Number.isNaN(duration)) return;
-    const start = new Date(2000, 0, 1, hour, minute);
-    start.setMinutes(start.getMinutes() + duration);
-    setSlotEndTime(start.toTimeString().slice(0, 5));
   };
 
   const handleConfirmAppointment = async (appt: AppointmentRecord) => {
@@ -301,13 +306,24 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
             
             {patientDocs && patientDocs.length > 0 && (
               <div style={{ marginTop: "10px" }}>
-                <strong style={{ color: "var(--primary)" }}>Ingested Medical Archives ({patientDocs.length}):</strong>
-                <ul style={{ margin: "6px 0 0 0", paddingLeft: "16px" }}>
+                <strong style={{ color: "var(--primary)" }}>Patient Reports ({patientDocs.length}):</strong>
+                <ul style={{ margin: "6px 0 0 0", paddingLeft: "16px", display: "flex", flexDirection: "column", gap: "8px" }}>
                   {patientDocs.map(doc => (
-                    <li key={doc.id}>{doc.original_filename} ({doc.document_type})</li>
+                    <li key={doc.id}>
+                      <div>{doc.original_filename} ({doc.document_type}) | {doc.status}</div>
+                      {doc.ocr_text && (
+                        <details style={{ marginTop: "4px" }}>
+                          <summary style={{ color: "var(--primary)", cursor: "pointer" }}>View extracted report text</summary>
+                          <pre style={{ whiteSpace: "pre-wrap", background: "rgba(0,0,0,0.35)", padding: "8px", borderRadius: "6px", marginTop: "4px", maxHeight: "180px", overflowY: "auto" }}>{doc.ocr_text}</pre>
+                        </details>
+                      )}
+                    </li>
                   ))}
                 </ul>
               </div>
+            )}
+            {patientDocs && patientDocs.length === 0 && (
+              <div style={{ marginTop: "10px", color: "var(--muted)" }}>No reports found for this patient.</div>
             )}
           </div>
         )}
@@ -362,7 +378,7 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
 
       {/* Release Slots */}
       <div className="card">
-        <h3 style={{ fontSize: "1rem", marginBottom: "12px" }}>Release Telehealth Consultation Slots</h3>
+        <h3 style={{ fontSize: "1rem", marginBottom: "12px" }}>Release Availability Window</h3>
         <form onSubmit={handleReleaseSlot} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
             <div>
@@ -370,13 +386,10 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
               <input type="date" value={slotDate} onChange={e => setSlotDate(e.target.value)} className="input" required />
             </div>
             <div>
-              <label className="label">Session Duration</label>
+              <label className="label">Consultation Duration</label>
               <select
                 value={slotDurationMinutes}
-                onChange={e => {
-                  setSlotDurationMinutes(e.target.value);
-                  updateSlotEndFromDuration(slotStartTime, e.target.value);
-                }}
+                onChange={e => setSlotDurationMinutes(e.target.value)}
                 className="input"
               >
                 <option value="15">15 minutes</option>
@@ -389,15 +402,21 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
             <div>
               <label className="label">Start Time</label>
-              <input type="time" value={slotStartTime} onChange={e => updateSlotEndFromDuration(e.target.value, slotDurationMinutes)} className="input" required />
+              <input type="time" value={slotStartTime} onChange={e => updateSlotStart(e.target.value)} className="input" required />
             </div>
             <div>
-              <label className="label">Consultation Fee (INR)</label>
-              <input type="text" value={slotFee} onChange={e => setSlotFee(e.target.value)} className="input" required />
+              <label className="label">Available Until</label>
+              <input type="time" value={slotEndTime} onChange={e => setSlotEndTime(e.target.value)} className="input" required />
             </div>
           </div>
-          <p style={{ color: "var(--muted)", fontSize: "0.78rem" }}>Slot window: {slotStartTime} - {slotEndTime}</p>
-          <button type="submit" className="button" style={{ alignSelf: "flex-end", marginTop: "10px" }}>Release Slot</button>
+          <div>
+              <label className="label">Consultation Fee (INR)</label>
+              <input type="text" value={slotFee} onChange={e => setSlotFee(e.target.value)} className="input" required />
+          </div>
+          <p style={{ color: "var(--muted)", fontSize: "0.78rem" }}>
+            This will create {previewSlotCount()} patient-selectable slots from {slotStartTime} to {slotEndTime}.
+          </p>
+          <button type="submit" className="button" style={{ alignSelf: "flex-end", marginTop: "10px" }}>Release Slots</button>
         </form>
       </div>
 

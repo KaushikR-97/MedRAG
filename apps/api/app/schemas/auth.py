@@ -29,6 +29,7 @@ class AuthResponse(BaseModel):
 class LoginResponse(BaseModel):
     mfa_required: bool = False
     mfa_token: str | None = None
+    simulated_otp: str | None = None
     access_token: str | None = None
     refresh_token: str | None = None
     token_type: str = "bearer"
@@ -72,4 +73,3 @@ class ResetPasswordRequest(BaseModel):
 
 class TokenRefreshRequest(BaseModel):
     refresh_token: str
-

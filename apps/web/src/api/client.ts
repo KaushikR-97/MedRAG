@@ -9,6 +9,7 @@ export type AuthResponse = {
 export type LoginResponse = {
   mfa_required: boolean;
   mfa_token: string;
+  simulated_otp?: string | null;
 };
 
 export type SourceSnippet = {
@@ -665,6 +666,7 @@ export const api = {
       date: string;
       start_time: string;
       end_time: string;
+      slot_duration_minutes?: number;
       consultation_mode?: string;
       capacity?: number;
       consultation_fee?: number;

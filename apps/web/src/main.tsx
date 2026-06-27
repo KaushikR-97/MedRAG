@@ -228,6 +228,12 @@ function App() {
   }, [token]);
 
   useEffect(() => {
+    if (!token) return;
+    const timer = window.setInterval(refreshAppointments, 10000);
+    return () => window.clearInterval(timer);
+  }, [token]);
+
+  useEffect(() => {
     if (!token || !session) return;
     let cancelled = false;
     api.getMe(token)

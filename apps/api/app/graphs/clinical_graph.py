@@ -312,7 +312,16 @@ class ClinicalRagGraph:
         question = state.get("question", "").lower()
         user_role = state.get("user_role", "patient")
 
-        if user_role == "doctor" and "fever" in question and any(term in question for term in ["medicine", "medicines", "give", "prescribe", "drug"]):
+        if user_role == "doctor" and any(term in question for term in ["uric acid", "gout", "hyperuricemia"]):
+            aggregated_answer = (
+                "For high uric acid, first confirm whether the patient has asymptomatic hyperuricemia, acute gout, recurrent gout, tophi, uric-acid stones, or CKD.\n\n"
+                "Acute gout flare options:\n"
+                "1. NSAID such as naproxen 500 mg initially, then 250 mg twice daily with food, if no renal disease, ulcer/bleeding risk, anticoagulant use, uncontrolled hypertension, or NSAID allergy.\n"
+                "2. Colchicine 1.2 mg once, then 0.6 mg after 1 hour, then 0.6 mg once or twice daily if appropriate. Avoid or dose-adjust in renal/hepatic impairment and interacting drugs.\n"
+                "3. Oral prednisolone 30-40 mg daily for 3-5 days can be considered when NSAIDs/colchicine are unsuitable.\n\n"
+                "Urate-lowering therapy for recurrent gout/tophi/stones: allopurinol usually starts low, commonly 100 mg daily or lower in CKD, then titrate to serum urate target under monitoring. Provide flare prophylaxis when starting ULT. Do not start ULT solely for an isolated mildly high uric acid without clinical indication."
+            )
+        elif user_role == "doctor" and "fever" in question and any(term in question for term in ["medicine", "medicines", "give", "prescribe", "drug"]):
             aggregated_answer = (
                 "For an uncomplicated adult fever, consider:\n\n"
                 "1. Paracetamol/acetaminophen 500-650 mg orally every 6 hours as needed. "
@@ -337,6 +346,11 @@ class ClinicalRagGraph:
                 policy_instruction="Return only the final answer text.",
                 policy_mode="final_answer_only",
             )
+            if len(aggregated_answer.strip()) < 40:
+                aggregated_answer = clinical if len(clinical.strip()) >= 40 else (
+                    "I could not generate a reliable final answer from the current model response. "
+                    "Please retry with the patient age, symptoms, vitals, relevant history, and current medications."
+                )
         return {"answer": aggregated_answer}
 
     def _validate_citations(self, state: ClinicalGraphState) -> ClinicalGraphState:

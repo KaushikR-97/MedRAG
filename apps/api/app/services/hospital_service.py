@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time, timedelta
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -58,6 +58,7 @@ class HospitalService:
             raise exc
 
     def create_slot(self, *, admin: User, payload: dict) -> ConsultationSlot:
+        duration_minutes = int(payload.pop("slot_duration_minutes", 0) or 0)
         if admin.role == "doctor":
             payload["doctor_id"] = admin.id
             if not payload.get("hospital_id") or payload.get("hospital_id") == "personal":
@@ -85,28 +86,58 @@ class HospitalService:
                 payload["consultation_fee"] = assignment.consultation_fee or 0.0
         
         try:
-            overlapping_slot = (
-                self.db.query(ConsultationSlot)
-                .filter(
-                    ConsultationSlot.doctor_id == payload["doctor_id"],
-                    ConsultationSlot.date == payload["date"],
-                    ConsultationSlot.status == "open",
-                    ConsultationSlot.start_time < payload["end_time"],
-                    ConsultationSlot.end_time > payload["start_time"],
+            slot_payloads = self._expand_slot_window(payload=payload, duration_minutes=duration_minutes)
+            created_slots: list[ConsultationSlot] = []
+            for slot_payload in slot_payloads:
+                overlapping_slot = (
+                    self.db.query(ConsultationSlot)
+                    .filter(
+                        ConsultationSlot.doctor_id == slot_payload["doctor_id"],
+                        ConsultationSlot.date == slot_payload["date"],
+                        ConsultationSlot.status == "open",
+                        ConsultationSlot.start_time < slot_payload["end_time"],
+                        ConsultationSlot.end_time > slot_payload["start_time"],
+                    )
+                    .first()
                 )
-                .first()
-            )
-            if overlapping_slot is not None:
-                raise ValueError("Doctor already has an overlapping availability window")
-            slot = ConsultationSlot(id=str(uuid.uuid4()), **payload)
-            self.db.add(slot)
+                if overlapping_slot is not None:
+                    raise ValueError("Doctor already has an overlapping availability window")
+                slot = ConsultationSlot(id=str(uuid.uuid4()), **slot_payload)
+                self.db.add(slot)
+                created_slots.append(slot)
             self.db.commit()
-            self.db.refresh(slot)
-            return slot
+            self.db.refresh(created_slots[0])
+            return created_slots[0]
         except Exception as exc:
             self.db.rollback()
             raise exc
-        return slot
+
+    @staticmethod
+    def _expand_slot_window(*, payload: dict, duration_minutes: int) -> list[dict]:
+        if duration_minutes <= 0:
+            return [payload]
+        try:
+            start_clock = time.fromisoformat(payload["start_time"])
+            end_clock = time.fromisoformat(payload["end_time"])
+        except ValueError as exc:
+            raise ValueError("Start time and end time must use HH:MM format") from exc
+
+        cursor = datetime.combine(datetime(2000, 1, 1), start_clock)
+        window_end = datetime.combine(datetime(2000, 1, 1), end_clock)
+        if window_end <= cursor:
+            raise ValueError("End time must be after start time")
+
+        slots = []
+        while cursor + timedelta(minutes=duration_minutes) <= window_end:
+            next_end = cursor + timedelta(minutes=duration_minutes)
+            slot_payload = dict(payload)
+            slot_payload["start_time"] = cursor.time().strftime("%H:%M")
+            slot_payload["end_time"] = next_end.time().strftime("%H:%M")
+            slots.append(slot_payload)
+            cursor = next_end
+        if not slots:
+            raise ValueError("Availability window is shorter than the consultation duration")
+        return slots
 
     def list_hospitals(self, *, city: str = "", speciality: str = "") -> list[Hospital]:
         query = self.db.query(Hospital).filter(Hospital.active.is_(True))

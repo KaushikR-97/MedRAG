@@ -204,6 +204,7 @@ def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)
     return LoginResponse(
         mfa_required=True,
         mfa_token=mfa_token,
+        simulated_otp=mfa_otp if settings.environment.lower() != "production" else None,
     )
 
 

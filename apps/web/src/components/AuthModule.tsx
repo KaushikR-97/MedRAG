@@ -9,6 +9,7 @@ type AuthModuleProps = {
 export const AuthModule: React.FC<AuthModuleProps> = ({ onLoginSuccess }) => {
   const [mode, setMode] = useState<"login" | "register" | "forgot" | "mfa">("login");
   const [mfaToken, setMfaToken] = useState("");
+  const [simulatedMfaOtp, setSimulatedMfaOtp] = useState("");
   const [email, setEmail] = useState("patient@example.com");
   const [password, setPassword] = useState("StrongPass123");
   const [fullName, setFullName] = useState("Demo Patient");
@@ -37,9 +38,10 @@ export const AuthModule: React.FC<AuthModuleProps> = ({ onLoginSuccess }) => {
       const res = await api.login({ email, password });
       if (res.mfa_required) {
         setMfaToken(res.mfa_token);
+        setSimulatedMfaOtp(res.simulated_otp || "");
         setMode("mfa");
         setOtp(""); // Reset OTP input for the verification screen
-        setSuccess("2-Factor Challenge: A 6-digit OTP code has been generated. Please check your simulated OTP in the server CLI/logs or developer tools.");
+        setSuccess(res.simulated_otp ? `Demo OTP: ${res.simulated_otp}` : "2-Factor Challenge: Check backend logs for the OTP.");
       } else {
         onLoginSuccess(res as any, (res as any).access_token);
       }
@@ -233,6 +235,11 @@ export const AuthModule: React.FC<AuthModuleProps> = ({ onLoginSuccess }) => {
         <form onSubmit={handleMfaVerify} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div>
             <label className="label">6-Digit Verification Code (OTP)</label>
+            {simulatedMfaOtp && (
+              <div className="toast toast-success" style={{ marginBottom: "10px" }}>
+                Demo OTP: <strong>{simulatedMfaOtp}</strong>
+              </div>
+            )}
             <input 
               type="text" 
               value={otp} 
