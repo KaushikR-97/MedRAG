@@ -17,6 +17,7 @@ export const AdminHospitalModule: React.FC<AdminHospitalModuleProps> = ({ token 
   const [doctorPhone, setDoctorPhone] = useState("+919999977777");
   const [registrationNumber, setRegistrationNumber] = useState("KMC-12345");
   const [fee, setFee] = useState("500");
+  const [ambulanceRequests, setAmbulanceRequests] = useState<any[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -30,8 +31,20 @@ export const AdminHospitalModule: React.FC<AdminHospitalModuleProps> = ({ token 
     }
   };
 
+  const refreshAmbulanceRequests = async () => {
+    try {
+      const requests = await api.listAmbulanceRequests(token, "requested");
+      setAmbulanceRequests(requests);
+    } catch (err: any) {
+      setError(err.message || "Could not load ambulance requests");
+    }
+  };
+
   useEffect(() => {
     refreshHospitals();
+    refreshAmbulanceRequests();
+    const timer = window.setInterval(refreshAmbulanceRequests, 10000);
+    return () => window.clearInterval(timer);
   }, []);
 
   const createDepartment = async (event: React.FormEvent) => {
@@ -66,6 +79,18 @@ export const AdminHospitalModule: React.FC<AdminHospitalModuleProps> = ({ token 
       setMessage("Doctor created with default password StrongPass123 and assigned to department.");
     } catch (err: any) {
       setError(err.message || "Could not create doctor");
+    }
+  };
+
+  const dispatchAmbulance = async (requestId: string) => {
+    setError("");
+    setMessage("");
+    try {
+      const result = await api.dispatchAmbulanceRequest(token, requestId);
+      setMessage(`Ambulance dispatched. Provider reference: ${result.provider_reference}, ETA: ${result.eta}`);
+      await refreshAmbulanceRequests();
+    } catch (err: any) {
+      setError(err.message || "Could not dispatch ambulance");
     }
   };
 
@@ -137,6 +162,46 @@ export const AdminHospitalModule: React.FC<AdminHospitalModuleProps> = ({ token 
             </div>
           );
         })}
+      </div>
+
+      <div className="card">
+        <h3 style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "1rem", marginBottom: "12px" }}>
+          <ClipboardList size={18} style={{ color: "var(--primary)" }} />
+          Ambulance Requests
+        </h3>
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "340px", overflowY: "auto" }}>
+          {ambulanceRequests.length === 0 ? (
+            <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>No pending ambulance requests.</p>
+          ) : (
+            ambulanceRequests.map((request) => (
+              <div key={request.id} style={{ border: "1px solid rgba(231,76,60,0.22)", background: "rgba(231,76,60,0.06)", borderRadius: "8px", padding: "12px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+                  <div>
+                    <strong>{request.patient_name}</strong>
+                    <div style={{ color: "var(--muted)", fontSize: "0.78rem", marginTop: "4px" }}>
+                      {request.hospital_name} | {request.created_at}
+                    </div>
+                  </div>
+                  <button className="button" style={{ background: "#e74c3c" }} onClick={() => dispatchAmbulance(request.id)}>
+                    Approve & Dispatch
+                  </button>
+                </div>
+                <div style={{ marginTop: "8px", fontSize: "0.82rem" }}>
+                  <div><strong>Symptoms:</strong> {request.symptoms}</div>
+                  <div><strong>Location:</strong> {request.location_text}</div>
+                  {request.latitude && request.longitude && (
+                    <div>
+                      <strong>GPS:</strong>{" "}
+                      <a href={`https://www.google.com/maps?q=${request.latitude},${request.longitude}`} target="_blank" rel="noreferrer" style={{ color: "var(--primary)" }}>
+                        {request.latitude}, {request.longitude}
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

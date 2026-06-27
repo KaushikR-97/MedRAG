@@ -919,14 +919,40 @@ export const api = {
       token,
     );
   },
-  dispatchAmbulance(token: string, payload: { symptoms: string; location_text: string }) {
+  dispatchAmbulance(token: string, payload: { symptoms: string; location_text: string; hospital_id?: string; latitude?: number; longitude?: number }) {
     return request<{
+      request_id: string;
       booking_reference: string;
       status: string;
       eta: string;
       symptoms: string;
       location: string;
+      latitude?: number;
+      longitude?: number;
     }>("/patient/ambulance/dispatch", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  listAmbulanceRequests(token: string, status = "requested") {
+    return request<Array<{
+      id: string;
+      patient_id: string;
+      patient_name: string;
+      hospital_id: string | null;
+      hospital_name: string;
+      symptoms: string;
+      location_text: string;
+      latitude: number | null;
+      longitude: number | null;
+      status: string;
+      provider_reference: string;
+      created_at: string;
+    }>>(`/hospitals/ambulance/requests?status=${encodeURIComponent(status)}`, {}, token);
+  },
+  dispatchAmbulanceRequest(token: string, requestId: string) {
+    return request<{ id: string; status: string; provider_reference: string; eta: string }>(
+      `/hospitals/ambulance/requests/${encodeURIComponent(requestId)}/dispatch`,
+      { method: "POST" },
+      token,
+    );
   },
   createMedicationReminder(token: string, payload: { medicine_name: string; dosage: string; schedule: string; patient_id?: string }) {
     return request<{ id: string; active: boolean }>("/patient/medication-reminders", {

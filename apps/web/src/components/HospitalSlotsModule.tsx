@@ -30,6 +30,8 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
   // Ambulance Dispatch States
   const [symptoms, setSymptoms] = useState("Sudden chest pressure and dizziness");
   const [locationText, setLocationText] = useState("102, Residency Road, Richmond Town, Bengaluru");
+  const [locationCoords, setLocationCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [ambulanceHospitalId, setAmbulanceHospitalId] = useState("");
   const [ambulanceResult, setAmbulanceResult] = useState<any | null>(null);
   const [ambulanceLoading, setAmbulanceLoading] = useState(false);
 
@@ -40,6 +42,9 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
     try {
       const hospRes = await api.listHospitals();
       setHospitals(hospRes);
+      if (!ambulanceHospitalId && hospRes.length) {
+        setAmbulanceHospitalId(hospRes[0].id);
+      }
       
       const docRes = await api.listDoctorsByCity(searchCity, selectedSpecialty);
       setDoctors(docRes);
@@ -104,14 +109,40 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
     setError("");
     setAmbulanceResult(null);
     try {
-      const res = await api.dispatchAmbulance(token, { symptoms, location_text: locationText });
+      const res = await api.dispatchAmbulance(token, {
+        symptoms,
+        location_text: locationText,
+        hospital_id: ambulanceHospitalId || undefined,
+        latitude: locationCoords?.latitude,
+        longitude: locationCoords?.longitude,
+      });
       setAmbulanceResult(res);
-      setSuccess("Ambulance dispatched! Help is on the way.");
+      setSuccess("Ambulance request sent to selected hospital admin for dispatch approval.");
     } catch (err: any) {
       setError(err.message || "Ambulance booking failed");
     } finally {
       setAmbulanceLoading(false);
     }
+  };
+
+  const useCurrentLocation = () => {
+    setError("");
+    if (!navigator.geolocation) {
+      setError("Location service is not available on this device/browser.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coords = {
+          latitude: Number(position.coords.latitude.toFixed(6)),
+          longitude: Number(position.coords.longitude.toFixed(6)),
+        };
+        setLocationCoords(coords);
+        setLocationText(`GPS: ${coords.latitude}, ${coords.longitude}`);
+      },
+      (err) => setError(err.message || "Could not access location service"),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
+    );
   };
 
   return (
@@ -218,6 +249,15 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
             </h3>
             <form onSubmit={handleAmbulanceDispatch} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <div>
+                <label className="label" style={{ color: "#e74c3c" }}>Hospital to Request</label>
+                <select value={ambulanceHospitalId} onChange={e => setAmbulanceHospitalId(e.target.value)} className="input" style={{ borderColor: "rgba(231,76,60,0.3)" }} required>
+                  <option value="">Select hospital</option>
+                  {hospitals.map((hospital) => (
+                    <option key={hospital.id} value={hospital.id}>{hospital.name} - {hospital.city}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="label" style={{ color: "#e74c3c" }}>Symptoms</label>
                 <input type="text" value={symptoms} onChange={e => setSymptoms(e.target.value)} className="input" style={{ borderColor: "rgba(231,76,60,0.3)" }} required />
               </div>
@@ -225,14 +265,17 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
                 <label className="label" style={{ color: "#e74c3c" }}>Dispatch Address</label>
                 <input type="text" value={locationText} onChange={e => setLocationText(e.target.value)} className="input" style={{ borderColor: "rgba(231,76,60,0.3)" }} required />
               </div>
+              <button type="button" onClick={useCurrentLocation} className="button-sec" style={{ borderColor: "rgba(231,76,60,0.35)" }}>
+                Use Current GPS Location
+              </button>
               <button type="submit" className="button" disabled={ambulanceLoading} style={{ background: "#e74c3c", color: "white" }}>
-                {ambulanceLoading ? "Contacting First Responders..." : "🚨 Dispatch Ambulance"}
+                {ambulanceLoading ? "Submitting Request..." : "Request Ambulance"}
               </button>
             </form>
 
             {ambulanceResult && (
               <div style={{ marginTop: "12px", background: "rgba(0,0,0,0.3)", padding: "8px", borderRadius: "6px", fontSize: "0.75rem", color: "#e74c3c" }}>
-                <strong>Booking Ref:</strong> {ambulanceResult.booking_reference} | <strong>Status:</strong> Dispatched | <strong>ETA:</strong> {ambulanceResult.eta}
+                <strong>Request ID:</strong> {ambulanceResult.request_id} | <strong>Status:</strong> {ambulanceResult.status} | <strong>ETA:</strong> {ambulanceResult.eta}
               </div>
             )}
           </div>

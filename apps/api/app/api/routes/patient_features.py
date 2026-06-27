@@ -460,6 +460,9 @@ from pydantic import BaseModel
 class AmbulanceDispatchCreate(BaseModel):
     symptoms: str
     location_text: str
+    hospital_id: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
 @router.post("/ambulance/dispatch")
 def dispatch_ambulance(
@@ -473,22 +476,18 @@ def dispatch_ambulance(
     if user.role != "patient":
         raise HTTPException(403, "Only patients can request ambulance dispatches")
         
-    dispatch_service = AmbulanceDispatchService()
-    ref = dispatch_service.request_dispatch(
-        patient_id=user.id,
-        symptoms=payload.symptoms,
-        location_text=payload.location_text,
-    )
-    
     dispatch_rec = EmergencyDispatchRequest(
         id=str(uuid.uuid4()),
         patient_id=user.id,
         actor_id=user.id,
+        hospital_id=payload.hospital_id,
         symptoms=payload.symptoms,
         severity=10,
         location_text=payload.location_text,
-        status="dispatched",
-        provider_reference=ref,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        status="requested",
+        provider_reference="",
         safety_label="urgent_escalation",
         created_at=datetime.now(UTC),
     )
@@ -496,11 +495,14 @@ def dispatch_ambulance(
     db.commit()
     
     return {
-        "booking_reference": ref,
-        "status": "dispatched",
-        "eta": "8 minutes",
+        "request_id": dispatch_rec.id,
+        "booking_reference": "",
+        "status": "requested",
+        "eta": "Pending hospital dispatch approval",
         "symptoms": payload.symptoms,
         "location": payload.location_text,
+        "latitude": payload.latitude,
+        "longitude": payload.longitude,
     }
 
 @router.get("/medication-reminders")
@@ -526,4 +528,3 @@ def list_reminders(
         }
         for r in reminders
     ]
-

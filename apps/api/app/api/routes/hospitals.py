@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.security import get_current_user, require_role, hash_password, generate_12_digit_id
 from app.db.session import get_db
 from app.models.user import User
+from app.models.feature_modules import EmergencyDispatchRequest, Hospital
 from app.schemas.features import (
     AppointmentStatusUpdate,
     ConsultationBookingCreate,
@@ -320,3 +321,65 @@ def list_doctors_by_city(
     except Exception as exc:
         raise HTTPException(400, f"Error listing doctors by city: {str(exc)}\n{traceback.format_exc()}") from exc
 
+
+@router.get("/ambulance/requests")
+def list_ambulance_requests(
+    status: str = Query(default="requested"),
+    admin: User = Depends(require_role("hospital_admin")),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    hospital_ids = [
+        item.id
+        for item in db.query(Hospital).filter(Hospital.admin_user_id == admin.id, Hospital.active.is_(True)).all()
+    ]
+    query = db.query(EmergencyDispatchRequest)
+    if hospital_ids:
+        query = query.filter(EmergencyDispatchRequest.hospital_id.in_(hospital_ids))
+    else:
+        return []
+    if status:
+        query = query.filter(EmergencyDispatchRequest.status == status)
+    rows = query.order_by(EmergencyDispatchRequest.created_at.desc()).limit(100).all()
+    result = []
+    for row in rows:
+        patient = db.get(User, row.patient_id)
+        hospital = db.get(Hospital, row.hospital_id) if row.hospital_id else None
+        rec = _record(row)
+        rec["patient_name"] = patient.full_name if patient else row.patient_id
+        rec["hospital_name"] = hospital.name if hospital else "Unassigned hospital"
+        rec["created_at"] = row.created_at.isoformat() if row.created_at else ""
+        result.append(rec)
+    return result
+
+
+@router.post("/ambulance/requests/{request_id}/dispatch")
+def approve_and_dispatch_ambulance(
+    request_id: str,
+    admin: User = Depends(require_role("hospital_admin")),
+    db: Session = Depends(get_db),
+) -> dict:
+    request_record = db.get(EmergencyDispatchRequest, request_id)
+    if request_record is None:
+        raise HTTPException(404, "Ambulance request not found")
+    hospital = db.get(Hospital, request_record.hospital_id) if request_record.hospital_id else None
+    if hospital is None or hospital.admin_user_id != admin.id:
+        raise HTTPException(403, "Only the selected hospital admin can dispatch this ambulance")
+    if request_record.status != "requested":
+        raise HTTPException(409, f"Ambulance request is already {request_record.status}")
+
+    from app.services.ambulance_service import AmbulanceDispatchService
+    reference = AmbulanceDispatchService().request_dispatch(
+        patient_id=request_record.patient_id,
+        symptoms=request_record.symptoms,
+        location_text=request_record.location_text,
+    )
+    request_record.actor_id = admin.id
+    request_record.status = "dispatched"
+    request_record.provider_reference = reference
+    db.commit()
+    return {
+        "id": request_record.id,
+        "status": request_record.status,
+        "provider_reference": reference,
+        "eta": "8 minutes",
+    }
