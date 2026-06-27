@@ -2,7 +2,7 @@ import base64
 import hashlib
 import json
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -257,11 +257,28 @@ class ConsultationService:
             raise LookupError("Appointment not found")
         if appointment.consultation_mode != "video":
             raise PermissionError("This appointment is not a video consultation")
+        if appointment.status != "confirmed":
+            raise PermissionError("Doctor must confirm the booking before the consultation room opens")
         if actor.id not in {appointment.patient_id, appointment.doctor_id} and actor.role != "hospital_admin":
             raise PermissionError("Only consultation participants can access this room")
         if appointment.status in {"cancelled", "no_show"}:
             raise PermissionError("Consultation is not joinable")
+        if not self._is_appointment_time_window(appointment):
+            raise PermissionError("Video consultation opens only during the booked slot window")
         return appointment
+
+    @staticmethod
+    def _is_appointment_time_window(appointment: Appointment) -> bool:
+        try:
+            start_text, end_text = appointment.time_slot.split("-", 1)
+            start_clock = time.fromisoformat(start_text.strip())
+            end_clock = time.fromisoformat(end_text.strip())
+            start_dt = datetime.fromisoformat(f"{appointment.date}T{start_clock.isoformat()}").replace(tzinfo=UTC)
+            end_dt = datetime.fromisoformat(f"{appointment.date}T{end_clock.isoformat()}").replace(tzinfo=UTC)
+        except ValueError:
+            return False
+        now = datetime.now(UTC)
+        return start_dt - timedelta(minutes=10) <= now <= end_dt + timedelta(minutes=15)
 
     def _get_authorized_room(self, *, room_id: str, actor: User) -> ConsultationRoom:
         room = self.db.get(ConsultationRoom, room_id)

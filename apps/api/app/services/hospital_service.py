@@ -85,6 +85,19 @@ class HospitalService:
                 payload["consultation_fee"] = assignment.consultation_fee or 0.0
         
         try:
+            overlapping_slot = (
+                self.db.query(ConsultationSlot)
+                .filter(
+                    ConsultationSlot.doctor_id == payload["doctor_id"],
+                    ConsultationSlot.date == payload["date"],
+                    ConsultationSlot.status == "open",
+                    ConsultationSlot.start_time < payload["end_time"],
+                    ConsultationSlot.end_time > payload["start_time"],
+                )
+                .first()
+            )
+            if overlapping_slot is not None:
+                raise ValueError("Doctor already has an overlapping availability window")
             slot = ConsultationSlot(id=str(uuid.uuid4()), **payload)
             self.db.add(slot)
             self.db.commit()
@@ -171,7 +184,7 @@ class HospitalService:
             consultation_mode=slot.consultation_mode,
             date=slot.date,
             time_slot=f"{slot.start_time}-{slot.end_time}",
-            status="confirmed",
+            status="requested",
             urgency=urgency,
             notes=notes,
             reason=reason,
@@ -209,6 +222,10 @@ class HospitalService:
                 slot.booked_count = max(0, slot.booked_count - 1)
                 if slot.status == "booked":
                     slot.status = "open"
+        if actor.role == "patient" and status not in {"cancelled"}:
+            raise PermissionError("Patients can only cancel their own appointments")
+        if actor.role == "doctor" and status == "confirmed" and appointment.doctor_id != actor.id:
+            raise PermissionError("Doctor can only confirm own appointments")
         appointment.status = status
         appointment.cancellation_reason = cancellation_reason
         self.db.commit()

@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  Sparkles, FileText, Users, Building2, ShieldCheck, Heart, User, Clock, Globe, AlertTriangle, LucideIcon
+  Sparkles, FileText, Users, Building2, ShieldCheck, Heart, User, Clock, AlertTriangle, LucideIcon
 } from "lucide-react";
 import { api, AuthResponse, AppointmentRecord, ConsultationRoomRecord, ConsultationMessageRecord } from "./api/client";
 import "./styles.css";
@@ -19,6 +19,7 @@ import { PublicHealthModule } from "./components/PublicHealthModule";
 import { UserProfileModule } from "./components/UserProfileModule";
 import { PatientDoctorChatModule } from "./components/PatientDoctorChatModule";
 import { FamilyConsentModule } from "./components/FamilyConsentModule";
+import { AdminHospitalModule } from "./components/AdminHospitalModule";
 import { translations, Language } from "./utils/translations";
 
 const SESSION_STORAGE_KEY = "medrag_session";
@@ -59,13 +60,11 @@ const patientNavItems: NavItem[] = [
   { tab: "chat", label: "Chat With Doctors", icon: Users },
   { tab: "hospitals", label: "Telehealth & Slots", icon: Building2 },
   { tab: "trust", label: "Auditing & Trust", icon: ShieldCheck },
-  { tab: "public-health", label: "Epidemiological Maps", icon: Globe },
 ];
 
 const doctorNavItems: NavItem[] = [
   { tab: "doctor", label: "Doctor Dashboard", icon: Users },
   { tab: "clinical", label: "Clinical AI Assistant", icon: Sparkles },
-  { tab: "documents", label: "Patient Records", icon: FileText },
   { tab: "hospitals", label: "Slots & Appointments", icon: Building2 },
   { tab: "trust", label: "Consent / Break-Glass Audit", icon: ShieldCheck },
 ];
@@ -73,7 +72,7 @@ const doctorNavItems: NavItem[] = [
 const adminNavItems: NavItem[] = [
   { tab: "hospitals", label: "Doctors & Departments", icon: Building2 },
   { tab: "trust", label: "Audit Ledger", icon: ShieldCheck },
-  { tab: "public-health", label: "Epidemiological Maps", icon: Globe },
+  { tab: "public-health", label: "Epidemiological Maps", icon: Building2 },
   { tab: "clinical", label: "Guideline Intelligence", icon: Sparkles },
   { tab: "documents", label: "Document Registry", icon: FileText },
 ];
@@ -536,7 +535,11 @@ function App() {
             onStartVideoCall={setActiveVideoCall}
           />
         )}
-        {currentTab === "hospitals" && <HospitalSlotsModule token={token} sessionRole={session.role} onStartVideoCall={setActiveVideoCall} />}
+        {currentTab === "hospitals" && (
+          session.role === "hospital_admin" || session.role === "admin"
+            ? <AdminHospitalModule token={token} />
+            : <HospitalSlotsModule token={token} sessionRole={session.role} onStartVideoCall={setActiveVideoCall} />
+        )}
         {currentTab === "trust" && <ComplianceModule token={token} sessionRole={session.role} />}
         {currentTab === "public-health" && <PublicHealthModule token={token} />}
         {currentTab === "doctor" && (
@@ -549,6 +552,7 @@ function App() {
             sessionUserName={session.full_name || "Doctor"}
             myAppointments={myAppointmentsList}
             onStartVideoCall={setActiveVideoCall}
+            onAppointmentsChanged={refreshAppointments}
           />
         )}
         {currentTab === "profile" && <UserProfileModule token={token} session={session} onLogout={handleLogout} onProfileUpdate={handleProfileUpdate} />}

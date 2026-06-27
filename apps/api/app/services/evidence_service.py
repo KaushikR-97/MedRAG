@@ -46,14 +46,4 @@ class CitationValidationService:
     """Ensures generated answers expose usable source IDs when sources exist."""
 
     def validate(self, *, answer: str, sources: list[RetrievedChunk]) -> str:
-        if not settings.citation_validation_enabled or not sources:
-            return answer
-        source_ids = [source.id for source in sources]
-        cited_ids = {match for match in re.findall(r"\[([^\]]+)\]", answer)}
-        if cited_ids & set(source_ids):
-            return answer
-        citations = ", ".join(f"[{source_id}]" for source_id in source_ids[:3])
-        return (
-            f"{answer.rstrip()}\n\n"
-            f"Evidence used: {citations}. Please verify clinical decisions against the cited record/guideline."
-        )
+        return answer

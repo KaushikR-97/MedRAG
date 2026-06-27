@@ -12,6 +12,7 @@ type DoctorWorkspaceProps = {
   sessionUserName: string;
   myAppointments: AppointmentRecord[];
   onStartVideoCall: (appt: AppointmentRecord) => void;
+  onAppointmentsChanged: () => void;
 };
 
 export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
@@ -23,6 +24,7 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
   sessionUserName,
   myAppointments,
   onStartVideoCall,
+  onAppointmentsChanged,
 }) => {
   // Patient Search & Record lookup
   const [searchPatientId, setSearchPatientId] = useState("");
@@ -47,6 +49,7 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
   const [slotDate, setSlotDate] = useState("2026-07-01");
   const [slotStartTime, setSlotStartTime] = useState("09:00");
   const [slotEndTime, setSlotEndTime] = useState("10:00");
+  const [slotDurationMinutes, setSlotDurationMinutes] = useState("30");
   const [slotFee, setSlotFee] = useState("500.0");
   
   const [chatInput, setChatInput] = useState("");
@@ -72,7 +75,7 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
   }, [chatMessages, sessionUserId, passphrase]);
 
   useEffect(() => {
-    if (!activeChatAppointment) {
+    if (!activeChatAppointment || !isVideoJoinLive(activeChatAppointment)) {
       setServerMessages([]);
       return;
     }
@@ -162,14 +165,51 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
         department_id: "personal"
       });
       setSuccess("Consultation slot successfully released to patients!");
+      onAppointmentsChanged();
     } catch (err: any) {
       setError(err.message || "Slot creation failed");
     }
   };
 
+  const updateSlotEndFromDuration = (startTime: string, durationMinutes: string) => {
+    setSlotStartTime(startTime);
+    const [hour, minute] = startTime.split(":").map(Number);
+    const duration = Number(durationMinutes);
+    if (Number.isNaN(hour) || Number.isNaN(minute) || Number.isNaN(duration)) return;
+    const start = new Date(2000, 0, 1, hour, minute);
+    start.setMinutes(start.getMinutes() + duration);
+    setSlotEndTime(start.toTimeString().slice(0, 5));
+  };
+
+  const handleConfirmAppointment = async (appt: AppointmentRecord) => {
+    setError("");
+    setSuccess("");
+    try {
+      await api.updateAppointmentStatus(token, appt.id, { status: "confirmed" });
+      setSuccess("Booking confirmed. Patient can join video only during the booked slot window.");
+      onAppointmentsChanged();
+    } catch (err: any) {
+      setError(err.message || "Could not confirm booking");
+    }
+  };
+
+  const isVideoJoinLive = (appt: AppointmentRecord) => {
+    if (appt.status !== "confirmed" || appt.consultation_mode !== "video") return false;
+    const [startText, endText] = appt.time_slot.split("-");
+    const start = new Date(`${appt.date}T${(startText || "").trim()}:00`);
+    const end = new Date(`${appt.date}T${(endText || "").trim()}:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+    const now = new Date();
+    return now.getTime() >= start.getTime() - 10 * 60 * 1000 && now.getTime() <= end.getTime() + 15 * 60 * 1000;
+  };
+
   const handleSendMessage = async () => {
     if (!activeChatRecipient || !chatInput.trim()) return;
     if (activeChatAppointment) {
+      if (!isVideoJoinLive(activeChatAppointment)) {
+        setError("Secure consultation chat opens during the confirmed appointment window.");
+        return;
+      }
       try {
         const sent = await api.sendConsultationMessage(token, activeChatAppointment.id, { body: chatInput.trim() });
         setServerMessages((prev) => [...prev, sent]);
@@ -330,20 +370,33 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
               <input type="date" value={slotDate} onChange={e => setSlotDate(e.target.value)} className="input" required />
             </div>
             <div>
-              <label className="label">Consultation Fee (INR)</label>
-              <input type="text" value={slotFee} onChange={e => setSlotFee(e.target.value)} className="input" required />
+              <label className="label">Session Duration</label>
+              <select
+                value={slotDurationMinutes}
+                onChange={e => {
+                  setSlotDurationMinutes(e.target.value);
+                  updateSlotEndFromDuration(slotStartTime, e.target.value);
+                }}
+                className="input"
+              >
+                <option value="15">15 minutes</option>
+                <option value="30">30 minutes</option>
+                <option value="45">45 minutes</option>
+                <option value="60">60 minutes</option>
+              </select>
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
             <div>
               <label className="label">Start Time</label>
-              <input type="text" value={slotStartTime} onChange={e => setSlotStartTime(e.target.value)} className="input" required />
+              <input type="time" value={slotStartTime} onChange={e => updateSlotEndFromDuration(e.target.value, slotDurationMinutes)} className="input" required />
             </div>
             <div>
-              <label className="label">End Time</label>
-              <input type="text" value={slotEndTime} onChange={e => setSlotEndTime(e.target.value)} className="input" required />
+              <label className="label">Consultation Fee (INR)</label>
+              <input type="text" value={slotFee} onChange={e => setSlotFee(e.target.value)} className="input" required />
             </div>
           </div>
+          <p style={{ color: "var(--muted)", fontSize: "0.78rem" }}>Slot window: {slotStartTime} - {slotEndTime}</p>
           <button type="submit" className="button" style={{ alignSelf: "flex-end", marginTop: "10px" }}>Release Slot</button>
         </form>
       </div>
@@ -361,6 +414,16 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
                     Slot: {appt.time_slot} | Status: {appt.status.toUpperCase()}
                   </div>
                 </div>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                {appt.status === "requested" && (
+                  <button
+                    onClick={() => handleConfirmAppointment(appt)}
+                    className="button"
+                    style={{ padding: "4px 8px", fontSize: "0.75rem" }}
+                  >
+                    Confirm
+                  </button>
+                )}
                 {appt.status === "confirmed" && appt.consultation_mode === "video" && (
                   <div style={{ display: "flex", gap: "6px" }}>
                     <button
@@ -373,11 +436,12 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
                     >
                       Chat
                     </button>
-                    <button onClick={() => onStartVideoCall(appt)} className="button" style={{ background: "#2ecc71", padding: "4px 8px", fontSize: "0.75rem" }}>
+                    <button disabled={!isVideoJoinLive(appt)} onClick={() => onStartVideoCall(appt)} className="button" style={{ background: "#2ecc71", padding: "4px 8px", fontSize: "0.75rem" }}>
                       Start Call
                     </button>
                   </div>
                 )}
+                </div>
               </div>
             ))}
           </div>

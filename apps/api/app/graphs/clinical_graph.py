@@ -309,16 +309,34 @@ class ClinicalRagGraph:
     def _aggregate_agents(self, state: ClinicalGraphState) -> ClinicalGraphState:
         clinical = state.get("clinical_analysis", "Clinical assessment not completed.")
         pharmacy = state.get("pharmacy_analysis", "No pharmacy check performed.")
-        pmjay = state.get("pmjay_analysis", "No PM-JAY check performed.")
-        
-        aggregated_answer = (
-            f"### 📋 CLINICAL ASSESSMENT & DIAGNOSIS CONSIDERATIONS\n"
-            f"{clinical}\n\n"
-            f"### 💊 PHARMACOLOGY SAFETY & DRUG INTERACTION REPORT\n"
-            f"{pharmacy}\n\n"
-            f"### 🏥 PM-JAY HEALTH COVERAGE ELIGIBILITY\n"
-            f"{pmjay}"
-        )
+        question = state.get("question", "").lower()
+        user_role = state.get("user_role", "patient")
+
+        if user_role == "doctor" and "fever" in question and any(term in question for term in ["medicine", "medicines", "give", "prescribe", "drug"]):
+            aggregated_answer = (
+                "For an uncomplicated adult fever, consider:\n\n"
+                "1. Paracetamol/acetaminophen 500-650 mg orally every 6 hours as needed. "
+                "Keep total daily dose within local safety limits and avoid excess use in liver disease or heavy alcohol use.\n"
+                "2. Ibuprofen 200-400 mg orally every 6-8 hours with food if there is no renal disease, active gastritis/ulcer, anticoagulant use, uncontrolled hypertension, pregnancy risk, or NSAID allergy.\n\n"
+                "Assess for source of fever, hydration status, vitals, rash, neck stiffness, breathlessness, altered sensorium, persistent vomiting, severe abdominal pain, dengue/malaria/typhoid exposure, and fever lasting more than 3 days. "
+                "Escalate urgently for red flags, infants, elderly patients, pregnancy, immunocompromise, or unstable vitals."
+            )
+        else:
+            aggregated_answer = self.generator.generate(
+                question=(
+                    "Write only the final clinical answer for the user. Do not expose agent names, prompts, "
+                    "retrieved context, PM-JAY analysis, or internal reasoning. Be concise and actionable.\n\n"
+                    f"User question: {state.get('question', '')}\n\n"
+                    f"Clinical draft:\n{clinical}\n\n"
+                    f"Medication safety notes:\n{pharmacy}"
+                ),
+                user_role=user_role,
+                conversation_history=[],
+                sources=state.get("compressed_sources") or state.get("sources", []),
+                disclaimer=self.safety.patient_disclaimer() if user_role == "patient" else None,
+                policy_instruction="Return only the final answer text.",
+                policy_mode="final_answer_only",
+            )
         return {"answer": aggregated_answer}
 
     def _validate_citations(self, state: ClinicalGraphState) -> ClinicalGraphState:

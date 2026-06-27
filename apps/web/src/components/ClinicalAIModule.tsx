@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Sparkles, FileText, AlertOctagon, CheckCircle } from "lucide-react";
+import { Sparkles, AlertOctagon, CheckCircle } from "lucide-react";
 import { api, ClinicalAnswer } from "../api/client";
 
 type ClinicalAIModuleProps = {
@@ -44,8 +44,7 @@ export const ClinicalAIModule: React.FC<ClinicalAIModuleProps> = ({ token, patie
           Clinical AI Assistant & Diagnostic Assistant
         </h3>
         <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginBottom: "16px" }}>
-          Query guidelines, patient onboarding profiles, and UMLS/SNOMED-CT clinical relation maps.
-          Uses a LangGraph multi-agent pipeline (Clinical, Pharmacology, and Coverage).
+          Ask for a concise clinical answer. Internal retrieval and safety checks stay hidden from the final display.
         </p>
 
         {/* CDSCO / MoHFW Legal Warning Banner */}
@@ -85,7 +84,7 @@ export const ClinicalAIModule: React.FC<ClinicalAIModuleProps> = ({ token, patie
           {/* Main Answer Area */}
           <div className="card" style={{ borderLeft: "4px solid var(--primary)" }}>
             <h4 style={{ fontSize: "1rem", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--primary)" }}>
-              Aggregated Clinical RAG Report
+              Final Clinical Answer
             </h4>
             
             {/* Format paragraphs or sections */}
@@ -116,27 +115,6 @@ export const ClinicalAIModule: React.FC<ClinicalAIModuleProps> = ({ token, patie
               </button>
             </div>
           </div>
-
-          {/* Sources and Citations */}
-          {answer.sources && answer.sources.length > 0 && (
-            <div className="card">
-              <h4 style={{ fontSize: "0.95rem", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
-                <FileText size={16} />
-                Retrieved Context & References ({answer.sources.length})
-              </h4>
-              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                {answer.sources.map((src, idx) => (
-                  <div key={idx} style={{ padding: "12px", background: "rgba(255,255,255,0.02)", borderRadius: "8px", border: "1px solid var(--line)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", fontWeight: 600, color: "var(--primary)", marginBottom: "6px" }}>
-                      <span>{src.title}</span>
-                      <span style={{ opacity: 0.7 }}>Score: {src.score.toFixed(2)}</span>
-                    </div>
-                    <p style={{ fontSize: "0.8rem", color: "var(--muted)", margin: 0, whiteSpace: "pre-wrap" }}>{src.text}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>

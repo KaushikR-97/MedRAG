@@ -81,7 +81,7 @@ export const PatientDoctorChatModule: React.FC<PatientDoctorChatModuleProps> = (
   }, [activeDoctor?.id, chatMessages, passphrase, sessionUserId]);
 
   useEffect(() => {
-    if (!activeDoctor?.appointment) {
+    if (!activeDoctor?.appointment || !isVideoJoinLive(activeDoctor.appointment)) {
       setServerMessages([]);
       return;
     }
@@ -115,6 +115,10 @@ export const PatientDoctorChatModule: React.FC<PatientDoctorChatModuleProps> = (
   const handleSend = async () => {
     if (!activeDoctor || !messageText.trim()) return;
     if (activeDoctor.appointment) {
+      if (!isVideoJoinLive(activeDoctor.appointment)) {
+        setError("Secure consultation chat opens during the confirmed appointment window.");
+        return;
+      }
       try {
         setError("");
         const sent = await api.sendConsultationMessage(token, activeDoctor.appointment.id, { body: messageText.trim() });
@@ -140,6 +144,16 @@ export const PatientDoctorChatModule: React.FC<PatientDoctorChatModuleProps> = (
       },
     ]);
     setMessageText("");
+  };
+
+  const isVideoJoinLive = (appointment?: AppointmentRecord) => {
+    if (!appointment || appointment.status !== "confirmed" || appointment.consultation_mode !== "video") return false;
+    const [startText, endText] = appointment.time_slot.split("-");
+    const start = new Date(`${appointment.date}T${(startText || "").trim()}:00`);
+    const end = new Date(`${appointment.date}T${(endText || "").trim()}:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+    const now = new Date();
+    return now.getTime() >= start.getTime() - 10 * 60 * 1000 && now.getTime() <= end.getTime() + 15 * 60 * 1000;
   };
 
   return (
@@ -178,8 +192,8 @@ export const PatientDoctorChatModule: React.FC<PatientDoctorChatModuleProps> = (
               {activeDoctor?.appointment ? `Appointment ${activeDoctor.appointment.booking_reference}` : "Secure local consult thread"}
             </p>
           </div>
-          {activeDoctor?.appointment?.consultation_mode === "video" && activeDoctor.appointment.status === "confirmed" && (
-            <button className="button" onClick={() => onStartVideoCall(activeDoctor.appointment!)}>
+          {activeDoctor?.appointment && isVideoJoinLive(activeDoctor.appointment) && (
+            <button className="button" onClick={() => activeDoctor.appointment && onStartVideoCall(activeDoctor.appointment)}>
               <Video size={16} />
               Join Video
             </button>

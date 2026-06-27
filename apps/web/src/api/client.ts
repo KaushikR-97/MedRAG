@@ -550,6 +550,13 @@ export const api = {
   listMyAppointments(token: string) {
     return this.listAppointments(token);
   },
+  updateAppointmentStatus(token: string, appointmentId: string, payload: { status: string; cancellation_reason?: string }) {
+    return request<AppointmentRecord>(
+      `/hospitals/appointments/${encodeURIComponent(appointmentId)}`,
+      { method: "PATCH", body: JSON.stringify(payload) },
+      token,
+    );
+  },
   createPrescription(token: string, payload: { patient_id: string; diagnosis: string; medications: string; dosage?: string; duration?: string; instructions?: string; follow_up_date?: string; pmjay_covered?: boolean }) {
     return request<any>("/doctor/prescriptions", { method: "POST", body: JSON.stringify(payload) }, token);
   },

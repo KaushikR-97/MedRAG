@@ -79,13 +79,23 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
         insurance_provider: insuranceProvider,
         insurance_policy_number: insurancePolicyNo
       });
-      setSuccess("Consultation booked successfully!");
+      setSuccess("Booking request sent. The video room opens after the doctor confirms and the slot time begins.");
       setActiveSlotToBook(null);
       setShowRazorpay(false);
       refreshData();
     } catch (err: any) {
       setError(err.message || "Failed to book appointment");
     }
+  };
+
+  const isVideoJoinLive = (appt: AppointmentRecord) => {
+    if (appt.status !== "confirmed" || appt.consultation_mode !== "video") return false;
+    const [startText, endText] = appt.time_slot.split("-");
+    const start = new Date(`${appt.date}T${(startText || "").trim()}:00`);
+    const end = new Date(`${appt.date}T${(endText || "").trim()}:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+    const now = new Date();
+    return now.getTime() >= start.getTime() - 10 * 60 * 1000 && now.getTime() <= end.getTime() + 15 * 60 * 1000;
   };
 
   const handleAmbulanceDispatch = async (e: React.FormEvent) => {
@@ -178,14 +188,18 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
                 <div>
                   <span style={{ fontWeight: 600 }}>Ref: {appt.booking_reference}</span>
                   <div style={{ color: "var(--muted)", marginTop: "2px" }}>
-                    Date: {appt.date} | Slot: {appt.time_slot} | Mode: {appt.consultation_mode.toUpperCase()}
+                    Date: {appt.date} | Slot: {appt.time_slot} | Mode: {appt.consultation_mode.toUpperCase()} | Status: {appt.status.toUpperCase()}
                   </div>
                 </div>
-                {appt.consultation_mode === "video" && appt.status === "confirmed" && (
+                {isVideoJoinLive(appt) ? (
                   <button onClick={() => onStartVideoCall(appt)} className="button" style={{ background: "#2ecc71", padding: "4px 8px", fontSize: "0.75rem" }}>
                     Join Video
                   </button>
-                )}
+                ) : appt.consultation_mode === "video" ? (
+                  <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>
+                    {appt.status === "requested" ? "Awaiting doctor confirmation" : "Opens at slot time"}
+                  </span>
+                ) : null}
               </div>
             ))}
             {appointments.length === 0 && (
