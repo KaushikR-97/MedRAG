@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import create_access_token, create_refresh_token, hash_password, verify_password, get_current_user, generate_12_digit_id
 from app.db.session import get_db
+from app.models.feature_modules import Hospital
 from app.models.jobs import IngestionJob
 from app.models.patient import PatientProfile
 from app.models.user import User
@@ -31,6 +32,29 @@ from app.services.document_service import DocumentService
 from app.services.ingestion_service import IngestionService
 
 router = APIRouter()
+
+
+def _ensure_role_directory_records(db: Session, user: User) -> None:
+    if user.role == "hospital_admin":
+        existing = db.query(Hospital).filter(Hospital.admin_user_id == user.id).first()
+        if existing is None:
+            hospital_name = user.full_name if "hospital" in user.full_name.lower() else f"{user.full_name} Hospital"
+            db.add(
+                Hospital(
+                    id=str(uuid.uuid4()),
+                    name=hospital_name,
+                    registration_number=user.registration_number or "",
+                    city=user.city or "",
+                    phone=user.phone or "",
+                    email=user.email,
+                    emergency_phone=user.phone or "",
+                    admin_user_id=user.id,
+                    active=True,
+                )
+            )
+    elif user.role == "doctor":
+        if not user.speciality:
+            user.speciality = "General Physician"
 
 
 @router.post("/register", response_model=AuthResponse)
@@ -58,6 +82,7 @@ def register(request: Request, payload: RegisterRequest, db: Session = Depends(g
     db.add(user)
     if payload.role == "patient":
         db.add(PatientProfile(id=str(uuid.uuid4()), user_id=user.id))
+    _ensure_role_directory_records(db, user)
     db.commit()
 
     return AuthResponse(
@@ -234,6 +259,9 @@ def mfa_verify(
             
         if not verify_login_mfa_otp(user.email, payload.otp):
             raise HTTPException(400, "Invalid or expired MFA verification code")
+
+        _ensure_role_directory_records(db, user)
+        db.commit()
             
         access_tok = create_access_token(user.id, user.role)
         refresh_tok = create_refresh_token(user.id, user.role)

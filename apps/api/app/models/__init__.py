@@ -1,5 +1,5 @@
 from app.models.audit import AuditEvent
-from app.models.compliance import AuditRetentionPolicy, CareTeamMembership, ConsentGrant
+from app.models.compliance import AuditRetentionPolicy, CareTeamMembership, ConsentGrant, PatientAccessRequest
 from app.models.document import MedicalDocument
 from app.models.jobs import AnswerTrace, IngestionJob
 from app.models.model_registry import ModelArtifact, TrainingRun
@@ -66,6 +66,7 @@ __all__ = [
     "OtpCode",
     "PatientProfile",
     "PatientCalendarEvent",
+    "PatientAccessRequest",
     "PregnancyRecord",
     "Prescription",
     "SimulatedWhatsappMessage",

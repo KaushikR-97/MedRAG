@@ -20,6 +20,20 @@ class ConsentGrant(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 
+class PatientAccessRequest(Base):
+    __tablename__ = "patient_access_requests"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    requester_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    scope: Mapped[str] = mapped_column(String(120), index=True)
+    purpose: Mapped[str] = mapped_column(String(160))
+    status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
+    consent_grant_id: Mapped[str | None] = mapped_column(ForeignKey("consent_grants.id"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class CareTeamMembership(Base):
     __tablename__ = "care_team_memberships"
 
@@ -40,4 +54,3 @@ class AuditRetentionPolicy(Base):
     legal_basis: Mapped[str] = mapped_column(String(200))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
-

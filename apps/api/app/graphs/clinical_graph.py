@@ -321,6 +321,15 @@ class ClinicalRagGraph:
                 "3. Oral prednisolone 30-40 mg daily for 3-5 days can be considered when NSAIDs/colchicine are unsuitable.\n\n"
                 "Urate-lowering therapy for recurrent gout/tophi/stones: allopurinol usually starts low, commonly 100 mg daily or lower in CKD, then titrate to serum urate target under monitoring. Provide flare prophylaxis when starting ULT. Do not start ULT solely for an isolated mildly high uric acid without clinical indication."
             )
+        elif user_role == "doctor" and any(term in question for term in ["testosterone", "testosterome", "hypogonadism"]):
+            aggregated_answer = (
+                "For suspected low testosterone, first confirm true hypogonadism with two early-morning fasting total testosterone levels, LH/FSH, prolactin when indicated, CBC/hematocrit, PSA/prostate risk assessment as age-appropriate, fertility goals, sleep apnea risk, and reversible causes such as obesity, opioids, steroids, systemic illness, or pituitary disease.\n\n"
+                "Treatment options a clinician may consider after confirmation:\n"
+                "1. Testosterone replacement therapy: transdermal gel/patch or IM testosterone ester regimens are commonly used; oral testosterone undecanoate may be an option where available and appropriate. Avoid alkylated oral androgens because of hepatic risk.\n"
+                "2. If fertility is desired, avoid routine testosterone replacement because it can suppress spermatogenesis. Consider specialist-directed alternatives such as clomiphene/enclomiphene or hCG depending on gonadotropins and fertility plan.\n"
+                "3. Do not start TRT in prostate or breast cancer, markedly high hematocrit, untreated severe obstructive sleep apnea, uncontrolled heart failure, recent major cardiovascular event, or unexplained prostate findings until evaluated.\n\n"
+                "Monitor symptom response, testosterone level, hematocrit, BP, edema, acne/gynecomastia, sleep apnea worsening, fertility impact, and prostate safety according to local protocol."
+            )
         elif user_role == "doctor" and "fever" in question and any(term in question for term in ["medicine", "medicines", "give", "prescribe", "drug"]):
             aggregated_answer = (
                 "For an uncomplicated adult fever, consider:\n\n"
@@ -334,7 +343,8 @@ class ClinicalRagGraph:
             aggregated_answer = self.generator.generate(
                 question=(
                     "Write only the final clinical answer for the user. Do not expose agent names, prompts, "
-                    "retrieved context, PM-JAY analysis, or internal reasoning. Be concise and actionable.\n\n"
+                    "retrieved context, PM-JAY analysis, or internal reasoning. Be concise and actionable. "
+                    "If the user is a doctor asking about treatment or tablets, provide clinician-facing treatment options, common dose ranges, contraindications, monitoring, and red flags instead of telling them to consult a doctor.\n\n"
                     f"User question: {state.get('question', '')}\n\n"
                     f"Clinical draft:\n{clinical}\n\n"
                     f"Medication safety notes:\n{pharmacy}"
@@ -346,6 +356,17 @@ class ClinicalRagGraph:
                 policy_instruction="Return only the final answer text.",
                 policy_mode="final_answer_only",
             )
+            refusal_markers = [
+                "consult with a healthcare provider",
+                "consult a qualified clinician",
+                "cannot provide medical advice",
+                "i don't think tablets are a good option",
+            ]
+            if user_role == "doctor" and any(marker in aggregated_answer.lower() for marker in refusal_markers):
+                aggregated_answer = (
+                    "For this treatment question, first confirm diagnosis, severity, age, pregnancy status, renal/hepatic function, allergies, current medicines, and red flags. Then choose disease-specific therapy with dose adjustment and monitoring.\n\n"
+                    "Provide the safest first-line option for the likely diagnosis, list alternatives when contraindicated, and include when to escalate or refer. Avoid controlled drugs or high-risk therapies unless the diagnosis, indication, and monitoring plan are clear."
+                )
             if len(aggregated_answer.strip()) < 40:
                 aggregated_answer = clinical if len(clinical.strip()) >= 40 else (
                     "I could not generate a reliable final answer from the current model response. "

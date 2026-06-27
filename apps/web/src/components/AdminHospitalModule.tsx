@@ -18,6 +18,16 @@ export const AdminHospitalModule: React.FC<AdminHospitalModuleProps> = ({ token 
   const [registrationNumber, setRegistrationNumber] = useState("KMC-12345");
   const [fee, setFee] = useState("500");
   const [ambulanceRequests, setAmbulanceRequests] = useState<any[]>([]);
+  const [pharmacyQueue, setPharmacyQueue] = useState<any[]>([]);
+  const [medicineName, setMedicineName] = useState("Paracetamol 500 mg");
+  const [stockCount, setStockCount] = useState("120");
+  const [bedWard, setBedWard] = useState("General Ward");
+  const [bedTotal, setBedTotal] = useState("20");
+  const [bedOccupied, setBedOccupied] = useState("8");
+  const [bedRows, setBedRows] = useState<any[]>([]);
+  const [walkInName, setWalkInName] = useState("Walk-in Patient");
+  const [walkInReason, setWalkInReason] = useState("Fever consultation");
+  const [frontDeskQueue, setFrontDeskQueue] = useState<any[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -94,6 +104,32 @@ export const AdminHospitalModule: React.FC<AdminHospitalModuleProps> = ({ token 
     }
   };
 
+  const addPharmacyCheck = () => {
+    setPharmacyQueue((prev) => [
+      { id: crypto.randomUUID(), medicine: medicineName, stock: Number(stockCount) || 0, status: "Ready for dispense review" },
+      ...prev,
+    ]);
+    setMessage("Pharmacy check queued.");
+  };
+
+  const addBedAllocation = () => {
+    const total = Number(bedTotal) || 0;
+    const occupied = Number(bedOccupied) || 0;
+    setBedRows((prev) => [
+      { id: crypto.randomUUID(), ward: bedWard, total, occupied, available: Math.max(0, total - occupied) },
+      ...prev,
+    ]);
+    setMessage("Bed allocation status updated.");
+  };
+
+  const addWalkInConsult = () => {
+    setFrontDeskQueue((prev) => [
+      { id: crypto.randomUUID(), name: walkInName, reason: walkInReason, status: "Waiting" },
+      ...prev,
+    ]);
+    setMessage("In-person consultation added to front-desk queue.");
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {error && <div className="toast toast-error">{error}</div>}
@@ -145,23 +181,54 @@ export const AdminHospitalModule: React.FC<AdminHospitalModuleProps> = ({ token 
         </form>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
-        {[
-          { icon: Pill, title: "Pharmacy Checks", copy: "Medication inventory, interaction flags, and prescription dispense queue." },
-          { icon: Bed, title: "Bed Allocation", copy: "Ward capacity, admission requests, discharge queue, and bed status." },
-          { icon: ClipboardList, title: "In-Person Consultations", copy: "Front-desk queue, check-in status, walk-ins, and appointment handling." },
-        ].map((item) => {
-          const Icon = item.icon;
-          return (
-            <div className="card" key={item.title}>
-              <h4 style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.95rem", marginBottom: "8px" }}>
-                <Icon size={17} style={{ color: "var(--primary)" }} />
-                {item.title}
-              </h4>
-              <p style={{ color: "var(--muted)", fontSize: "0.82rem" }}>{item.copy}</p>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "16px" }}>
+        <div className="card" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <h4 style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.95rem" }}>
+            <Pill size={17} style={{ color: "var(--primary)" }} />
+            Pharmacy Checks
+          </h4>
+          <input className="input" value={medicineName} onChange={(event) => setMedicineName(event.target.value)} />
+          <input className="input" type="number" value={stockCount} onChange={(event) => setStockCount(event.target.value)} />
+          <button className="button" type="button" onClick={addPharmacyCheck}>Queue Check</button>
+          {pharmacyQueue.slice(0, 3).map((item) => (
+            <div key={item.id} style={{ fontSize: "0.78rem", color: "var(--muted)", borderTop: "1px solid var(--line)", paddingTop: "8px" }}>
+              {item.medicine} | Stock {item.stock} | {item.status}
             </div>
-          );
-        })}
+          ))}
+        </div>
+
+        <div className="card" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <h4 style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.95rem" }}>
+            <Bed size={17} style={{ color: "var(--primary)" }} />
+            Bed Allocation
+          </h4>
+          <input className="input" value={bedWard} onChange={(event) => setBedWard(event.target.value)} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+            <input className="input" type="number" value={bedTotal} onChange={(event) => setBedTotal(event.target.value)} />
+            <input className="input" type="number" value={bedOccupied} onChange={(event) => setBedOccupied(event.target.value)} />
+          </div>
+          <button className="button" type="button" onClick={addBedAllocation}>Update Beds</button>
+          {bedRows.slice(0, 3).map((item) => (
+            <div key={item.id} style={{ fontSize: "0.78rem", color: "var(--muted)", borderTop: "1px solid var(--line)", paddingTop: "8px" }}>
+              {item.ward} | {item.available}/{item.total} available
+            </div>
+          ))}
+        </div>
+
+        <div className="card" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <h4 style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.95rem" }}>
+            <ClipboardList size={17} style={{ color: "var(--primary)" }} />
+            In-Person Consultations
+          </h4>
+          <input className="input" value={walkInName} onChange={(event) => setWalkInName(event.target.value)} />
+          <input className="input" value={walkInReason} onChange={(event) => setWalkInReason(event.target.value)} />
+          <button className="button" type="button" onClick={addWalkInConsult}>Add Walk-In</button>
+          {frontDeskQueue.slice(0, 3).map((item) => (
+            <div key={item.id} style={{ fontSize: "0.78rem", color: "var(--muted)", borderTop: "1px solid var(--line)", paddingTop: "8px" }}>
+              {item.name} | {item.reason} | {item.status}
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="card">

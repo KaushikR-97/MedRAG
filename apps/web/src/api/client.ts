@@ -577,6 +577,43 @@ export const api = {
   ) {
     return request("/compliance/consents", { method: "POST", body: JSON.stringify(payload) }, token);
   },
+  requestPatientAccess(token: string, payload: { patient_id: string; scope?: string; purpose?: string }) {
+    return request<{
+      id: string;
+      patient_id: string;
+      requester_id: string;
+      requester_name: string;
+      requester_role: string;
+      scope: string;
+      purpose: string;
+      status: string;
+      consent_grant_id: string | null;
+      created_at: string;
+      decided_at: string | null;
+    }>("/compliance/access-requests", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  listPatientAccessRequests(token: string, status = "pending") {
+    return request<Array<{
+      id: string;
+      patient_id: string;
+      requester_id: string;
+      requester_name: string;
+      requester_role: string;
+      scope: string;
+      purpose: string;
+      status: string;
+      consent_grant_id: string | null;
+      created_at: string;
+      decided_at: string | null;
+    }>>(`/compliance/access-requests?status=${encodeURIComponent(status)}`, {}, token);
+  },
+  approvePatientAccessRequest(token: string, requestId: string) {
+    return request<{
+      id: string;
+      status: string;
+      consent_grant_id: string | null;
+    }>(`/compliance/access-requests/${encodeURIComponent(requestId)}/approve`, { method: "POST" }, token);
+  },
   listDoctors(params: { city?: string; speciality?: string } = {}) {
     const query = new URLSearchParams();
     if (params.city) query.set("city", params.city);

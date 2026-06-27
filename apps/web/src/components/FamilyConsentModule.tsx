@@ -9,6 +9,7 @@ type FamilyConsentModuleProps = {
 export const FamilyConsentModule: React.FC<FamilyConsentModuleProps> = ({ token }) => {
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [whatsappLogs, setWhatsappLogs] = useState<any[]>([]);
+  const [accessRequests, setAccessRequests] = useState<any[]>([]);
   const [fullName, setFullName] = useState("");
   const [relation, setRelation] = useState("spouse");
   const [age, setAge] = useState("");
@@ -24,8 +25,10 @@ export const FamilyConsentModule: React.FC<FamilyConsentModuleProps> = ({ token 
         api.listFamilyMembers(token),
         api.whatsappLogs(token),
       ]);
+      const requests = await api.listPatientAccessRequests(token, "pending");
       setFamilyMembers(members);
       setWhatsappLogs(logs);
+      setAccessRequests(requests);
     } catch (err: any) {
       setError(err.message || "Could not load family and consent records");
     }
@@ -81,6 +84,18 @@ export const FamilyConsentModule: React.FC<FamilyConsentModuleProps> = ({ token 
       await refreshData();
     } catch (err: any) {
       setError(err.message || "Could not renew consent");
+    }
+  };
+
+  const handleApproveAccess = async (requestId: string) => {
+    setError("");
+    setSuccess("");
+    try {
+      await api.approvePatientAccessRequest(token, requestId);
+      setSuccess("Doctor access approved for 30 days.");
+      await refreshData();
+    } catch (err: any) {
+      setError(err.message || "Could not approve access request");
     }
   };
 
@@ -149,6 +164,25 @@ export const FamilyConsentModule: React.FC<FamilyConsentModuleProps> = ({ token 
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {accessRequests.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "8px" }}>
+              <h4 style={{ fontSize: "0.95rem" }}>Doctor Access Requests</h4>
+              {accessRequests.map((request) => (
+                <div key={request.id} style={{ border: "1px solid rgba(0,169,255,0.28)", borderRadius: "8px", padding: "12px", background: "rgba(0,169,255,0.06)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center" }}>
+                    <div>
+                      <strong>{request.requester_name}</strong>
+                      <div style={{ color: "var(--muted)", fontSize: "0.78rem", marginTop: "3px" }}>
+                        Scope: {request.scope} | Purpose: {request.purpose}
+                      </div>
+                    </div>
+                    <button className="button" onClick={() => handleApproveAccess(request.id)}>Approve</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {familyMembers.length === 0 ? (
             <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>No family members linked yet.</p>
           ) : (

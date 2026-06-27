@@ -4,6 +4,7 @@ import json
 import uuid
 from datetime import UTC, datetime, time, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from cryptography.fernet import Fernet, InvalidToken
 from jose import jwt
@@ -58,6 +59,8 @@ class ConsultationCrypto:
 
 
 class ConsultationService:
+    LOCAL_TZ = ZoneInfo("Asia/Kolkata")
+
     def __init__(self, db: Session, crypto: ConsultationCrypto | None = None) -> None:
         self.db = db
         self.crypto = crypto or ConsultationCrypto()
@@ -273,11 +276,11 @@ class ConsultationService:
             start_text, end_text = appointment.time_slot.split("-", 1)
             start_clock = time.fromisoformat(start_text.strip())
             end_clock = time.fromisoformat(end_text.strip())
-            start_dt = datetime.fromisoformat(f"{appointment.date}T{start_clock.isoformat()}").replace(tzinfo=UTC)
-            end_dt = datetime.fromisoformat(f"{appointment.date}T{end_clock.isoformat()}").replace(tzinfo=UTC)
+            start_dt = datetime.fromisoformat(f"{appointment.date}T{start_clock.isoformat()}").replace(tzinfo=ConsultationService.LOCAL_TZ)
+            end_dt = datetime.fromisoformat(f"{appointment.date}T{end_clock.isoformat()}").replace(tzinfo=ConsultationService.LOCAL_TZ)
         except ValueError:
             return False
-        now = datetime.now(UTC)
+        now = datetime.now(ConsultationService.LOCAL_TZ)
         return start_dt - timedelta(minutes=10) <= now <= end_dt + timedelta(minutes=15)
 
     def _get_authorized_room(self, *, room_id: str, actor: User) -> ConsultationRoom:

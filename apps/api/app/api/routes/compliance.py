@@ -2,11 +2,12 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user, require_role
 from app.db.session import get_db
-from app.models.compliance import CareTeamMembership, ConsentGrant
+from app.models.compliance import CareTeamMembership, ConsentGrant, PatientAccessRequest
 from app.models.user import User
 from app.models.feature_modules import SimulatedWhatsappMessage
 from app.schemas.compliance import (
@@ -30,6 +31,26 @@ RED_TEAM_LOGS = []
 router = APIRouter()
 
 
+class AccessRequestCreate(BaseModel):
+    patient_id: str
+    scope: str = Field(default="all", pattern="^(all|clinical.ask|documents.read|profile.read)$")
+    purpose: str = Field(default="Requested EHR review", min_length=3, max_length=160)
+
+
+class AccessRequestRecord(BaseModel):
+    id: str
+    patient_id: str
+    requester_id: str
+    requester_name: str
+    requester_role: str
+    scope: str
+    purpose: str
+    status: str
+    consent_grant_id: str | None
+    created_at: str
+    decided_at: str | None
+
+
 @router.post("/consents", response_model=ConsentGrantRecord)
 def create_consent(
     payload: ConsentGrantCreate,
@@ -43,6 +64,110 @@ def create_consent(
     db.commit()
     db.refresh(grant)
     return ConsentGrantRecord.model_validate(grant, from_attributes=True)
+
+
+@router.post("/access-requests", response_model=AccessRequestRecord)
+def request_patient_access(
+    payload: AccessRequestCreate,
+    user: User = Depends(require_role("doctor", "hospital_admin")),
+    db: Session = Depends(get_db),
+) -> AccessRequestRecord:
+    patient = db.get(User, payload.patient_id)
+    if patient is None or patient.role != "patient":
+        raise HTTPException(404, "Patient not found")
+    existing = (
+        db.query(PatientAccessRequest)
+        .filter(
+            PatientAccessRequest.patient_id == payload.patient_id,
+            PatientAccessRequest.requester_id == user.id,
+            PatientAccessRequest.scope == payload.scope,
+            PatientAccessRequest.status == "pending",
+        )
+        .first()
+    )
+    if existing is not None:
+        return _access_request_record(existing, user)
+    access_request = PatientAccessRequest(
+        id=str(uuid.uuid4()),
+        patient_id=payload.patient_id,
+        requester_id=user.id,
+        scope=payload.scope,
+        purpose=payload.purpose,
+        status="pending",
+        created_at=datetime.now(UTC),
+    )
+    db.add(access_request)
+    db.commit()
+    db.refresh(access_request)
+    return _access_request_record(access_request, user)
+
+
+@router.get("/access-requests", response_model=list[AccessRequestRecord])
+def list_access_requests(
+    status: str = "pending",
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[AccessRequestRecord]:
+    query = db.query(PatientAccessRequest)
+    if user.role == "patient":
+        query = query.filter(PatientAccessRequest.patient_id == user.id)
+    elif user.role in {"doctor", "hospital_admin"}:
+        query = query.filter(PatientAccessRequest.requester_id == user.id)
+    else:
+        raise HTTPException(403, "Unsupported role")
+    if status:
+        query = query.filter(PatientAccessRequest.status == status)
+    rows = query.order_by(PatientAccessRequest.created_at.desc()).limit(100).all()
+    requesters = {row.requester_id: db.get(User, row.requester_id) for row in rows}
+    return [_access_request_record(row, requesters.get(row.requester_id)) for row in rows]
+
+
+@router.post("/access-requests/{request_id}/approve", response_model=AccessRequestRecord)
+def approve_access_request(
+    request_id: str,
+    user: User = Depends(require_role("patient")),
+    db: Session = Depends(get_db),
+) -> AccessRequestRecord:
+    access_request = db.get(PatientAccessRequest, request_id)
+    if access_request is None:
+        raise HTTPException(404, "Access request not found")
+    if access_request.patient_id != user.id:
+        raise HTTPException(403, "Only the patient can approve this request")
+    if access_request.status != "pending":
+        requester = db.get(User, access_request.requester_id)
+        return _access_request_record(access_request, requester)
+    grant = ConsentGrant(
+        id=str(uuid.uuid4()),
+        patient_id=user.id,
+        grantee_id=access_request.requester_id,
+        scope=access_request.scope,
+        purpose=access_request.purpose,
+        expires_at=datetime.now(UTC) + timedelta(days=30),
+    )
+    access_request.status = "approved"
+    access_request.decided_at = datetime.now(UTC)
+    access_request.consent_grant_id = grant.id
+    db.add(grant)
+    db.commit()
+    db.refresh(access_request)
+    requester = db.get(User, access_request.requester_id)
+    return _access_request_record(access_request, requester)
+
+
+def _access_request_record(access_request: PatientAccessRequest, requester: User | None) -> AccessRequestRecord:
+    return AccessRequestRecord(
+        id=access_request.id,
+        patient_id=access_request.patient_id,
+        requester_id=access_request.requester_id,
+        requester_name=requester.full_name if requester else "Unknown clinician",
+        requester_role=requester.role if requester else "",
+        scope=access_request.scope,
+        purpose=access_request.purpose,
+        status=access_request.status,
+        consent_grant_id=access_request.consent_grant_id,
+        created_at=access_request.created_at.isoformat(),
+        decided_at=access_request.decided_at.isoformat() if access_request.decided_at else None,
+    )
 
 
 @router.post("/care-team", response_model=CareTeamRecord)
@@ -401,8 +526,6 @@ def get_ledger_blocks(
     return result
 
 
-from pydantic import BaseModel
-
 class BreakGlassRequest(BaseModel):
     patient_id: str
     purpose: str
@@ -419,5 +542,3 @@ def trigger_break_glass(
     if not success:
         raise HTTPException(403, "Insufficient role to trigger emergency break-glass")
     return {"status": "authorized", "message": "Emergency break-glass access logged and granted"}
-
-

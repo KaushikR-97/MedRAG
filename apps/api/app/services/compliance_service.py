@@ -15,16 +15,6 @@ class ComplianceService:
         if actor.id == patient_id:
             return True
 
-        # Auto-grant access to doctors with a booked appointment
-        if actor.role == "doctor":
-            from app.models.feature_modules import Appointment
-            appt = self.db.query(Appointment).filter(
-                Appointment.doctor_id == actor.id,
-                Appointment.patient_id == patient_id
-            ).first()
-            if appt is not None:
-                return True
-
         now = datetime.now(UTC)
         # If actor is a patient, they can access another patient's data only via ConsentGrant
         if actor.role == "patient":
@@ -90,4 +80,3 @@ class ComplianceService:
             details={"message": "CRITICAL: Emergency break-glass access triggered by clinician", "clinician_role": actor.role}
         )
         return True
-

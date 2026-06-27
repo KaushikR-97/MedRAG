@@ -31,6 +31,7 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
   const [patientProfile, setPatientProfile] = useState<any | null>(null);
   const [patientDocs, setPatientDocs] = useState<any[]>([]);
   const [consentError, setConsentError] = useState("");
+  const [accessRequestStatus, setAccessRequestStatus] = useState("");
 
   // Prescription States
   const [prescriptionDraft, setPrescriptionDraft] = useState({
@@ -101,6 +102,7 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
   // Load patient record
   const handleLoadPatientRecord = async () => {
     setConsentError("");
+    setAccessRequestStatus("");
     setPatientProfile(null);
     setPatientDocs([]);
     try {
@@ -112,6 +114,26 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
       setPatientDocs(docs);
     } catch (err: any) {
       setConsentError(err.message || "Access denied. Patient consent required.");
+    }
+  };
+
+  const handleRequestPatientAccess = async () => {
+    if (!searchPatientId.trim()) return;
+    setConsentError("");
+    setAccessRequestStatus("");
+    try {
+      const request = await api.requestPatientAccess(token, {
+        patient_id: searchPatientId.trim(),
+        scope: "all",
+        purpose: "Doctor requested access to patient profile and medical reports",
+      });
+      setAccessRequestStatus(
+        request.status === "pending"
+          ? "Access request sent to the patient. Ask the patient to approve it from Family / Consent."
+          : `Access request ${request.status}.`,
+      );
+    } catch (err: any) {
+      setConsentError(err.message || "Could not request patient consent");
     }
   };
 
@@ -274,6 +296,13 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
             <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0 0 12px 0" }}>
               You do not have active consent permissions to view this patient's private medical files.
             </p>
+            <button
+              onClick={handleRequestPatientAccess}
+              className="button"
+              style={{ padding: "6px 12px", fontSize: "0.75rem", marginRight: "8px" }}
+            >
+              Request Patient Approval
+            </button>
             {/* Break-glass protocol */}
             <button 
               onClick={async () => {
@@ -292,6 +321,10 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
               🚨 Override (Emergency Break-Glass)
             </button>
           </div>
+        )}
+
+        {accessRequestStatus && (
+          <div className="toast toast-success" style={{ marginBottom: "16px" }}>{accessRequestStatus}</div>
         )}
 
         {patientProfile && (

@@ -1,7 +1,8 @@
 import uuid
 from datetime import UTC, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.models.feature_modules import (
@@ -15,6 +16,8 @@ from app.models.user import User
 
 
 class HospitalService:
+    LOCAL_TZ = ZoneInfo("Asia/Kolkata")
+
     def __init__(self, db: Session) -> None:
         self.db = db
 
@@ -89,6 +92,8 @@ class HospitalService:
             slot_payloads = self._expand_slot_window(payload=payload, duration_minutes=duration_minutes)
             created_slots: list[ConsultationSlot] = []
             for slot_payload in slot_payloads:
+                if self._is_past_slot(slot_payload["date"], slot_payload["start_time"]):
+                    raise ValueError("Cannot release consultation slots for a time that has already passed")
                 overlapping_slot = (
                     self.db.query(ConsultationSlot)
                     .filter(
@@ -179,7 +184,15 @@ class HospitalService:
                     ConsultationSlot.department_id.is_(None),
                 )
             )
-        query = query.filter(ConsultationSlot.booked_count < ConsultationSlot.capacity)
+        today = datetime.now(self.LOCAL_TZ).date().isoformat()
+        current_time = datetime.now(self.LOCAL_TZ).strftime("%H:%M")
+        query = query.filter(
+            or_(
+                ConsultationSlot.date > today,
+                and_(ConsultationSlot.date == today, ConsultationSlot.start_time > current_time),
+            ),
+            ConsultationSlot.booked_count < ConsultationSlot.capacity,
+        )
         return query.order_by(ConsultationSlot.date.asc(), ConsultationSlot.start_time.asc()).limit(100).all()
 
     def book_consultation(
@@ -198,6 +211,8 @@ class HospitalService:
         slot = self.db.get(ConsultationSlot, slot_id)
         if slot is None or slot.status != "open":
             raise LookupError("Consultation slot not found")
+        if self._is_past_slot(slot.date, slot.start_time):
+            raise ValueError("Consultation slot has already passed")
         if slot.booked_count >= slot.capacity:
             raise ValueError("Consultation slot is full")
 
@@ -296,3 +311,10 @@ class HospitalService:
     def _booking_reference() -> str:
         stamp = datetime.now(UTC).strftime("%Y%m%d")
         return f"CONS-{stamp}-{uuid.uuid4().hex[:8].upper()}"
+
+    def _is_past_slot(self, date_text: str, start_time: str) -> bool:
+        try:
+            slot_start = datetime.fromisoformat(f"{date_text}T{start_time}:00").replace(tzinfo=self.LOCAL_TZ)
+        except ValueError:
+            return True
+        return slot_start <= datetime.now(self.LOCAL_TZ)
