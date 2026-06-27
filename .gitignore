@@ -5,7 +5,8 @@ __pycache__/
 .env
 *.db
 *.sqlite
+*.egg-info/
 node_modules/
 dist/
+apps/web/layout-previews/
 .DS_Store
-
