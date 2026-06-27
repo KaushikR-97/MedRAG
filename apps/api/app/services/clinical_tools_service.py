@@ -6,6 +6,13 @@ DRUG_INTERACTIONS = {
     ("warfarin", "aspirin"): ("major", "Increased bleeding risk."),
     ("tramadol", "ssri"): ("major", "Risk of serotonin syndrome."),
     ("metformin", "furosemide"): ("moderate", "Monitor renal function and lactic acidosis risk."),
+    ("ashwagandha", "sedative"): ("moderate", "Ashwagandha may enhance the sedative effects of CNS depressants."),
+    ("turmeric", "warfarin"): ("major", "Turmeric antiplatelet activity can significantly increase bleeding risk when combined with Warfarin."),
+    ("turmeric", "aspirin"): ("major", "Turmeric has antiplatelet activity; monitor bleeding when combined with Aspirin."),
+    ("neem", "metformin"): ("moderate", "Neem may lower blood glucose; monitor closely for risk of hypoglycemia when combined with Metformin."),
+    ("neem", "insulin"): ("moderate", "Neem has blood sugar lowering properties; monitor for insulin dosage adjustment needs."),
+    ("tulsi", "anticoagulant"): ("moderate", "Tulsi may slow blood clotting; monitor bleeding risks if combined with anticoagulants."),
+    ("tulsi", "aspirin"): ("moderate", "Tulsi has mild antiplatelet effects; watch for bruising or bleeding if taken with Aspirin."),
 }
 
 
@@ -61,4 +68,32 @@ class ClinicalToolsService:
         if score >= 5:
             return "mild"
         return "minimal"
+
+    def check_soap_note_diff(self, *, visit_summary: str, subjective: str, plan: str) -> list[str]:
+        warnings: list[str] = []
+        summary_lower = visit_summary.lower()
+        sub_lower = subjective.lower()
+        plan_lower = plan.lower()
+        
+        if "diabetes" in summary_lower or "metformin" in summary_lower or "insulin" in summary_lower:
+            if "hba1c" not in summary_lower and "hba1c" not in sub_lower:
+                warnings.append(
+                    "Clinical Guideline Gap: Diagnosis or treatment of Diabetes mentioned, but no recent "
+                    "HbA1c level review is documented in the subjective text. Recommend verifying HbA1c values."
+                )
+                
+        if "hypertension" in summary_lower or "bp" in summary_lower or "blood pressure" in summary_lower:
+            if "systolic" not in summary_lower and "diastolic" not in summary_lower and "bp monitoring" not in plan_lower:
+                warnings.append(
+                    "Clinical Guideline Gap: Hypertension or BP concerns mentioned, but no regular "
+                    "blood pressure monitoring check-in has been scheduled in the treatment plan."
+                )
+                
+        if "antibiotic" in plan_lower or "amoxicillin" in plan_lower or "azithromycin" in plan_lower:
+            if "duration" not in plan_lower and "days" not in plan_lower:
+                warnings.append(
+                    "Clinical Safety Warning: Antibiotic prescription planned, but duration of therapy (number of days) "
+                    "is not clearly specified in the plan."
+                )
+        return warnings
 

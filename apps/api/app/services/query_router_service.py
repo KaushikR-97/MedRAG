@@ -73,20 +73,21 @@ class QueryRouterService:
     def route(self, *, question: str, user_role: str) -> QueryRoutingDecision:
         raw = self._invoke_router_llm(question=question, user_role=user_role)
         if raw is None:
-            return self._fallback("Router LLM unavailable; defaulting to broad medical retrieval.")
+            return self._fallback("Router LLM unavailable; defaulting to broad medical retrieval.", user_role=user_role)
         try:
             payload = self._parse_router_response(raw)
         except ValueError as exc:
-            return self._fallback(f"Router LLM returned invalid output: {exc}")
+            return self._fallback(f"Router LLM returned invalid output: {exc}", user_role=user_role)
 
         route = str(payload.get("route", ""))
         confidence = float(payload.get("confidence", 0))
         reason = str(payload.get("reason", "LLM router decision."))
         if route not in VALID_ROUTES:
-            return self._fallback(f"Router LLM returned unsupported route: {route}")
+            return self._fallback(f"Router LLM returned unsupported route: {route}", user_role=user_role)
         if confidence < self.confidence_threshold:
             return self._fallback(
-                f"Router confidence {confidence:.2f} below threshold {self.confidence_threshold:.2f}."
+                f"Router confidence {confidence:.2f} below threshold {self.confidence_threshold:.2f}.",
+                user_role=user_role
             )
         return self._decision(route=route, confidence=confidence, reason=reason, used_fallback=False)
 
@@ -200,9 +201,10 @@ class QueryRouterService:
             used_fallback=used_fallback,
         )
 
-    def _fallback(self, reason: str) -> QueryRoutingDecision:
+    def _fallback(self, reason: str, user_role: str) -> QueryRoutingDecision:
+        fallback_route = "both_patient_record_and_guideline"
         return self._decision(
-            route="both_patient_record_and_guideline",
+            route=fallback_route,
             confidence=0.0,
             reason=reason,
             used_fallback=True,

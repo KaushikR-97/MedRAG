@@ -116,6 +116,13 @@ def process_document_pipeline(job_id: str) -> None:
         if "job" in locals() and job is not None:
             job.status = "failed"
             job.error = str(exc)
+            try:
+                doc = db.get(MedicalDocument, job.document_id)
+                if doc is not None:
+                    doc.status = "ocr_failed"
+                    doc.ocr_warning = f"Ingestion error: {str(exc)}"
+            except Exception:
+                pass
             db.commit()
         raise
     finally:

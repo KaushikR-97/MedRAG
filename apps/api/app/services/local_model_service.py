@@ -64,6 +64,7 @@ class LocalHuggingFaceModel:
 
     def generate(self, prompt: str, *, max_new_tokens: int = 512) -> str:
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+        input_len = inputs.input_ids.shape[1]
         with torch.no_grad():
             output = self.model.generate(
                 **inputs,
@@ -72,8 +73,9 @@ class LocalHuggingFaceModel:
                 do_sample=False,
                 pad_token_id=self.tokenizer.eos_token_id,
             )
-        decoded = self.tokenizer.decode(output[0], skip_special_tokens=True)
-        return decoded[len(prompt) :].strip() if decoded.startswith(prompt) else decoded
+        generated_tokens = output[0][input_len:]
+        decoded = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
+        return decoded.strip()
 
 
 @lru_cache

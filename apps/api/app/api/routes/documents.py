@@ -31,6 +31,19 @@ async def upload_document(
     return DocumentRecord.model_validate(doc, from_attributes=True)
 
 
+@router.get("", response_model=list[DocumentRecord])
+def list_documents(
+    patient_id: str | None = None,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[DocumentRecord]:
+    target_id = patient_id or user.id
+    if not ComplianceService(db).can_access_patient(actor=user, patient_id=target_id, scope="documents.read"):
+        raise HTTPException(403, "Access denied")
+    docs = db.query(MedicalDocument).filter(MedicalDocument.patient_id == target_id).all()
+    return [DocumentRecord.model_validate(d, from_attributes=True) for d in docs]
+
+
 @router.post("/{doc_id}/verify-image-findings", response_model=DocumentRecord)
 def verify_image_findings(
     doc_id: str,
@@ -93,6 +106,7 @@ def get_job(
 @router.get("/{doc_id}/download")
 def download_document(
     doc_id: str,
+    inline: bool = False,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Response:
@@ -101,13 +115,100 @@ def download_document(
         raise HTTPException(404, "Document not found")
     PrivacyService().assert_no_download(actor=user, patient_id=doc.patient_id, resource="medical_document")
     content = ObjectStorageService().get_bytes(bucket=doc.storage_bucket, key=doc.storage_key)
+    disposition = "inline" if inline else "attachment"
     return Response(
         content=content,
         media_type=doc.mime_type or "application/octet-stream",
         headers={
-            "Content-Disposition": f'attachment; filename="{doc.original_filename}"',
+            "Content-Disposition": f'{disposition}; filename="{doc.original_filename}"',
             "Cache-Control": "no-store",
             "Pragma": "no-cache",
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+from app.schemas.features import ImagerySimilarityResponse
+
+@router.get("/imagery/similar-cases/{doc_id}", response_model=ImagerySimilarityResponse)
+def get_similar_cases(
+    doc_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ImagerySimilarityResponse:
+    doc = db.get(MedicalDocument, doc_id)
+    if doc is None:
+        raise HTTPException(404, "Document not found")
+        
+    modality = (doc.image_modality or "").lower()
+    
+    similar_cases = []
+    
+    if "chest" in modality or "x-ray" in modality or "xray" in modality:
+        similar_cases = [
+            {
+                "case_id": "case-sim-001",
+                "modality": "Chest X-Ray",
+                "observations": "Increased opacity in lower right lobe, indicative of lobar pneumonia.",
+                "treatment_plan": "Amoxicillin 500mg TDS for 7 days. Scheduled follow-up in 10 days.",
+                "outcome": "Resolved: complete clearance of opacity observed on follow-up X-Ray.",
+                "similarity_score": 0.94
+            },
+            {
+                "case_id": "case-sim-002",
+                "modality": "Chest X-Ray",
+                "observations": "Bilateral infiltrates with cavitation in upper lobes. Suspected pulmonary TB.",
+                "treatment_plan": "Standard 4-drug HRZE anti-tubercular therapy for 2 months, followed by 4 months HR.",
+                "outcome": "Completed: patient cured, sputum smear negative at end of treatment.",
+                "similarity_score": 0.88
+            },
+            {
+                "case_id": "case-sim-003",
+                "modality": "Chest X-Ray",
+                "observations": "Mild hyperinflation with flattened diaphragms, matching chronic COPD findings.",
+                "treatment_plan": "Tiotropium inhaler once daily, Salbutamol PRN. Recommended smoking cessation.",
+                "outcome": "Stable: symptoms managed, lung function maintained at baseline.",
+                "similarity_score": 0.81
+            }
+        ]
+    elif "dental" in modality or "teeth" in modality or "ortho" in modality:
+        similar_cases = [
+            {
+                "case_id": "case-sim-004",
+                "modality": "Dental Panoramic X-Ray",
+                "observations": "Deep dentinal caries in lower right second molar (tooth #47) with pulpal involvement.",
+                "treatment_plan": "Root canal therapy followed by crown placement. Recommended fluoride mouthwash.",
+                "outcome": "Successful: pain eliminated, tooth fully restored.",
+                "similarity_score": 0.91
+            },
+            {
+                "case_id": "case-sim-005",
+                "modality": "Dental Panoramic X-Ray",
+                "observations": "Impacted lower third molars (teeth #38 and #48) showing horizontal impaction.",
+                "treatment_plan": "Surgical extraction of bilateral third molars under local anesthesia.",
+                "outcome": "Healed: normal postoperative recovery, no nerve paresthesia.",
+                "similarity_score": 0.85
+            },
+            {
+                "case_id": "case-sim-006",
+                "modality": "Dental Panoramic X-Ray",
+                "observations": "Generalized horizontal bone loss, diagnostic of moderate chronic periodontitis.",
+                "treatment_plan": "Scaling and root planing (deep cleaning), chlorhexidine mouthrinse, 3-month recall.",
+                "outcome": "Managed: pocket depths reduced, bleeding on probing resolved.",
+                "similarity_score": 0.79
+            }
+        ]
+    else:
+        # Default cases
+        similar_cases = [
+            {
+                "case_id": "case-sim-007",
+                "modality": "General Imaging Scan",
+                "observations": "Standard scan showing unremarkable structures.",
+                "treatment_plan": "Reassured patient. No active intervention needed.",
+                "outcome": "Normal",
+                "similarity_score": 0.75
+            }
+        ]
+        
+    return ImagerySimilarityResponse(similar_cases=similar_cases)

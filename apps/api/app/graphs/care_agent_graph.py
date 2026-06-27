@@ -31,6 +31,8 @@ class CareAgentState(TypedDict, total=False):
     safety_label: str
     reasoning: str
     result: dict
+    acoustic_cough_type: str
+    wheeze_acoustic_type: str
 
 
 class CareCoordinationAgent:
@@ -100,6 +102,8 @@ class CareCoordinationAgent:
         location_text: str = "",
         preferred_date: str = "",
         preferred_time_slot: str = "",
+        acoustic_cough_type: str = "none",
+        wheeze_acoustic_type: str = "none",
     ) -> CareAgentState:
         return self.graph.invoke(
             {
@@ -110,6 +114,8 @@ class CareCoordinationAgent:
                 "location_text": location_text,
                 "preferred_date": preferred_date,
                 "preferred_time_slot": preferred_time_slot,
+                "acoustic_cough_type": acoustic_cough_type,
+                "wheeze_acoustic_type": wheeze_acoustic_type,
             }
         )
 
@@ -123,13 +129,21 @@ class CareCoordinationAgent:
 
         safety_label, escalation = self.safety.classify(state.get("symptoms", ""))
         severity = state.get("severity", 1)
-        critical = safety_label == "urgent_escalation" or severity >= 9
+        
+        acoustic_cough = state.get("acoustic_cough_type", "none")
+        wheeze_acoustic = state.get("wheeze_acoustic_type", "none")
+        
+        acoustic_critical = (acoustic_cough == "croupy") or (wheeze_acoustic == "severe")
+        
+        critical = safety_label == "urgent_escalation" or severity >= 9 or acoustic_critical
         if critical:
+            reasoning = escalation
+            if acoustic_critical:
+                reasoning = f"Critical acoustic bio-markers detected (Cough: {acoustic_cough}, Wheeze: {wheeze_acoustic}). Triage escalated immediately to emergency ambulance dispatch."
             return {
                 "action": "ambulance",
                 "safety_label": "urgent_escalation",
-                "reasoning": escalation
-                or "Critical symptom severity detected. Requesting emergency ambulance escalation.",
+                "reasoning": reasoning or "Critical symptom severity detected. Requesting emergency ambulance escalation.",
             }
         return {
             "action": "doctor_appointment",

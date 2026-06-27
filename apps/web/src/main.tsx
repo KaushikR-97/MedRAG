@@ -1,693 +1,528 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  Activity,
-  Ambulance,
-  Building2,
-  CalendarCheck,
-  FileText,
-  History,
-  KeyRound,
-  ShieldCheck,
-  UploadCloud,
+  Sparkles, FileText, Users, Building2, ShieldCheck, Heart, User, Clock, Globe, AlertTriangle, LucideIcon
 } from "lucide-react";
-import {
-  api,
-  API_BASE,
-  AuthResponse,
-  ClinicalAnswer,
-  ClinicalHistoryItem,
-  CareAgentResponse,
-  ConsultationSlotRecord,
-  DocumentRecord,
-  HospitalDepartmentRecord,
-  HospitalDoctorRecord,
-  HospitalRecord,
-  PatientIntakeResponse,
-} from "./api/client";
+import { api, AuthResponse, AppointmentRecord, ConsultationRoomRecord, ConsultationMessageRecord } from "./api/client";
 import "./styles.css";
 
-function newConversationId() {
-  const id = crypto.randomUUID();
-  sessionStorage.setItem("medrag_conversation_id", id);
-  return id;
+// Import modular components
+import { AuthModule } from "./components/AuthModule";
+import { PatientDashboard } from "./components/PatientDashboard";
+import { ClinicalAIModule } from "./components/ClinicalAIModule";
+import { DocumentManager } from "./components/DocumentManager";
+import { CareRemindersModule } from "./components/CareRemindersModule";
+import { HospitalSlotsModule } from "./components/HospitalSlotsModule";
+import { DoctorWorkspace } from "./components/DoctorWorkspace";
+import { ComplianceModule } from "./components/ComplianceModule";
+import { PublicHealthModule } from "./components/PublicHealthModule";
+import { UserProfileModule } from "./components/UserProfileModule";
+import { translations, Language } from "./utils/translations";
+
+const SESSION_STORAGE_KEY = "medrag_session";
+const CONVERSATION_STORAGE_KEY = "medrag_conversation_id";
+const CHAT_STORAGE_VERSION = 2;
+const CHAT_STORAGE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+type StoredEnvelope<T> = {
+  version: number;
+  savedAt: number;
+  value: T;
+};
+
+type ChatMessage = {
+  id: string;
+  senderId: string;
+  senderName: string;
+  recipientId: string;
+  recipientName: string;
+  encodedText: string;
+  timestamp: number;
+};
+
+type AppTab = "home" | "clinical" | "documents" | "care" | "hospitals" | "trust" | "doctor" | "profile" | "public-health";
+
+type NavItem = {
+  tab: AppTab;
+  label: string;
+  icon: LucideIcon;
+};
+
+const patientNavItems: NavItem[] = [
+  { tab: "home", label: "Patient Home", icon: Heart },
+  { tab: "clinical", label: "Clinical AI Hub", icon: Sparkles },
+  { tab: "documents", label: "Medical Vault", icon: FileText },
+  { tab: "care", label: "Care Reminders", icon: Clock },
+  { tab: "hospitals", label: "Telehealth & Slots", icon: Building2 },
+  { tab: "trust", label: "Auditing & Trust", icon: ShieldCheck },
+  { tab: "public-health", label: "Epidemiological Maps", icon: Globe },
+];
+
+const doctorNavItems: NavItem[] = [
+  { tab: "doctor", label: "Doctor Dashboard", icon: Users },
+  { tab: "clinical", label: "Clinical AI Assistant", icon: Sparkles },
+  { tab: "documents", label: "Patient Records", icon: FileText },
+  { tab: "hospitals", label: "Slots & Appointments", icon: Building2 },
+  { tab: "trust", label: "Consent / Break-Glass Audit", icon: ShieldCheck },
+];
+
+const adminNavItems: NavItem[] = [
+  { tab: "hospitals", label: "Doctors & Departments", icon: Building2 },
+  { tab: "trust", label: "Audit Ledger", icon: ShieldCheck },
+  { tab: "public-health", label: "Epidemiological Maps", icon: Globe },
+  { tab: "clinical", label: "Guideline Intelligence", icon: Sparkles },
+  { tab: "documents", label: "Document Registry", icon: FileText },
+];
+
+const tabTitles: Record<AppTab, string> = {
+  home: "Patient Home",
+  clinical: "Clinical AI",
+  documents: "Medical Vault",
+  care: "Care Reminders",
+  hospitals: "Telehealth & Slots",
+  trust: "Auditing & Trust",
+  doctor: "Doctor Dashboard",
+  profile: "Settings",
+  "public-health": "Epidemiological Maps",
+};
+
+function getRoleNavItems(role: string): NavItem[] {
+  if (role === "doctor") return doctorNavItems;
+  if (role === "hospital_admin" || role === "admin") return adminNavItems;
+  return patientNavItems;
+}
+
+function getDefaultTab(role: string): AppTab {
+  if (role === "doctor") return "doctor";
+  if (role === "hospital_admin" || role === "admin") return "hospitals";
+  return "home";
+}
+
+function safeReadJson<T>(storage: Storage, key: string, fallback: T): T {
+  const raw = storage.getItem(key);
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    storage.removeItem(key);
+    return fallback;
+  }
+}
+
+function safeWriteJson<T>(storage: Storage, key: string, value: T): boolean {
+  try {
+    storage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function chatStorageKey(userId: string) {
+  return `medrag_chat_messages:${userId}`;
+}
+
+function readUserChatMessages(userId: string): ChatMessage[] {
+  // Chat history is strictly in-memory to prevent storing PHI in localStorage
+  return [];
 }
 
 function App() {
-  const [session, setSession] = useState<AuthResponse | null>(null);
-  const [mode, setMode] = useState<"login" | "register">("register");
-  const [email, setEmail] = useState("patient@example.com");
-  const [password, setPassword] = useState("StrongPass123");
-  const [fullName, setFullName] = useState("Demo Patient");
-  const [role, setRole] = useState("patient");
-  const [bloodGroup, setBloodGroup] = useState("B+");
-  const [allergies, setAllergies] = useState("No known drug allergy");
-  const [chronicConditions, setChronicConditions] = useState("Diabetes follow-up");
-  const [currentMedications, setCurrentMedications] = useState("Metformin as prescribed");
-  const [intakeFiles, setIntakeFiles] = useState<File[]>([]);
-  const [question, setQuestion] = useState("What should I know about diabetes follow up?");
-  const [answer, setAnswer] = useState<ClinicalAnswer | null>(null);
-  const [conversationId, setConversationId] = useState(
-    () => sessionStorage.getItem("medrag_conversation_id") ?? newConversationId(),
-  );
-  const [document, setDocument] = useState<DocumentRecord | null>(null);
-  const [documentType, setDocumentType] = useState("past_record");
-  const [verifiedFindings, setVerifiedFindings] = useState("Clinician verified: image reviewed; findings should be summarized here.");
-  const [history, setHistory] = useState<ClinicalHistoryItem[]>([]);
-  const [previousChat, setPreviousChat] = useState(
-    "Patient: I have diabetes follow up next week.\nAssistant: Please keep your reports ready and ask your doctor about your HbA1c trend.",
-  );
-  const [symptoms, setSymptoms] = useState("High fever and severe weakness");
-  const [severity, setSeverity] = useState(7);
-  const [agentResult, setAgentResult] = useState<CareAgentResponse | null>(null);
-  const [hospitalCity, setHospitalCity] = useState("Bengaluru");
-  const [speciality, setSpeciality] = useState("General Medicine");
-  const [hospitals, setHospitals] = useState<HospitalRecord[]>([]);
-  const [slots, setSlots] = useState<ConsultationSlotRecord[]>([]);
-  const [bookingReason, setBookingReason] = useState("Consultation for follow-up and report review");
-  const [bookingResult, setBookingResult] = useState<Record<string, unknown> | null>(null);
-  const [hospitalName, setHospitalName] = useState("Demo Care Hospital");
-  const [hospitalPhone, setHospitalPhone] = useState("+91-80-4000-0000");
-  const [departmentName, setDepartmentName] = useState("General Medicine");
-  const [doctorIdForSlot, setDoctorIdForSlot] = useState("");
-  const [slotDate, setSlotDate] = useState(new Date().toISOString().slice(0, 10));
-  const [hospitalAdminResult, setHospitalAdminResult] = useState<Record<string, unknown> | null>(null);
+  const [session, setSession] = useState<AuthResponse | null>(() => {
+    return safeReadJson<AuthResponse | null>(localStorage, SESSION_STORAGE_KEY, null);
+  });
+  const token = session?.access_token || "";
+
+  // Navigation tab
+  const [currentTab, setCurrentTab] = useState<AppTab>("home");
+  const [lang, setLang] = useState<Language>("en");
+
+  // Local consult secure chat fallback state
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+
+  // Video call state
+  const [activeVideoCall, setActiveVideoCall] = useState<AppointmentRecord | null>(null);
+  const [consultationRoom, setConsultationRoom] = useState<ConsultationRoomRecord | null>(null);
+  const [consultationMessages, setConsultationMessages] = useState<ConsultationMessageRecord[]>([]);
+  
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  
+  const [isMuted, setIsMuted] = useState(false);
+  const [isCameraOff, setIsCameraOff] = useState(false);
+  const [mediaStatus, setMediaStatus] = useState<"idle" | "connecting" | "connected" | "blocked" | "failed">("idle");
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [myAppointmentsList, setMyAppointmentsList] = useState<AppointmentRecord[]>([]);
 
-  const token = session?.access_token ?? "";
-  const userId = session?.user_id ?? "";
-  const status = useMemo(() => (session ? `${session.role} session active` : "Not signed in"), [session]);
-
-  async function handleAuth(event: React.FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const result: AuthResponse | PatientIntakeResponse =
-        mode === "register" && role === "patient"
-          ? await api.registerPatientIntake({
-              email,
-              password,
-              full_name: fullName,
-              blood_group: bloodGroup,
-              allergies,
-              chronic_conditions: chronicConditions,
-              current_medications: currentMedications,
-              documents: intakeFiles.map((file) => ({
-                file,
-                document_type: file.type.startsWith("image/") ? "health_scan" : "past_record",
-              })),
-            })
-          : mode === "register"
-            ? await api.register({
-                email,
-                password,
-                full_name: fullName,
-                role,
-                registration_number: role === "patient" ? "" : "NMC-DEMO-001",
-              })
-            : await api.login({ email, password });
-      setSession(result);
-      setConversationId(newConversationId());
-      setAnswer(null);
-      if ("documents" in result && result.documents[0]) {
-        setDocument(result.documents[0]);
+  // Memoized conversations for local chat
+  const activeConversations = useMemo(() => {
+    if (!session) return [];
+    const conversationsMap: { [key: string]: { id: string; name: string; lastMessage: string; timestamp: number } } = {};
+    chatMessages.forEach(msg => {
+      const otherId = msg.senderId === session.user_id ? msg.recipientId : msg.senderId;
+      const otherName = msg.senderId === session.user_id ? msg.recipientName : msg.senderName;
+      
+      const decrypted = "[Secure AES-GCM Encrypted]";
+      
+      const isNewer = !conversationsMap[otherId] || msg.timestamp > conversationsMap[otherId].timestamp;
+      if (isNewer) {
+        conversationsMap[otherId] = {
+          id: otherId,
+          name: otherName || "Anonymous User",
+          lastMessage: decrypted,
+          timestamp: msg.timestamp
+        };
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Authentication failed");
-    } finally {
-      setBusy(false);
-    }
-  }
+    });
+    return Object.values(conversationsMap).sort((a, b) => b.timestamp - a.timestamp);
+  }, [chatMessages, session]);
 
-  async function refreshHistory(activeToken = token) {
-    if (!activeToken) return;
-    setHistory(await api.history(activeToken));
-  }
-
-  async function handleAsk() {
-    if (!token) return;
-    setBusy(true);
-    setError("");
-    try {
-      const result = await api.ask(token, question, conversationId);
-      sessionStorage.setItem("medrag_conversation_id", result.conversation_id);
-      setConversationId(result.conversation_id);
-      setAnswer(result);
-      await refreshHistory(token);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Clinical query failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function handleNewConversation() {
-    setConversationId(newConversationId());
-    setAnswer(null);
-  }
-
-  async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file || !token) return;
-    setBusy(true);
-    setError("");
-    try {
-      setDocument(await api.uploadDocument(token, file, documentType));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleVerifyImageFindings() {
-    if (!token || !document) return;
-    setBusy(true);
-    setError("");
-    try {
-      setDocument(await api.verifyImageFindings(token, document.id, verifiedFindings));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Image verification failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleImportHistory() {
-    if (!token) return;
-    setBusy(true);
-    setError("");
-    try {
-      const messages = previousChat
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((line) => {
-          const separator = line.indexOf(":");
-          const label = separator >= 0 ? line.slice(0, separator).toLowerCase() : "patient";
-          const role = label.includes("assistant") ? "assistant" : label.includes("doctor") ? "doctor" : "patient";
-          return { role, content: separator >= 0 ? line.slice(separator + 1).trim() : line };
-        });
-      await api.importHistory(token, { source_label: "presentation_import", messages });
-      await refreshHistory(token);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "History import failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleYearlyScan() {
-    if (!token) return;
-    setBusy(true);
-    setError("");
-    try {
-      const nextYear = new Date();
-      nextYear.setFullYear(nextYear.getFullYear() + 1);
-      setAgentResult(
-        await api.scheduleYearlyScan(token, {
-          preferred_date: nextYear.toISOString().slice(0, 10),
-          preferred_time_slot: "09:00-11:00",
-        }),
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Yearly scan scheduling failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleSymptomAgent() {
-    if (!token) return;
-    setBusy(true);
-    setError("");
-    try {
-      setAgentResult(
-        await api.symptomAction(token, {
-          symptoms,
-          severity,
-          location_text: "Patient home location shared in registered profile",
-          preferred_time_slot: "next_available",
-        }),
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Symptom agent failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleFindHospitals() {
-    setBusy(true);
-    setError("");
-    try {
-      const found = await api.listHospitals({ city: hospitalCity, speciality });
-      setHospitals(found);
-      const available = await api.listConsultationSlots({ speciality });
-      setSlots(available);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Hospital search failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleBookConsultation(slotId: string) {
-    if (!token) return;
-    setBusy(true);
-    setError("");
-    try {
-      setBookingResult(
-        await api.bookConsultation(token, {
-          slot_id: slotId,
-          reason: bookingReason,
-          urgency: severity >= 7 ? "high" : "routine",
-        }),
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Consultation booking failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleCreateHospitalFlow() {
-    if (!token) return;
-    if (!doctorIdForSlot.trim()) {
-      setError("Enter a doctor user id before creating a consultation slot.");
+  // Load chat messages
+  useEffect(() => {
+    if (!session?.user_id) {
+      setChatMessages([]);
       return;
     }
-    setBusy(true);
-    setError("");
+    setChatMessages(readUserChatMessages(session.user_id));
+  }, [session?.user_id]);
+
+  const refreshAppointments = async () => {
+    if (!token) return;
     try {
-      const hospital: HospitalRecord = await api.createHospital(token, {
-        name: hospitalName,
-        city: hospitalCity,
-        state: "Karnataka",
-        phone: hospitalPhone,
-        emergency_phone: "108",
-      });
-      const department: HospitalDepartmentRecord = await api.createDepartment(token, {
-        hospital_id: hospital.id,
-        name: departmentName,
-        speciality,
-      });
-      const assigned: HospitalDoctorRecord = await api.assignDoctor(token, {
-        hospital_id: hospital.id,
-        department_id: department.id,
-        doctor_id: doctorIdForSlot,
-        speciality,
-        consultation_fee: 500,
-      });
-      const slot = await api.createConsultationSlot(token, {
-        hospital_id: hospital.id,
-        department_id: department.id,
-        doctor_id: assigned.doctor_id,
-        date: slotDate,
-        start_time: "10:00",
-        end_time: "10:20",
-        consultation_mode: "in_person",
-        capacity: 1,
-      });
-      setHospitalAdminResult({ hospital, department, assigned, slot });
+      const appts = await api.listMyAppointments(token);
+      setMyAppointmentsList(appts);
+    } catch (err: any) {
+      console.error("Failed to load appointments", err);
+    }
+  };
+
+  useEffect(() => {
+    refreshAppointments();
+  }, [token]);
+
+  useEffect(() => {
+    if (!session) return;
+    const allowedTabs = new Set<AppTab>([
+      ...getRoleNavItems(session.role).map((item) => item.tab),
+      "profile",
+    ]);
+    if (!allowedTabs.has(currentTab)) {
+      setCurrentTab(getDefaultTab(session.role));
+    }
+  }, [session?.role, currentTab]);
+
+  // WebRTC handlers
+  function stopConsultationMedia() {
+    peerConnectionRef.current?.close();
+    peerConnectionRef.current = null;
+    localStreamRef.current?.getTracks().forEach((track) => track.stop());
+    localStreamRef.current = null;
+    if (localVideoRef.current) localVideoRef.current.srcObject = null;
+    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+    setMediaStatus("idle");
+  }
+
+  async function ensurePeerConnection(appointmentId: string): Promise<RTCPeerConnection> {
+    if (peerConnectionRef.current) return peerConnectionRef.current;
+    const peer = new RTCPeerConnection({
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "stun:stun1.l.google.com:19302" },
+        { 
+          urls: "turn:openrelay.metered.ca:80", 
+          username: "openrelayproject", 
+          credential: "openrelayproject" 
+        },
+        { 
+          urls: "turn:openrelay.metered.ca:443", 
+          username: "openrelayproject", 
+          credential: "openrelayproject" 
+        },
+        { 
+          urls: "turn:openrelay.metered.ca:443?transport=tcp", 
+          username: "openrelayproject", 
+          credential: "openrelayproject" 
+        }
+      ],
+    });
+    peer.onicecandidate = (event) => {
+      if (event.candidate && token) {
+        api.postConsultationSignal(token, appointmentId, {
+          signal_type: "ice",
+          payload: {
+            candidate: event.candidate.candidate,
+            sdpMid: event.candidate.sdpMid,
+            sdpMLineIndex: event.candidate.sdpMLineIndex,
+            usernameFragment: event.candidate.usernameFragment,
+          },
+        }).catch((err) => console.error("Failed to send ICE candidate", err));
+      }
+    };
+    peer.ontrack = (event) => {
+      const [remoteStream] = event.streams;
+      if (remoteVideoRef.current && remoteStream) {
+        remoteVideoRef.current.srcObject = remoteStream;
+      }
+    };
+    peerConnectionRef.current = peer;
+    return peer;
+  }
+
+  async function startVideoMedia(appointmentId: string) {
+    if (!token) return;
+    setMediaStatus("connecting");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localStreamRef.current = stream;
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+      const peer = await ensurePeerConnection(appointmentId);
+      stream.getTracks().forEach((track) => peer.addTrack(track, stream));
+      setMediaStatus("connected");
+
+      if (session?.role === "doctor") {
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+        await api.postConsultationSignal(token, appointmentId, {
+          signal_type: "offer",
+          payload: { type: offer.type, sdp: offer.sdp },
+        });
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Hospital setup failed");
-    } finally {
-      setBusy(false);
+      setMediaStatus(err instanceof DOMException && err.name === "NotAllowedError" ? "blocked" : "failed");
+      setError(err instanceof Error ? err.message : "Could not start camera and microphone");
     }
   }
 
+  async function handleConsultationSignals(appointmentId: string) {
+    if (!token) return;
+    const peer = await ensurePeerConnection(appointmentId);
+    const signals = await api.pollConsultationSignals(token, appointmentId);
+    for (const signal of signals) {
+      if (signal.signal_type === "offer") {
+        await peer.setRemoteDescription(new RTCSessionDescription(signal.payload as unknown as RTCSessionDescriptionInit));
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
+        await api.postConsultationSignal(token, appointmentId, {
+          signal_type: "answer",
+          payload: { type: answer.type, sdp: answer.sdp },
+        });
+      }
+      if (signal.signal_type === "answer") {
+        await peer.setRemoteDescription(new RTCSessionDescription(signal.payload as unknown as RTCSessionDescriptionInit));
+      }
+      if (signal.signal_type === "ice") {
+        await peer.addIceCandidate(new RTCIceCandidate(signal.payload as unknown as RTCIceCandidateInit));
+      }
+      if (signal.signal_type === "leave") {
+        stopConsultationMedia();
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (!token || !activeVideoCall) {
+      setConsultationRoom(null);
+      setConsultationMessages([]);
+      return;
+    }
+
+    let cancelled = false;
+    const currentCall = activeVideoCall;
+    async function joinRoom() {
+      try {
+        const room = await api.joinConsultationRoom(token, currentCall.id);
+        if (cancelled) return;
+        setConsultationRoom(room);
+        const messages = await api.listConsultationMessages(token, currentCall.id);
+        if (!cancelled) setConsultationMessages(messages);
+        await startVideoMedia(currentCall.id);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to join consultation room");
+      }
+    }
+
+    joinRoom();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, activeVideoCall?.id]);
+
+  useEffect(() => {
+    if (!token || !activeVideoCall || !consultationRoom) return;
+    const interval = window.setInterval(async () => {
+      try {
+        const lastId = consultationMessages.length ? consultationMessages[consultationMessages.length - 1].id : "";
+        const nextMessages = await api.listConsultationMessages(token, activeVideoCall.id, lastId);
+        if (nextMessages.length) {
+          setConsultationMessages((prev) => {
+            const seen = new Set(prev.map((message) => message.id));
+            return [...prev, ...nextMessages.filter((message) => !seen.has(message.id))];
+          });
+        }
+        await handleConsultationSignals(activeVideoCall.id);
+      } catch (err) {
+        console.error("Consultation room polling failed", err);
+      }
+    }, 3000);
+    return () => window.clearInterval(interval);
+  }, [token, activeVideoCall?.id, consultationRoom?.id, consultationMessages]);
+
+  useEffect(() => {
+    if (!activeVideoCall) {
+      stopConsultationMedia();
+    }
+    return () => stopConsultationMedia();
+  }, [activeVideoCall?.id]);
+
+  useEffect(() => {
+    localStreamRef.current?.getAudioTracks().forEach((track) => {
+      track.enabled = !isMuted;
+    });
+  }, [isMuted]);
+
+  useEffect(() => {
+    localStreamRef.current?.getVideoTracks().forEach((track) => {
+      track.enabled = !isCameraOff;
+    });
+  }, [isCameraOff]);
+
+  const handleLogout = async () => {
+    if (token) {
+      try {
+        await api.logout(token);
+      } catch (e) {
+        console.error("Logout request failed", e);
+      }
+    }
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+    setSession(null);
+  };
+
+  const handleProfileUpdate = (newName: string) => {
+    if (session) {
+      const updated = { ...session, full_name: newName };
+      setSession(updated);
+      safeWriteJson(localStorage, SESSION_STORAGE_KEY, updated);
+    }
+  };
+
+  if (!session) {
+    return (
+      <AuthModule 
+        onLoginSuccess={(newSession, token) => {
+          setSession(newSession);
+          safeWriteJson(localStorage, SESSION_STORAGE_KEY, newSession);
+        }} 
+      />
+    );
+  }
+
+  const t = (key: string) => translations[lang][key] || key;
+  const navItems = getRoleNavItems(session.role);
+
   return (
-    <main className="shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brandMark">M</div>
-          <div>
-            <strong>MedRAG India</strong>
-            <span>Clinical RAG console</span>
-          </div>
+    <div style={{ display: "flex", minHeight: "100vh" }}>
+      {/* Sidebar Navigation */}
+      <aside style={{ width: "240px", background: "rgba(255,255,255,0.01)", borderRight: "1px solid var(--line)", padding: "20px", display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div style={{ fontSize: "1.2rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", marginBottom: "20px" }}>
+          <Sparkles style={{ color: "var(--primary)" }} />
+          {t("dashboard_title")}
         </div>
-        <div className="status">
-          <ShieldCheck size={18} />
-          <span>{status}</span>
+
+        {/* Global Demo mode badge */}
+        <div style={{ padding: "6px 12px", background: "rgba(231,76,60,0.1)", border: "1px solid rgba(231,76,60,0.2)", borderRadius: "8px", color: "#e74c3c", fontSize: "0.7rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px", marginBottom: "16px" }}>
+          <AlertTriangle size={12} />
+          DEMO MODE
         </div>
-        <div className="apiBase">
-          API
-          <span>{API_BASE}</span>
-        </div>
-        <nav>
-          <a href="#auth">Auth</a>
-          <a href="#ask">Ask AI</a>
-          <a href="#documents">Documents</a>
-          <a href="#history">History</a>
-          <a href="#hospitals">Hospitals</a>
-          <a href="#agent">Care Agent</a>
-          <a href="#compliance">Compliance</a>
-        </nav>
+
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button key={item.tab} onClick={() => setCurrentTab(item.tab)} className={`button-sec ${currentTab === item.tab ? "active" : ""}`} style={{ justifyContent: "flex-start", gap: "10px" }}>
+              <Icon size={16} /> {item.label}
+            </button>
+          );
+        })}
+        <button onClick={() => setCurrentTab("profile")} className={`button-sec ${currentTab === "profile" ? "active" : ""}`} style={{ justifyContent: "flex-start", gap: "10px", marginTop: "auto" }}>
+          <User size={16} /> {t("settings_panel")}
+        </button>
       </aside>
 
-      <section className="content">
-        <header className="hero">
-          <div>
-            <p className="eyebrow">Production API client</p>
-            <h1>Patient-safe RAG, document intake, and consent-aware clinical access.</h1>
-          </div>
-          <div className="heroBadge">
-            <Activity size={18} />
-            LangGraph workflow
+      {/* Main layout frame */}
+      <main style={{ flex: 1, padding: "30px", overflowY: "auto" }}>
+        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px", paddingBottom: "16px", borderBottom: "1px solid var(--line)" }}>
+          <h1 style={{ fontSize: "1.3rem", fontWeight: 600 }}>{tabTitles[currentTab].toUpperCase()}</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px", fontSize: "0.85rem" }}>
+            <select 
+              value={lang} 
+              onChange={e => setLang(e.target.value as Language)} 
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--line)", color: "white", padding: "4px 8px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer" }}
+            >
+              <option value="en">English</option>
+              <option value="hi">हिंदी (Hindi)</option>
+              <option value="ta">தமிழ் (Tamil)</option>
+              <option value="te">తెలుగు (Telugu)</option>
+              <option value="bn">বাংলা (Bengali)</option>
+            </select>
+            <span>Signed in as: <strong style={{ color: "var(--primary)" }}>{session.full_name || session.role}</strong></span>
           </div>
         </header>
 
-        {error && <div className="alert">{error}</div>}
+        {currentTab === "home" && <PatientDashboard session={session} onNavigate={setCurrentTab} />}
+        {currentTab === "clinical" && <ClinicalAIModule token={token} patientId={session.user_id} userRole={session.role} />}
+        {currentTab === "documents" && <DocumentManager token={token} activePatientId={session.user_id} userRole={session.role} />}
+        {currentTab === "care" && <CareRemindersModule token={token} sessionRole={session.role} activePatientId={session.user_id} />}
+        {currentTab === "hospitals" && <HospitalSlotsModule token={token} sessionRole={session.role} onStartVideoCall={setActiveVideoCall} />}
+        {currentTab === "trust" && <ComplianceModule token={token} sessionRole={session.role} />}
+        {currentTab === "public-health" && <PublicHealthModule token={token} />}
+        {currentTab === "doctor" && (
+          <DoctorWorkspace 
+            token={token} 
+            activeConversations={activeConversations} 
+            chatMessages={chatMessages} 
+            setChatMessages={setChatMessages} 
+            sessionUserId={session.user_id}
+            sessionUserName={session.full_name || "Doctor"}
+            myAppointments={myAppointmentsList}
+            onStartVideoCall={setActiveVideoCall}
+          />
+        )}
+        {currentTab === "profile" && <UserProfileModule token={token} session={session} onLogout={handleLogout} onProfileUpdate={handleProfileUpdate} />}
+      </main>
 
-        <section className="grid">
-          <form className="panel" id="auth" onSubmit={handleAuth}>
-            <div className="panelTitle">
-              <KeyRound size={18} />
-              <h2>Authentication</h2>
+      {/* Active Video Call WebRTC Overlays */}
+      {activeVideoCall && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.9)", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", zIndex: 999 }}>
+          <h3 style={{ color: "white", marginBottom: "20px" }}>Active Video Consultation Call</h3>
+          <div style={{ display: "flex", gap: "20px", marginBottom: "20px" }}>
+            <div style={{ width: "320px", height: "240px", background: "#222", borderRadius: "12px", overflow: "hidden", position: "relative" }}>
+              <video ref={localVideoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <span style={{ position: "absolute", bottom: "10px", left: "10px", color: "white", fontSize: "0.8rem", background: "rgba(0,0,0,0.5)", padding: "2px 6px", borderRadius: "4px" }}>Local Feed (You)</span>
             </div>
-            <div className="segmented">
-              <button type="button" className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>
-                Register
-              </button>
-              <button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>
-                Login
-              </button>
+            <div style={{ width: "320px", height: "240px", background: "#222", borderRadius: "12px", overflow: "hidden", position: "relative" }}>
+              <video ref={remoteVideoRef} autoPlay playsInline style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <span style={{ position: "absolute", bottom: "10px", left: "10px", color: "white", fontSize: "0.8rem", background: "rgba(0,0,0,0.5)", padding: "2px 6px", borderRadius: "4px" }}>Remote Feed</span>
             </div>
-            <label>
-              Email
-              <input value={email} onChange={(event) => setEmail(event.target.value)} />
-            </label>
-            <label>
-              Password
-              <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" />
-            </label>
-            {mode === "register" && (
-              <>
-                <label>
-                  Full name
-                  <input value={fullName} onChange={(event) => setFullName(event.target.value)} />
-                </label>
-                <label>
-                  Role
-                  <select value={role} onChange={(event) => setRole(event.target.value)}>
-                    <option value="patient">Patient</option>
-                    <option value="doctor">Doctor</option>
-                    <option value="hospital_admin">Hospital Admin</option>
-                  </select>
-                </label>
-                {role === "patient" && (
-                  <>
-                    <label>
-                      Blood group
-                      <input value={bloodGroup} onChange={(event) => setBloodGroup(event.target.value)} />
-                    </label>
-                    <label>
-                      Allergies
-                      <input value={allergies} onChange={(event) => setAllergies(event.target.value)} />
-                    </label>
-                    <label>
-                      Chronic conditions
-                      <input value={chronicConditions} onChange={(event) => setChronicConditions(event.target.value)} />
-                    </label>
-                    <label>
-                      Current medications
-                      <input value={currentMedications} onChange={(event) => setCurrentMedications(event.target.value)} />
-                    </label>
-                    <label>
-                      Past records and health scans
-                      <input
-                        type="file"
-                        multiple
-                        accept="application/pdf,image/png,image/jpeg,image/webp"
-                        onChange={(event) => setIntakeFiles(Array.from(event.target.files ?? []))}
-                      />
-                    </label>
-                  </>
-                )}
-              </>
-            )}
-            <button className="primary" disabled={busy}>
-              {busy ? "Working..." : mode === "register" ? "Create session" : "Login"}
-            </button>
-          </form>
-
-          <section className="panel" id="ask">
-            <div className="panelTitle">
-              <Activity size={18} />
-              <h2>Clinical Question</h2>
-            </div>
-            <textarea value={question} onChange={(event) => setQuestion(event.target.value)} rows={5} />
-            <button className="primary" disabled={!token || busy} onClick={handleAsk}>
-              Ask with safety graph
-            </button>
-            <button className="secondary" disabled={!token || busy} onClick={handleNewConversation}>
-              New conversation
-            </button>
-            {answer && (
-              <div className="answer">
-                <strong>{answer.safety_label}</strong>
-                <div className="metaGrid">
-                  <span>Route: {answer.query_route || "not routed"}</span>
-                  <span>Confidence: {Math.round((answer.query_route_confidence || 0) * 100)}%</span>
-                  <span>{answer.query_route_used_fallback ? "Fallback retrieval" : "LLM router accepted"}</span>
-                  <span>Sources: {answer.retrieval_source_types?.join(", ") || "none"}</span>
-                </div>
-                <p>{answer.answer}</p>
-                {answer.query_route_reason && <small>{answer.query_route_reason}</small>}
-                {answer.rewritten_queries?.length > 0 && (
-                  <small>Search: {answer.rewritten_queries.join(" | ")}</small>
-                )}
-                <small>Trace: {answer.trace_id}</small>
-                <small>Conversation: {answer.conversation_id}</small>
-              </div>
-            )}
-          </section>
-
-          <section className="panel" id="documents">
-            <div className="panelTitle">
-              <UploadCloud size={18} />
-              <h2>Document Upload</h2>
-            </div>
-            <label>
-              Type
-              <select value={documentType} onChange={(event) => setDocumentType(event.target.value)}>
-                <option value="past_record">Past record</option>
-                <option value="health_scan">Health scan</option>
-                <option value="imaging">X-ray / imaging</option>
-                <option value="dental_image">Dental image</option>
-                <option value="symptom_photo">Symptom photo</option>
-                <option value="lab_report">Lab report</option>
-                <option value="prescription">Prescription</option>
-              </select>
-            </label>
-            <input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={handleUpload} />
-            {document && (
-              <div className="answer">
-                <strong>{document.original_filename}</strong>
-                <p>
-                  {document.document_type} | {document.status} | malware: {document.malware_status}
-                </p>
-                {document.ocr_review_status && document.ocr_review_status !== "not_started" && (
-                  <div className="metaGrid">
-                    <span>OCR: {document.ocr_review_status}</span>
-                    {document.ocr_engine && <span>Engine: {document.ocr_engine}</span>}
-                    {document.ocr_confidence && <span>Confidence: {document.ocr_confidence}</span>}
-                    {document.ocr_handwriting_detected && <span>Handwriting detected</span>}
-                  </div>
-                )}
-                {document.ocr_warning && <p>{document.ocr_warning}</p>}
-                {document.image_review_status && document.image_review_status !== "not_required" && (
-                  <>
-                    <div className="metaGrid">
-                      <span>Modality: {document.image_modality || "unknown"}</span>
-                      <span>Review: {document.image_review_status}</span>
-                      <span>Image embedding: {document.image_embedding_status || "not_required"}</span>
-                      {document.image_embedding_model && <span>Model: {document.image_embedding_model}</span>}
-                    </div>
-                    {document.image_ai_observations && <p>{document.image_ai_observations}</p>}
-                    {session?.role !== "patient" && (
-                      <>
-                        <textarea
-                          value={verifiedFindings}
-                          onChange={(event) => setVerifiedFindings(event.target.value)}
-                          rows={3}
-                        />
-                        <button className="secondary" disabled={busy} onClick={handleVerifyImageFindings}>
-                          Verify image findings
-                        </button>
-                      </>
-                    )}
-                  </>
-                )}
-                <small>SHA-256: {document.sha256}</small>
-              </div>
-            )}
-          </section>
-
-          <section className="panel" id="history">
-            <div className="panelTitle">
-              <History size={18} />
-              <h2>Previous Chat</h2>
-            </div>
-            <textarea value={previousChat} onChange={(event) => setPreviousChat(event.target.value)} rows={5} />
-            <button className="primary" disabled={!token || busy} onClick={handleImportHistory}>
-              Store prior chat
-            </button>
-            <button className="secondary" disabled={!token || busy} onClick={() => refreshHistory().catch((err) => setError(err.message))}>
-              Refresh history
-            </button>
-            {history.slice(0, 3).map((item) => (
-              <div className="answer" key={item.trace_id}>
-                <strong>{item.safety_label}</strong>
-                <p>{item.question}</p>
-                <small>
-                  {item.prompt_version} | {new Date(item.created_at).toLocaleString()}
-                </small>
-              </div>
-            ))}
-          </section>
-
-          <section className="panel" id="agent">
-            <div className="panelTitle">
-              <CalendarCheck size={18} />
-              <h2>Agentic Care</h2>
-            </div>
-            <button className="primary" disabled={!token || busy} onClick={handleYearlyScan}>
-              Schedule yearly scan
-            </button>
-            <div className="panelTitle compact">
-              <Ambulance size={18} />
-              <h2>Symptom Action</h2>
-            </div>
-            <textarea value={symptoms} onChange={(event) => setSymptoms(event.target.value)} rows={3} />
-            <label>
-              Severity
-              <input
-                type="number"
-                min="1"
-                max="10"
-                value={severity}
-                onChange={(event) => setSeverity(Number(event.target.value))}
-              />
-            </label>
-            <button className="secondary" disabled={!token || busy} onClick={handleSymptomAgent}>
-              Run care agent
-            </button>
-            {agentResult && (
-              <div className="answer">
-                <strong>{agentResult.action}</strong>
-                <p>{agentResult.reasoning}</p>
-                <small>{JSON.stringify(agentResult.result)}</small>
-              </div>
-            )}
-          </section>
-
-          <section className="panel" id="hospitals">
-            <div className="panelTitle">
-              <Building2 size={18} />
-              <h2>Hospital Consultations</h2>
-            </div>
-            <div className="grid2">
-              <label>
-                City
-                <input value={hospitalCity} onChange={(event) => setHospitalCity(event.target.value)} />
-              </label>
-              <label>
-                Speciality
-                <input value={speciality} onChange={(event) => setSpeciality(event.target.value)} />
-              </label>
-            </div>
-            <label>
-              Reason
-              <textarea value={bookingReason} onChange={(event) => setBookingReason(event.target.value)} rows={3} />
-            </label>
-            <button className="secondary" disabled={busy} onClick={handleFindHospitals}>
-              Find consultations
-            </button>
-            {hospitals.length > 0 && (
-              <div className="answer">
-                <strong>Hospitals</strong>
-                {hospitals.map((hospital) => (
-                  <p key={hospital.id}>
-                    {hospital.name} | {hospital.city}, {hospital.state} | {hospital.phone || hospital.emergency_phone}
-                  </p>
-                ))}
-              </div>
-            )}
-            {slots.length > 0 && (
-              <div className="answer">
-                <strong>Available slots</strong>
-                {slots.map((slot) => (
-                  <p key={slot.id}>
-                    {slot.date} {slot.start_time}-{slot.end_time} | {slot.consultation_mode} |{" "}
-                    {slot.booked_count}/{slot.capacity}
-                    <button className="secondary inlineButton" disabled={!token || busy} onClick={() => handleBookConsultation(slot.id)}>
-                      Book
-                    </button>
-                  </p>
-                ))}
-              </div>
-            )}
-            {bookingResult && (
-              <div className="answer">
-                <strong>Booking confirmed</strong>
-                <small>{JSON.stringify(bookingResult)}</small>
-              </div>
-            )}
-            {session?.role === "hospital_admin" && (
-              <div className="answer">
-                <div className="panelTitle compact">
-                  <Building2 size={16} />
-                  <strong>Hospital admin setup</strong>
-                </div>
-                <div className="grid2">
-                  <label>
-                    Hospital
-                    <input value={hospitalName} onChange={(event) => setHospitalName(event.target.value)} />
-                  </label>
-                  <label>
-                    Phone
-                    <input value={hospitalPhone} onChange={(event) => setHospitalPhone(event.target.value)} />
-                  </label>
-                  <label>
-                    Department
-                    <input value={departmentName} onChange={(event) => setDepartmentName(event.target.value)} />
-                  </label>
-                  <label>
-                    Doctor user id
-                    <input value={doctorIdForSlot} onChange={(event) => setDoctorIdForSlot(event.target.value)} />
-                  </label>
-                  <label>
-                    Slot date
-                    <input type="date" value={slotDate} onChange={(event) => setSlotDate(event.target.value)} />
-                  </label>
-                </div>
-                <button className="secondary" disabled={busy} onClick={handleCreateHospitalFlow}>
-                  Create hospital slot
-                </button>
-                {hospitalAdminResult && <small>{JSON.stringify(hospitalAdminResult)}</small>}
-              </div>
-            )}
-          </section>
-
-          <section className="panel" id="compliance">
-            <div className="panelTitle">
-              <FileText size={18} />
-              <h2>Compliance Hooks</h2>
-            </div>
-            <p>
-              Consent grants and care-team membership are enforced by the backend before a clinician can query a
-              patient record. Patient self-access works by default.
-            </p>
-            <code>{userId || "Sign in to see user id"}</code>
-          </section>
-        </section>
-      </section>
-    </main>
+          </div>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <button onClick={() => setIsMuted(!isMuted)} className="button-sec">{isMuted ? "Unmute" : "Mute"}</button>
+            <button onClick={() => setIsCameraOff(!isCameraOff)} className="button-sec">{isCameraOff ? "Turn Camera On" : "Turn Camera Off"}</button>
+            <button onClick={() => setActiveVideoCall(null)} className="button" style={{ background: "#e74c3c" }}>End Call</button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
-createRoot(document.getElementById("root") as HTMLElement).render(<App />);
+const container = document.getElementById("root");
+if (container) {
+  const root = createRoot(container);
+  root.render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
+}

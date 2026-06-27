@@ -34,36 +34,64 @@ class HospitalService:
 
     def assign_doctor(self, *, admin: User, payload: dict) -> HospitalDoctor:
         self._assert_hospital_admin(admin=admin, hospital_id=payload["hospital_id"])
-        doctor = self.db.get(User, payload["doctor_id"])
+        try:
+            doctor = self.db.get(User, payload["doctor_id"])
+        except Exception as exc:
+            raise LookupError(f"Invalid doctor ID format: {str(exc)}") from exc
         if doctor is None or doctor.role != "doctor":
             raise LookupError("Doctor user not found")
-        department = self.db.get(HospitalDepartment, payload["department_id"])
+        try:
+            department = self.db.get(HospitalDepartment, payload["department_id"])
+        except Exception as exc:
+            raise LookupError(f"Invalid department ID format: {str(exc)}") from exc
         if department is None or department.hospital_id != payload["hospital_id"]:
             raise LookupError("Department not found for hospital")
-        record = HospitalDoctor(id=str(uuid.uuid4()), **payload)
-        self.db.add(record)
-        self.db.commit()
-        self.db.refresh(record)
-        return record
+        try:
+            record = HospitalDoctor(id=str(uuid.uuid4()), **payload)
+            self.db.add(record)
+            self.db.commit()
+            self.db.refresh(record)
+            return record
+        except Exception as exc:
+            self.db.rollback()
+            raise exc
 
     def create_slot(self, *, admin: User, payload: dict) -> ConsultationSlot:
-        self._assert_hospital_admin(admin=admin, hospital_id=payload["hospital_id"])
-        assignment = (
-            self.db.query(HospitalDoctor)
-            .filter(
-                HospitalDoctor.hospital_id == payload["hospital_id"],
-                HospitalDoctor.department_id == payload["department_id"],
-                HospitalDoctor.doctor_id == payload["doctor_id"],
-                HospitalDoctor.active.is_(True),
-            )
-            .first()
-        )
-        if assignment is None:
-            raise LookupError("Doctor is not assigned to this hospital department")
-        slot = ConsultationSlot(id=str(uuid.uuid4()), **payload)
-        self.db.add(slot)
-        self.db.commit()
-        self.db.refresh(slot)
+        if admin.role == "doctor":
+            payload["doctor_id"] = admin.id
+            if not payload.get("hospital_id") or payload.get("hospital_id") == "personal":
+                payload["hospital_id"] = None
+            if not payload.get("department_id") or payload.get("department_id") == "personal":
+                payload["department_id"] = None
+        else:
+            self._assert_hospital_admin(admin=admin, hospital_id=payload["hospital_id"])
+            try:
+                assignment = (
+                    self.db.query(HospitalDoctor)
+                    .filter(
+                        HospitalDoctor.hospital_id == payload["hospital_id"],
+                        HospitalDoctor.department_id == payload["department_id"],
+                        HospitalDoctor.doctor_id == payload["doctor_id"],
+                        HospitalDoctor.active.is_(True),
+                    )
+                    .first()
+                )
+            except Exception as exc:
+                raise LookupError(f"Invalid hospital, department or doctor ID: {str(exc)}") from exc
+            if assignment is None:
+                raise LookupError("Doctor is not assigned to this hospital department")
+            if not payload.get("consultation_fee"):
+                payload["consultation_fee"] = assignment.consultation_fee or 0.0
+        
+        try:
+            slot = ConsultationSlot(id=str(uuid.uuid4()), **payload)
+            self.db.add(slot)
+            self.db.commit()
+            self.db.refresh(slot)
+            return slot
+        except Exception as exc:
+            self.db.rollback()
+            raise exc
         return slot
 
     def list_hospitals(self, *, city: str = "", speciality: str = "") -> list[Hospital]:
@@ -109,6 +137,9 @@ class HospitalService:
         reason: str,
         notes: str,
         urgency: str,
+        payment_method: str = "cash",
+        insurance_provider: str = "",
+        insurance_policy_number: str = "",
     ) -> Appointment:
         slot = self.db.get(ConsultationSlot, slot_id)
         if slot is None or slot.status != "open":
@@ -134,6 +165,10 @@ class HospitalService:
             urgency=urgency,
             notes=notes,
             reason=reason,
+            payment_method=payment_method,
+            insurance_provider=insurance_provider,
+            insurance_policy_number=insurance_policy_number,
+            consultation_fee=slot.consultation_fee or 0.0,
             booking_reference=self._booking_reference(),
         )
         self.db.add(appointment)
@@ -189,7 +224,10 @@ class HospitalService:
         )
 
     def _assert_hospital_admin(self, *, admin: User, hospital_id: str) -> Hospital:
-        hospital = self.db.get(Hospital, hospital_id)
+        try:
+            hospital = self.db.get(Hospital, hospital_id)
+        except Exception as exc:
+            raise LookupError(f"Invalid hospital ID format or database error: {str(exc)}") from exc
         if hospital is None:
             raise LookupError("Hospital not found")
         if admin.role != "hospital_admin" or hospital.admin_user_id != admin.id:

@@ -58,6 +58,7 @@ class ClinicalGenerationService:
                         "Use conversation history only to understand follow-up questions; "
                         "do not treat earlier assistant answers as clinical evidence. "
                         "Follow this role policy strictly: {policy_instruction}. "
+                        "If the user asks about their personal or demographic details (like name, blood group, allergies, medications, or chronic conditions) and the information is in the context, you must answer directly using it. Stating facts from the retrieved profile is not a diagnosis. "
                         "Cite source ids inline like [source-id]. Prompt version: {prompt_version}.",
                     ),
                     (
@@ -68,7 +69,14 @@ class ClinicalGenerationService:
                     ),
                 ]
             )
-            model = ChatOpenAI(model=settings.model_name, temperature=0.1, api_key=settings.openai_api_key)
+            openai_kwargs = {
+                "model": settings.model_name,
+                "temperature": 0.1,
+                "api_key": settings.openai_api_key,
+            }
+            if settings.openai_api_base.strip():
+                openai_kwargs["base_url"] = settings.openai_api_base.strip()
+            model = ChatOpenAI(**openai_kwargs)
             chain = prompt | model
             response = chain.invoke(
                 {
@@ -112,6 +120,7 @@ class ClinicalGenerationService:
             "Use conversation history only to understand follow-up questions; do not treat "
             "earlier assistant answers as clinical evidence. "
             "State uncertainty and recommend clinician review when appropriate. "
+            "If the user asks about their personal or demographic details (like name, blood group, allergies, medications, or chronic conditions) and the information is in the retrieved context (e.g. the patient-onboarding-profile), you must answer directly using it. Stating facts from the retrieved profile is not a diagnosis. "
             f"Role policy mode: {policy_mode}. Policy: {policy_instruction}. "
             f"Prompt version: {PROMPT_VERSION}.\n\n"
             f"Role: {user_role}\n"

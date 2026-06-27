@@ -14,10 +14,13 @@ class Settings(BaseSettings):
     jwt_secret: str = Field(min_length=32)
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60
+    consultation_encryption_key: str = ""
+    consultation_room_expire_minutes: int = 240
     allowed_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173", "http://localhost:8000"]
     allowed_origin_regex: str = r"https://.*\.cloudspaces\.litng\.ai"
 
     openai_api_key: str = ""
+    openai_api_base: str = ""
     model_provider: str = "openai"
     model_name: str = "gpt-4.1-mini"
     query_router_provider: str = "local_zero_shot"

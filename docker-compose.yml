@@ -9,11 +9,22 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medrag -d medrag"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
   redis:
     image: redis:7
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   qdrant:
     image: qdrant/qdrant:v1.11.0
@@ -21,6 +32,11 @@ services:
       - "6333:6333"
     volumes:
       - qdrant-data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:6333/healthz || wget -qO- http://localhost:6333/healthz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   minio:
     image: minio/minio:latest
@@ -33,6 +49,11 @@ services:
       - "9001:9001"
     volumes:
       - minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || wget -qO- http://localhost:9000/minio/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   clamav:
     image: clamav/clamav:stable
@@ -49,11 +70,16 @@ services:
     volumes:
       - ./apps/api:/app
     depends_on:
-      - postgres
-      - redis
-      - qdrant
-      - minio
-      - clamav
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      clamav:
+        condition: service_started
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
   worker:
@@ -64,10 +90,14 @@ services:
     volumes:
       - ./apps/api:/app
     depends_on:
-      - api
-      - redis
-      - minio
-      - clamav
+      api:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      clamav:
+        condition: service_started
     command: rq worker medrag --url redis://redis:6379/0
 
   web:
@@ -82,7 +112,8 @@ services:
       PORT: 5173
     command: sh -c "npm install && npm run build && npm run start"
     depends_on:
-      - api
+      api:
+        condition: service_started
 
 volumes:
   postgres-data:

@@ -1,6 +1,5 @@
 from datetime import UTC, datetime
-
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -55,7 +54,12 @@ class Appointment(Base):
     reason: Mapped[str] = mapped_column(Text, default="")
     booking_reference: Mapped[str] = mapped_column(String(80), default="", index=True)
     cancellation_reason: Mapped[str] = mapped_column(Text, default="")
+    payment_method: Mapped[str] = mapped_column(String(32), default="cash", index=True)
+    insurance_provider: Mapped[str] = mapped_column(String(120), default="", nullable=True)
+    insurance_policy_number: Mapped[str] = mapped_column(String(120), default="", nullable=True)
+    consultation_fee: Mapped[float] = mapped_column(Float, default=0.0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
 
 
 class Hospital(Base):
@@ -104,8 +108,8 @@ class ConsultationSlot(Base):
     __tablename__ = "consultation_slots"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    hospital_id: Mapped[str] = mapped_column(ForeignKey("hospitals.id"), index=True)
-    department_id: Mapped[str] = mapped_column(ForeignKey("hospital_departments.id"), index=True)
+    hospital_id: Mapped[str | None] = mapped_column(String(36), nullable=True, default=None, index=True)
+    department_id: Mapped[str | None] = mapped_column(String(36), nullable=True, default=None, index=True)
     doctor_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     date: Mapped[str] = mapped_column(String(32), index=True)
     start_time: Mapped[str] = mapped_column(String(16))
@@ -114,7 +118,10 @@ class ConsultationSlot(Base):
     capacity: Mapped[int] = mapped_column(default=1)
     booked_count: Mapped[int] = mapped_column(default=0)
     status: Mapped[str] = mapped_column(String(32), default="open", index=True)
+    consultation_fee: Mapped[float] = mapped_column(Float, default=0.0)
+    accept_insurance: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
 
 
 class HealthTask(Base):
@@ -140,6 +147,18 @@ class FamilyMember(Base):
     relation: Mapped[str] = mapped_column(String(80))
     age: Mapped[int] = mapped_column(default=0)
     notes: Mapped[str] = mapped_column(Text, default="")
+    member_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+
+
+class SimulatedWhatsappMessage(Base):
+    __tablename__ = "simulated_whatsapp_messages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    to_phone: Mapped[str] = mapped_column(String(40), index=True)
+    body: Mapped[str] = mapped_column(Text)
+    consent_grant_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="sent", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 
 class MedicationReminder(Base):
@@ -275,3 +294,103 @@ class EmergencyDispatchRequest(Base):
     provider_reference: Mapped[str] = mapped_column(String(120), default="")
     safety_label: Mapped[str] = mapped_column(String(80), default="urgent_escalation", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+class SimulatedSmsMessage(Base):
+    __tablename__ = "simulated_sms_messages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    phone: Mapped[str] = mapped_column(String(40), index=True)
+    body: Mapped[str] = mapped_column(Text)
+    direction: Mapped[str] = mapped_column(String(10), index=True)  # "inbound" or "outbound"
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+class SecondOpinionRequest(Base):
+    __tablename__ = "second_opinion_requests"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    clinician_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    specialty: Mapped[str] = mapped_column(String(120), index=True)
+    redacted_summary: Mapped[str] = mapped_column(Text)
+    clinical_question: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(32), default="pending", index=True)  # "pending", "responded"
+    response_recommendation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    responder_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+class IotPillboxAlert(Base):
+    __tablename__ = "iot_pillbox_alerts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    reminder_id: Mapped[str] = mapped_column(ForeignKey("medication_reminders.id"), index=True)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    status: Mapped[str] = mapped_column(String(32), index=True)  # "taken", "missed"
+    logged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+class GuidelineDriftAlert(Base):
+    __tablename__ = "guideline_drift_alerts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    guideline_title: Mapped[str] = mapped_column(String(200))
+    published_source: Mapped[str] = mapped_column(String(200))
+    drift_reason: Mapped[str] = mapped_column(Text)
+    action_taken: Mapped[str] = mapped_column(String(64), default="pending_review")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+class PhrLedgerBlock(Base):
+    __tablename__ = "phr_ledger_blocks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    block_index: Mapped[int] = mapped_column(Integer)
+    timeline_hash: Mapped[str] = mapped_column(String(64))
+    previous_hash: Mapped[str] = mapped_column(String(64))
+    nonce: Mapped[int] = mapped_column(Integer)
+    hash: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+class ConsultationRoom(Base):
+    __tablename__ = "consultation_rooms"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    appointment_id: Mapped[str] = mapped_column(ForeignKey("appointments.id"), unique=True, index=True)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    doctor_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="active", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ConsultationMessage(Base):
+    __tablename__ = "consultation_messages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    room_id: Mapped[str] = mapped_column(ForeignKey("consultation_rooms.id"), index=True)
+    appointment_id: Mapped[str] = mapped_column(ForeignKey("appointments.id"), index=True)
+    sender_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    recipient_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    message_type: Mapped[str] = mapped_column(String(32), default="text", index=True)
+    ciphertext: Mapped[str] = mapped_column(Text)
+    key_version: Mapped[str] = mapped_column(String(32), default="v1")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ConsultationSignal(Base):
+    __tablename__ = "consultation_signals"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    room_id: Mapped[str] = mapped_column(ForeignKey("consultation_rooms.id"), index=True)
+    sender_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    recipient_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    signal_type: Mapped[str] = mapped_column(String(32), index=True)
+    ciphertext: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

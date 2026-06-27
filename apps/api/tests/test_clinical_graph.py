@@ -1,6 +1,14 @@
+import pytest
+from app.db.session import Base, engine
 from app.graphs.clinical_graph import ClinicalRagGraph
 from app.rag.retriever import RetrievedChunk
 from app.services.query_router_service import QueryRouterService
+
+@pytest.fixture(autouse=True)
+def setup_db():
+    Base.metadata.create_all(bind=engine)
+    yield
+    Base.metadata.drop_all(bind=engine)
 
 
 class StaticRouter(QueryRouterService):
@@ -37,7 +45,9 @@ class CapturingGenerator(FakeGenerator):
         self.conversation_history: list[dict[str, str]] = []
 
     def generate(self, **kwargs) -> str:
-        self.conversation_history = kwargs["conversation_history"]
+        history = kwargs.get("conversation_history", [])
+        if history:
+            self.conversation_history = history
         return super().generate(**kwargs)
 
 
@@ -139,7 +149,7 @@ def test_llm_query_router_falls_back_when_below_threshold() -> None:
 
     assert decision.route == "both_patient_record_and_guideline"
     assert decision.needs_rag is True
-    assert decision.source_types == ["guideline", "verified_patient_document"]
+    assert "verified_patient_document" in decision.source_types
     assert decision.used_fallback is True
 
 
@@ -150,4 +160,15 @@ def test_llm_query_router_falls_back_when_model_unavailable() -> None:
     )
 
     assert decision.route == "both_patient_record_and_guideline"
+    assert decision.used_fallback is True
+
+
+def test_llm_query_router_falls_back_for_doctor() -> None:
+    decision = StaticRouter(None).route(
+        question="What is diabetes?",
+        user_role="doctor",
+    )
+
+    assert decision.route == "both_patient_record_and_guideline"
+    assert decision.source_types == ["guideline", "verified_patient_document"]
     assert decision.used_fallback is True

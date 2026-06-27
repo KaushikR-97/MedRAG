@@ -3,6 +3,12 @@ export type AuthResponse = {
   token_type: string;
   user_id: string;
   role: string;
+  full_name?: string;
+};
+
+export type LoginResponse = {
+  mfa_required: boolean;
+  mfa_token: string;
 };
 
 export type SourceSnippet = {
@@ -34,6 +40,7 @@ export type DocumentRecord = {
   status: string;
   malware_status: string;
   sha256: string;
+  ocr_text: string;
   ocr_engine: string;
   ocr_confidence: string;
   ocr_review_status: string;
@@ -142,12 +149,44 @@ export type AppointmentRecord = {
   booking_reference: string;
 };
 
+export type ConsultationRoomRecord = {
+  id: string;
+  appointment_id: string;
+  patient_id: string;
+  doctor_id: string;
+  status: string;
+  expires_at: string;
+  room_token: string;
+};
+
+export type ConsultationMessageRecord = {
+  id: string;
+  room_id: string;
+  appointment_id: string;
+  sender_id: string;
+  recipient_id: string;
+  message_type: string;
+  body: string;
+  created_at: string;
+  read_at: string | null;
+};
+
+export type ConsultationSignalRecord = {
+  id: string;
+  room_id: string;
+  sender_id: string;
+  signal_type: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
 export const API_BASE = (import.meta.env.VITE_API_BASE ?? "http://localhost:8000").replace(/\/+$/, "");
 
 async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
   const url = `${API_BASE}${path}`;
   const response = await fetch(url, {
     ...options,
+    credentials: "include",
     headers: {
       ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -161,8 +200,16 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
   return response.json() as Promise<T>;
 }
 
+async function sha256(message: string): Promise<string> {
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  return hashHex;
+}
+
 export const api = {
-  register(payload: {
+  async register(payload: {
     email: string;
     password: string;
     full_name: string;
@@ -170,9 +217,13 @@ export const api = {
     phone?: string;
     registration_number?: string;
   }) {
-    return request<AuthResponse>("/auth/register", { method: "POST", body: JSON.stringify(payload) });
+    const hashedPassword = await sha256(payload.password);
+    return request<AuthResponse>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ ...payload, password: hashedPassword }),
+    });
   },
-  registerPatientIntake(payload: {
+  async registerPatientIntake(payload: {
     email: string;
     password: string;
     full_name: string;
@@ -187,9 +238,10 @@ export const api = {
     documents: Array<{ file: File; document_type: string }>;
   }) {
     const form = new FormData();
+    const hashedPassword = await sha256(payload.password);
     for (const [key, value] of Object.entries(payload)) {
       if (key !== "documents" && typeof value === "string") {
-        form.append(key, value);
+        form.append(key, key === "password" ? hashedPassword : value);
       }
     }
     for (const doc of payload.documents) {
@@ -198,8 +250,124 @@ export const api = {
     }
     return request<PatientIntakeResponse>("/auth/register/patient-intake", { method: "POST", body: form });
   },
-  login(payload: { email: string; password: string }) {
-    return request<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify(payload) });
+  async login(payload: { email: string; password: string }) {
+    const hashedPassword = await sha256(payload.password);
+    return request<LoginResponse>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ ...payload, password: hashedPassword }),
+    });
+  },
+  async verifyMfa(payload: { mfa_token: string; otp: string }) {
+    return request<AuthResponse>("/auth/mfa-verify", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  async changePassword(token: string, payload: { current_password: string; new_password: string }) {
+    const hashedCurrent = await sha256(payload.current_password);
+    const hashedNew = await sha256(payload.new_password);
+    return request<{ message: string }>(
+      "/auth/change-password",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          current_password: hashedCurrent,
+          new_password: hashedNew,
+        }),
+      },
+      token,
+    );
+  },
+  getMe(token: string) {
+    return request<{
+      id: string;
+      email: string;
+      full_name: string;
+      role: string;
+      phone: string;
+      registration_number: string;
+      age?: number;
+      city?: string;
+      speciality?: string;
+    }>("/auth/me", {}, token);
+  },
+  updateMe(
+    token: string,
+    payload: {
+      full_name?: string;
+      phone?: string;
+      age?: number;
+      city?: string;
+      speciality?: string;
+    },
+  ) {
+    return request<{
+      id: string;
+      email: string;
+      full_name: string;
+      role: string;
+      phone: string;
+      registration_number: string;
+      age?: number;
+      city?: string;
+      speciality?: string;
+    }>(
+      "/auth/me",
+      { method: "PUT", body: JSON.stringify(payload) },
+      token,
+    );
+  },
+  async requestPasswordReset(payload: { email: string }) {
+    return request<{ message: string, simulated_otp?: string }>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  async resetPassword(payload: { email: string; otp: string; new_password: string }) {
+    const hashedNew = await sha256(payload.new_password);
+    return request<{ message: string }>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ ...payload, new_password: hashedNew }),
+    });
+  },
+  async logout(token: string) {
+    return request<{ message: string }>("/auth/logout", { method: "POST" }, token);
+  },
+  async updateProfile(token: string, payload: Parameters<typeof this.updateMe>[1]) {
+    return this.updateMe(token, payload);
+  },
+  async createDoctor(
+    token: string,
+    payload: {
+      email: string;
+      password?: string;
+      full_name: string;
+      phone?: string;
+      registration_number: string;
+      speciality?: string;
+      hospital_id: string;
+      department_id: string;
+      consultation_fee?: number;
+    },
+  ) {
+    const hashedPassword = payload.password ? await sha256(payload.password) : undefined;
+    return request<{
+      doctor_user_id: string;
+      doctor_assignment_id: string;
+      full_name: string;
+      email: string;
+      speciality: string;
+    }>(
+      "/hospitals/create-doctor",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          ...payload,
+          ...(hashedPassword ? { password: hashedPassword } : {}),
+        }),
+      },
+      token,
+    );
   },
   ask(token: string, question: string, conversation_id: string, patient_id?: string) {
     return request<ClinicalAnswer>(
@@ -214,6 +382,23 @@ export const api = {
   history(token: string, patient_id?: string) {
     const query = patient_id ? `?patient_id=${encodeURIComponent(patient_id)}` : "";
     return request<ClinicalHistoryItem[]>(`/clinical/history${query}`, {}, token);
+  },
+  askClinicalRag(
+    token: string,
+    payload: { question: string; patient_id?: string | null; user_role?: string },
+  ) {
+    return request<ClinicalAnswer>(
+      "/clinical/ask",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          question: payload.question,
+          patient_id: payload.patient_id || null,
+          user_role: payload.user_role,
+        }),
+      },
+      token,
+    );
   },
   importHistory(
     token: string,
@@ -242,6 +427,8 @@ export const api = {
       location_text?: string;
       preferred_date?: string;
       preferred_time_slot?: string;
+      acoustic_cough_type?: string;
+      wheeze_acoustic_type?: string;
     },
   ) {
     return request<CareAgentResponse>(
@@ -250,11 +437,68 @@ export const api = {
       token,
     );
   },
-  uploadDocument(token: string, file: File, documentType: string) {
+  pmjayCheckEligibility(token: string, payload: { diagnosis: string; patient_id?: string | null }) {
+    return request<{
+      eligible: boolean;
+      package_name: string;
+      package_code: string;
+      coverage_amount: number;
+      reasoning: string;
+      guidelines: string[];
+    }>("/shared/pmjay-eligibility", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  registerFamily(token: string, payload: { full_name: string; relation: string; age?: number; notes?: string; scope?: string }) {
+    return request<{ id: string }>("/patient/family/register", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  getFamily(token: string) {
+    return request<Array<{
+      id: string;
+      full_name: string;
+      relation: string;
+      age: number;
+      notes: string;
+      member_user_id: string | null;
+      active_consent: { id: string; scope: string; purpose: string; expires_at: string | null } | null;
+    }>>("/patient/family", {}, token);
+  },
+  listFamilyMembers(token: string) {
+    return this.getFamily(token).then((members) =>
+      members.map((member) => ({
+        ...member,
+        name: member.full_name,
+      })),
+    );
+  },
+  triggerWhatsappAlert(token: string, payload: { consent_grant_id: string }) {
+    return request<{ status: string }>("/compliance/consent/alert-whatsapp", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  getWhatsappLogs(token: string) {
+    return request<Array<{
+      id: string;
+      to_phone: string;
+      body: string;
+      consent_grant_id: string | null;
+      status: string;
+      created_at: string;
+    }>>("/compliance/consent/whatsapp-logs", {}, token);
+  },
+  whatsappLogs(token: string) {
+    return this.getWhatsappLogs(token);
+  },
+  renewWhatsappConsent(token: string, payload: { consent_grant_id: string }) {
+    return request<{ status: string; new_expiry: string }>("/compliance/consent/renew-whatsapp", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  checkDrugInteractions(token: string, payload: { medicines: string[] }) {
+    return request<{
+      interactions: Array<{ medicine_a: string; medicine_b: string; severity: string; message: string }>;
+    }>("/doctor/drug-interactions", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  uploadDocument(token: string, file: File, documentType: string, patientId?: string | null) {
     const form = new FormData();
     form.append("file", file);
+    const patientQuery = patientId ? `&patient_id=${encodeURIComponent(patientId)}` : "";
     return request<DocumentRecord>(
-      `/documents/upload?document_type=${encodeURIComponent(documentType)}`,
+      `/documents/upload?document_type=${encodeURIComponent(documentType)}${patientQuery}`,
       { method: "POST", body: form },
       token,
     );
@@ -266,11 +510,61 @@ export const api = {
       token,
     );
   },
+  verifyOcr(token: string, docId: string, verifiedText: string) {
+    return request<DocumentRecord>(
+      `/documents/${encodeURIComponent(docId)}/verify-ocr`,
+      { method: "POST", body: JSON.stringify({ verified_text: verifiedText }) },
+      token,
+    );
+  },
+  listDocuments(token: string, patientId?: string | null) {
+    const query = patientId ? `?patient_id=${encodeURIComponent(patientId)}` : "";
+    return request<DocumentRecord[]>(`/documents${query}`, { method: "GET" }, token);
+  },
+  getPatientProfile(token: string, patientId: string) {
+    return request<{
+      blood_group?: string;
+      date_of_birth?: string;
+      gender?: string;
+      allergies?: string;
+      chronic_conditions?: string;
+      current_medications?: string;
+    }>(`/patient/profile/${encodeURIComponent(patientId)}`, { method: "GET" }, token);
+  },
+  listAppointments(token: string, patientId?: string | null) {
+    const query = patientId ? `?patient_id=${encodeURIComponent(patientId)}` : "";
+    return request<AppointmentRecord[]>(`/hospitals/appointments${query}`, { method: "GET" }, token);
+  },
+  listMyAppointments(token: string) {
+    return this.listAppointments(token);
+  },
+  createPrescription(token: string, payload: { patient_id: string; diagnosis: string; medications: string; dosage?: string; duration?: string; instructions?: string; follow_up_date?: string; pmjay_covered?: boolean }) {
+    return request<any>("/doctor/prescriptions", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  listPrescriptions(token: string, patientId?: string | null) {
+    const query = patientId ? `?patient_id=${encodeURIComponent(patientId)}` : "";
+    return request<any[]>(`/doctor/prescriptions${query}`, { method: "GET" }, token);
+  },
+  getAiPrescriptionDraft(token: string, payload: { patient_id: string; notes?: string }) {
+    return request<any>("/doctor/ai-prescription", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  getPrescriptionEducation(token: string, rxId: string) {
+    return request<any>(`/doctor/prescriptions/${encodeURIComponent(rxId)}/education`, { method: "GET" }, token);
+  },
   createConsent(
     token: string,
     payload: { patient_id: string; grantee_id: string; scope: string; purpose: string; expires_at?: string | null },
   ) {
     return request("/compliance/consents", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  listDoctors(params: { city?: string; speciality?: string } = {}) {
+    const query = new URLSearchParams();
+    if (params.city) query.set("city", params.city);
+    if (params.speciality) query.set("speciality", params.speciality);
+    return request<any[]>(`/hospitals/doctors?${query.toString()}`);
+  },
+  listDoctorsByCity(city: string, speciality?: string) {
+    return this.listDoctors({ city, speciality });
   },
   listHospitals(params: { city?: string; speciality?: string } = {}) {
     const query = new URLSearchParams();
@@ -290,7 +584,18 @@ export const api = {
     }
     return request<ConsultationSlotRecord[]>(`/hospitals/slots?${query.toString()}`);
   },
-  bookConsultation(token: string, payload: { slot_id: string; reason?: string; urgency?: string; notes?: string }) {
+  bookConsultation(
+    token: string,
+    payload: {
+      slot_id: string;
+      reason?: string;
+      urgency?: string;
+      notes?: string;
+      payment_method?: string;
+      insurance_provider?: string;
+      insurance_policy_number?: string;
+    },
+  ) {
     return request<AppointmentRecord>(
       "/hospitals/consultations/book",
       { method: "POST", body: JSON.stringify(payload) },
@@ -335,16 +640,340 @@ export const api = {
   createConsultationSlot(
     token: string,
     payload: {
-      hospital_id: string;
-      department_id: string;
-      doctor_id: string;
+      hospital_id?: string;
+      department_id?: string;
+      doctor_id?: string;
       date: string;
       start_time: string;
       end_time: string;
       consultation_mode?: string;
       capacity?: number;
+      consultation_fee?: number;
+      accept_insurance?: boolean;
     },
   ) {
     return request<ConsultationSlotRecord>("/hospitals/slots", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  transcribeVoice(token: string, file: File, language: string) {
+    const form = new FormData();
+    form.append("file", file);
+    return request<{
+      raw_text: string;
+      text: string;
+      acoustic_cough_type: string;
+      wheeze_acoustic_type: string;
+    }>(`/shared/voice/transcribe?language=${encodeURIComponent(language)}`, { method: "POST", body: form }, token);
+  },
+  soapNote(token: string, payload: { visit_summary: string }) {
+    return request<{
+      soap: Record<string, string>;
+      diff_warnings: string[];
+    }>("/doctor/soap-note", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  smsReceive(payload: { phone: string; body: string }) {
+    return request<{ status: string; reply: string }>("/communication/sms/receive", { method: "POST", body: JSON.stringify(payload) });
+  },
+  smsLogs(token: string) {
+    return request<Array<{
+      id: string;
+      phone: string;
+      body: string;
+      direction: string;
+      created_at: string;
+    }>>("/communication/sms/logs", {}, token);
+  },
+  redTeamRun(token: string) {
+    return request<Array<{
+      id: string;
+      prompt: string;
+      safety_label: string;
+      reply: string;
+      is_safe: boolean;
+      created_at: string;
+    }>>("/compliance/red-team/run", { method: "POST" }, token);
+  },
+  runRedTeamSimulator(token: string) {
+    return this.redTeamRun(token);
+  },
+  redTeamHistory(token: string) {
+    return request<{
+      drift_score: number;
+      total_runs: number;
+      logs: Array<{
+        id: string;
+        prompt: string;
+        safety_label: string;
+        reply: string;
+        is_safe: boolean;
+        created_at: string;
+      }>;
+    }>("/compliance/red-team/score", {}, token);
+  },
+  redTeamScore(token: string) {
+    return this.redTeamHistory(token);
+  },
+  createSecondOpinion(
+    token: string,
+    payload: { specialty: string; redacted_summary: string; clinical_question: string }
+  ) {
+    return request<{
+      id: string;
+      clinician_id: string;
+      specialty: string;
+      redacted_summary: string;
+      clinical_question: string;
+      status: string;
+      response_recommendation: string | null;
+      responder_id: string | null;
+      created_at: string;
+    }>("/doctor/second-opinion/create", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  secondOpinionBoard(token: string) {
+    return request<Array<{
+      id: string;
+      clinician_id: string;
+      specialty: string;
+      redacted_summary: string;
+      clinical_question: string;
+      status: string;
+      response_recommendation: string | null;
+      responder_id: string | null;
+      created_at: string;
+    }>>("/doctor/second-opinion/board", {}, token);
+  },
+  respondSecondOpinion(
+    token: string,
+    payload: { request_id: string; response_recommendation: string }
+  ) {
+    return request<{
+      id: string;
+      clinician_id: string;
+      specialty: string;
+      redacted_summary: string;
+      clinical_question: string;
+      status: string;
+      response_recommendation: string | null;
+      responder_id: string | null;
+      created_at: string;
+    }>("/doctor/second-opinion/respond", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  ocrSpellcheck(token: string, payload: { text: string }) {
+    return request<Array<{
+      original: string;
+      correction: string;
+      is_typo: boolean;
+      suggestions: string[];
+    }>>("/shared/ocr/spellcheck", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  pillboxPing(token: string, payload: { reminder_id: string; status: string }) {
+    return request<{ status: string; alert_id: string; caregiver_notified: boolean }>(
+      "/patient/pillbox/ping",
+      { method: "POST", body: JSON.stringify(payload) },
+      token
+    );
+  },
+  pillboxAlerts(token: string) {
+    return request<Array<{
+      id: string;
+      reminder_id: string;
+      patient_id: string;
+      status: string;
+      logged_at: string;
+    }>>("/patient/pillbox/alerts", {}, token);
+  },
+  screenMentalHealthConversation(token: string, payload: { conversation_text: string }) {
+    return request<{ score: number; risk_level: string; sentiment_score: number }>(
+      "/patient/mental-health/screen-conversation",
+      { method: "POST", body: JSON.stringify(payload) },
+      token
+    );
+  },
+  weatherAllergenSync(token: string) {
+    return request<{ aqi: number; pollen: string; vulnerable: boolean; alerts_triggered: number; tasks_created: string[] }>(
+      "/patient/weather-health/allergen-sync",
+      { method: "POST" },
+      token
+    );
+  },
+  getGuidelineDriftAlerts(token: string) {
+    return request<Array<{
+      id: string;
+      guideline_title: string;
+      published_source: string;
+      drift_reason: string;
+      action_taken: string;
+      created_at: string;
+    }>>("/compliance/guidelines/drift-alerts", {}, token);
+  },
+  checkGuidelineDrift(token: string) {
+    return request<Array<{
+      id: string;
+      guideline_title: string;
+      published_source: string;
+      drift_reason: string;
+      action_taken: string;
+      created_at: string;
+    }>>("/compliance/guidelines/check-drift", { method: "POST" }, token);
+  },
+  hashTimelineLedger(token: string, patient_id?: string | null) {
+    const query = patient_id ? `?patient_id=${encodeURIComponent(patient_id)}` : "";
+    return request<{
+      id: string;
+      patient_id: string;
+      block_index: number;
+      timeline_hash: string;
+      previous_hash: string;
+      nonce: number;
+      hash: string;
+      created_at: string;
+    }>(`/compliance/ledger/hash-timeline${query}`, { method: "POST" }, token);
+  },
+  verifyLedger(token: string, patient_id?: string | null) {
+    const query = patient_id ? `?patient_id=${encodeURIComponent(patient_id)}` : "";
+    return request<{ is_valid: boolean; error: string | null }>(
+      `/compliance/ledger/verify${query}`,
+      { method: "POST" },
+      token
+    );
+  },
+  getLedgerBlocks(token: string, patient_id?: string | null) {
+    const query = patient_id ? `?patient_id=${encodeURIComponent(patient_id)}` : "";
+    return request<Array<{
+      id: string;
+      patient_id: string;
+      block_index: number;
+      timeline_hash: string;
+      previous_hash: string;
+      nonce: number;
+      hash: string;
+      created_at: string;
+    }>>(`/compliance/ledger/blocks${query}`, {}, token);
+  },
+  getSimilarCases(token: string, doc_id: string) {
+    return request<{
+      similar_cases: Array<{
+        case_id: string;
+        modality: string;
+        observations: string;
+        treatment_plan: string;
+        outcome: string;
+        similarity_score: number;
+      }>;
+    }>(`/documents/imagery/similar-cases/${doc_id}`, {}, token);
+  },
+  generateCohort(token: string, payload: { chronic_condition: string; min_age: number; max_age: number }) {
+    return request<Array<{
+      id: string;
+      age: number;
+      gender: string;
+      chronic_conditions: string;
+      timeline_events_count: number;
+    }>>("/public-health/cohorts", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  getOutbreakMap(token: string) {
+    return request<{
+      heatmap: Array<{
+        city: string;
+        state: string;
+        disease: string;
+        cases_count: number;
+        severity: string;
+        message: string;
+      }>;
+    }>("/public-health/outbreak-map", {}, token);
+  },
+  voiceAudit(token: string, payload: { audio_text: string }) {
+    return request<{
+      status: string;
+      event_id: string;
+      hash: string;
+      previous_hash: string;
+      transcript: string;
+    }>("/communication/voice-audit", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  triggerBreakGlass(token: string, payload: { patient_id: string; purpose: string }) {
+    return request<{ status: string }>(
+      "/compliance/break-glass",
+      { method: "POST", body: JSON.stringify(payload) },
+      token,
+    );
+  },
+  dispatchAmbulance(token: string, payload: { symptoms: string; location_text: string }) {
+    return request<{
+      booking_reference: string;
+      status: string;
+      eta: string;
+      symptoms: string;
+      location: string;
+    }>("/patient/ambulance/dispatch", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  createMedicationReminder(token: string, payload: { medicine_name: string; dosage: string; schedule: string; patient_id?: string }) {
+    return request<{ id: string; active: boolean }>("/patient/medication-reminders", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }, token);
+  },
+  listMedicationReminders(token: string, patient_id?: string) {
+    const query = patient_id ? `?patient_id=${encodeURIComponent(patient_id)}` : "";
+    return request<Array<{
+      id: string;
+      patient_id: string;
+      medicine_name: string;
+      dosage: string;
+      schedule: string;
+      active: boolean;
+      created_at: string;
+    }>>(`/patient/medication-reminders${query}`, {}, token);
+  },
+  joinConsultationRoom(token: string, appointmentId: string) {
+    return request<ConsultationRoomRecord>(
+      `/consultations/${encodeURIComponent(appointmentId)}/room`,
+      { method: "POST" },
+      token,
+    );
+  },
+  endConsultationRoom(token: string, appointmentId: string) {
+    return request<ConsultationRoomRecord>(
+      `/consultations/${encodeURIComponent(appointmentId)}/room/end`,
+      { method: "POST" },
+      token,
+    );
+  },
+  listConsultationMessages(token: string, appointmentId: string, sinceId = "") {
+    const query = sinceId ? `?since_id=${encodeURIComponent(sinceId)}` : "";
+    return request<ConsultationMessageRecord[]>(
+      `/consultations/${encodeURIComponent(appointmentId)}/messages${query}`,
+      {},
+      token,
+    );
+  },
+  sendConsultationMessage(
+    token: string,
+    appointmentId: string,
+    payload: { body: string; message_type?: string; client_message_id?: string },
+  ) {
+    return request<ConsultationMessageRecord>(
+      `/consultations/${encodeURIComponent(appointmentId)}/messages`,
+      { method: "POST", body: JSON.stringify(payload) },
+      token,
+    );
+  },
+  postConsultationSignal(
+    token: string,
+    appointmentId: string,
+    payload: { signal_type: string; payload: Record<string, unknown> },
+  ) {
+    return request<{ id: string; status: string }>(
+      `/consultations/${encodeURIComponent(appointmentId)}/signals`,
+      { method: "POST", body: JSON.stringify(payload) },
+      token,
+    );
+  },
+  pollConsultationSignals(token: string, appointmentId: string) {
+    return request<ConsultationSignalRecord[]>(
+      `/consultations/${encodeURIComponent(appointmentId)}/signals`,
+      {},
+      token,
+    );
   },
 };

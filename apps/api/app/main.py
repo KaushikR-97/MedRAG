@@ -7,6 +7,7 @@ from app.api.routes import (
     care_agent,
     clinical,
     communication,
+    consultations,
     compliance,
     doctor_features,
     documents,
@@ -54,12 +55,16 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.add_middleware(SecurityHeadersMiddleware)
+    if settings.environment.lower() == "production":
+        from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+        app.add_middleware(HTTPSRedirectMiddleware)
 
     app.include_router(health.router)
     app.include_router(auth.router, prefix="/auth", tags=["auth"])
     app.include_router(care_agent.router, prefix="/care-agent", tags=["agentic-care"])
     app.include_router(documents.router, prefix="/documents", tags=["documents"])
     app.include_router(clinical.router, prefix="/clinical", tags=["clinical"])
+    app.include_router(consultations.router, prefix="/consultations", tags=["consultations"])
     app.include_router(compliance.router, prefix="/compliance", tags=["compliance"])
     app.include_router(communication.router, prefix="/communication", tags=["communication"])
     app.include_router(patient_features.router, prefix="/patient", tags=["patient-features"])
@@ -70,8 +75,7 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     def on_startup() -> None:
-        if settings.is_non_prod:
-            init_db()
+        init_db()
 
     return app
 

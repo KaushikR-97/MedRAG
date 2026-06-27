@@ -8,6 +8,7 @@ class DocumentRecord(BaseModel):
     status: str
     malware_status: str
     sha256: str
+    ocr_text: str = ""
     ocr_engine: str = ""
     ocr_confidence: str = ""
     ocr_review_status: str = ""

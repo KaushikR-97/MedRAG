@@ -51,6 +51,8 @@ def coordinate_symptom_action(
         location_text=payload.location_text,
         preferred_date=payload.preferred_date,
         preferred_time_slot=payload.preferred_time_slot,
+        acoustic_cough_type=payload.acoustic_cough_type,
+        wheeze_acoustic_type=payload.wheeze_acoustic_type,
     )
     return CareAgentResponse(
         action=state["action"],
