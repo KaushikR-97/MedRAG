@@ -74,58 +74,19 @@ class HybridMedicalRetriever:
 class GraphMedicalRetriever:
     """Graph-based UMLS/SNOMED-CT clinical relation maps simulator."""
     def retrieve_relations(self, query: str) -> list[RetrievedChunk]:
-        text = query.lower()
-        chunks = []
-        
-        # 1. Metformin / Diabetes relation
-        if "diabetes" in text or "metformin" in text:
-            chunks.append(
-                RetrievedChunk(
-                    id="snomed-44054006-diab",
-                    title="SNOMED-CT Concept relation: Diabetes Mellitus",
-                    score=1.0,
-                    text=(
-                        "UMLS Concept Map details:\n"
-                        "- [SNOMED-44054006] Type 2 Diabetes Mellitus -> TreatedBy -> [RxNorm-86509] Metformin HCl.\n"
-                        "- Contraindications: Renal impairment (e.g. eGFR < 30 mL/min/1.73m2), acute metabolic acidosis.\n"
-                        "- Traditional Herb cautions: Co-administering Metformin with hypoglycemic herbs like Neem or Bitter Melon increases risk of additive hypoglycemia."
-                    )
-                )
+        if not query.strip():
+            return []
+        return [
+            RetrievedChunk(
+                id="generic-clinical-knowledge-graph-framework",
+                title="Generic clinical knowledge graph framework",
+                score=0.72,
+                text=(
+                    "Clinical knowledge graph reasoning should map the user's condition or symptom to candidate diseases, related findings, investigations, medication classes, contraindications, interactions, and escalation criteria. "
+                    "Use verified guidelines and patient-specific context for concrete disease facts instead of hardcoded disease examples."
+                ),
             )
-            
-        # 2. Gout / Uric Acid / Zyloric relation
-        if any(kw in text for kw in ["gout", "uric acid", "zyloric", "allopurinol"]):
-            chunks.append(
-                RetrievedChunk(
-                    id="snomed-90560007-gout",
-                    title="SNOMED-CT Concept relation: Gouty Arthritis",
-                    score=1.0,
-                    text=(
-                        "UMLS Concept Map details:\n"
-                        "- [SNOMED-90560007] Gout -> Pathophysiology -> Elevated Serum Uric Acid (Hyperuricemia).\n"
-                        "- Treatment: Allopurinol (Zyloric 100) works as a Xanthine Oxidase Inhibitor to reduce uric acid synthesis.\n"
-                        "- Traditional Herb Cautions: Ayurvedic herbs like Turmeric (Curcumin) can assist with anti-inflammatory support in gout, but do not replace xanthine oxidase inhibitors for lowering uric acid levels."
-                    )
-                )
-            )
-            
-        # 3. Dengue relation
-        if "dengue" in text:
-            chunks.append(
-                RetrievedChunk(
-                    id="snomed-38362002-dengue",
-                    title="SNOMED-CT Concept relation: Dengue Virus Disease",
-                    score=1.0,
-                    text=(
-                        "UMLS Concept Map details:\n"
-                        "- [SNOMED-38362002] Dengue -> Pathology -> Severe thrombocytopenia (Platelets < 100,000 cells/mcL).\n"
-                        "- Contraindications: NSAIDs (Aspirin, Ibuprofen) are contraindicated in Dengue due to increased hemorrhage risk. Acetaminophen (Paracetamol) is the preferred analgesic.\n"
-                        "- Traditional Herb cautions: Carica Papaya leaf extract has been used traditionally to support platelet count, but requires close clinical monitoring."
-                    )
-                )
-            )
-            
-        return chunks
+        ]
 
 
 class HybridMedicalRetriever:
@@ -336,7 +297,6 @@ class HybridMedicalRetriever:
         ]
 
     def _fallback_chunks(self, query: str) -> list[RetrievedChunk]:
-        text = query.lower()
         chunks = [
             RetrievedChunk(
                 id="safety-baseline",
@@ -349,40 +309,15 @@ class HybridMedicalRetriever:
                 ),
             )
         ]
-        if any(term in text for term in ["diarrhea", "diarrhoea", "loose motion", "loose stool"]):
-            chunks.append(
-                RetrievedChunk(
-                    id="primary-care-diarrhea-framework",
-                    title="Primary care framework: acute diarrhea",
-                    score=0.78,
-                    text=(
-                        "Acute diarrhea assessment includes duration, stool frequency, blood or mucus, fever, vomiting, hydration, urine output, travel/food exposure, antibiotic use, pregnancy, age, comorbidities, and immunocompromise. "
-                        "Red flags include severe dehydration, blood in stool, persistent high fever, severe abdominal pain, altered sensorium, pregnancy, infants/elderly frailty, immunocompromise, and symptoms persisting beyond several days. "
-                        "Oral rehydration solution and continued fluids are core supportive care. Antibiotics or antimotility agents require clinician assessment and should be avoided in suspected invasive diarrhea unless clinically indicated."
-                    ),
-                )
-            )
-        if any(term in text for term in ["thyroid", "hypothyroid", "hyperthyroid", "tsh", "levothyroxine"]):
-            chunks.append(
-                RetrievedChunk(
-                    id="primary-care-thyroid-framework",
-                    title="Primary care framework: thyroid disorders",
-                    score=0.78,
-                    text=(
-                        "Thyroid assessment should review TSH, free T4, symptoms, pregnancy status, cardiac disease, age, weight, current medicines, adherence, and prior thyroid surgery or radioiodine. "
-                        "Hypothyroidism treatment commonly uses levothyroxine with dosing individualized by age, cardiac risk, pregnancy, and lab values. Hyperthyroidism needs cause assessment and may require antithyroid medicines, beta-blocker symptom control, or specialist care. "
-                        "Urgent red flags include severe palpitations, chest pain, confusion, high fever, severe weakness, thyroid storm concern, or pregnancy with uncontrolled thyroid disease."
-                    ),
-                )
-            )
         chunks.append(
             RetrievedChunk(
-                id="clinician-prescribing-framework",
-                title="General clinician prescribing framework",
-                score=0.72,
+                id="generic-clinical-reasoning-framework",
+                title="Generic clinical reasoning and prescribing framework",
+                score=0.78,
                 text=(
-                    "For clinician decision support, prescribing should confirm diagnosis, severity, contraindications, allergies, renal and hepatic function, pregnancy/lactation status, age/weight, drug interactions, monitoring needs, follow-up timing, and escalation criteria. "
-                    "Patient-facing answers should explain conditions and lifestyle guidance without providing prescriptions or dose instructions."
+                    "For any disease or symptom, clinical reasoning should identify the working diagnosis, important differentials, severity, red flags, relevant history, examination findings, investigation needs, and patient-specific risks. "
+                    "For clinician decision support, treatment selection should consider age, weight, pregnancy/lactation status, allergies, renal and hepatic function, comorbidities, current medicines, contraindications, drug interactions, local resistance/guidelines, monitoring needs, follow-up timing, and escalation criteria. "
+                    "Patient-facing answers should explain likely concepts, report meaning, lifestyle measures, red flags, and when to seek care without giving prescriptions, dose instructions, cures, or personalized treatment plans."
                 ),
             )
         )

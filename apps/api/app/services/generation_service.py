@@ -154,21 +154,8 @@ class ClinicalGenerationService:
                 source_text=source_text,
             )
         if user_role == "doctor":
-            lowered = question.lower()
-            if "fever" in lowered:
-                return (
-                    "For fever, first assess age, temperature, duration, vitals, hydration, pregnancy status, liver/renal disease, dengue/malaria/typhoid/COVID exposure, rash, neck stiffness, breathlessness, altered sensorium, severe abdominal pain, and immunocompromise.\n\n"
-                    "Common symptomatic options for an adult include paracetamol/acetaminophen 500-650 mg orally every 6 hours as needed, keeping within local maximum daily dose limits and avoiding excess use in liver disease or heavy alcohol use. Ibuprofen 200-400 mg orally every 6-8 hours with food can be considered if there is no renal disease, active gastritis/ulcer, anticoagulant use, uncontrolled hypertension, pregnancy risk, or NSAID allergy.\n\n"
-                    "Do not give antibiotics solely for fever without a suspected bacterial source. Order targeted tests and escalate urgently for unstable vitals, altered sensorium, meningism, respiratory distress, petechial rash, persistent vomiting, severe dehydration, pregnancy, infants/elderly, immunocompromise, or fever persisting beyond 3 days."
-                )
-            if any(term in lowered for term in ["gout", "uric acid", "hyperuricemia", "hyperuricaemia"]):
-                return (
-                    "For suspected gout or high uric acid, first confirm whether this is an acute flare, chronic hyperuricemia, renal stone disease, or another arthritis mimic such as septic arthritis. Check age, renal function, liver disease, pregnancy status, allergies, current medicines, ulcer/bleeding risk, diabetes, anticoagulant use, and infection red flags.\n\n"
-                    "Acute flare options for an adult can include an NSAID such as naproxen 500 mg initially then 250 mg twice daily, or ibuprofen 400 mg every 6-8 hours with food, if renal function is adequate and there is no active ulcer/bleeding risk, anticoagulant use, uncontrolled hypertension, heart failure, late pregnancy, or NSAID allergy. Colchicine is commonly used early in a flare, for example 1.2 mg once then 0.6 mg one hour later, followed by 0.6 mg once or twice daily if tolerated; avoid or reduce with significant renal/hepatic impairment and strong CYP3A4/P-gp inhibitors. If NSAIDs/colchicine are unsuitable, a short oral corticosteroid course such as prednisolone 30-40 mg daily for about 5 days may be considered after excluding infection.\n\n"
-                    "For recurrent gout or tophi, consider urate-lowering therapy after the acute plan is stable: allopurinol is usually started low, commonly 100 mg daily, or lower in CKD, then titrated to serum urate target. Provide flare prophylaxis during initiation when appropriate. Avoid starting or escalating urate-lowering therapy without checking renal function, baseline uric acid, CBC/LFTs as locally indicated, hypersensitivity risk, and interacting medicines. Escalate urgently for fever with hot joint, systemic illness, immunosuppression, rapidly progressive swelling, or diagnostic uncertainty."
-                )
             return (
-                "The model service is temporarily unavailable. As doctor decision support, approach this as: confirm likely diagnosis and differentials, assess severity and red flags, check age/pregnancy status, renal/hepatic function, allergies, current medicines, and contraindications, then select first-line treatment with dose adjustment and monitoring based on local guidelines. Restart the model service for disease-specific prescribing detail."
+                "The model service is temporarily unavailable. As doctor decision support, use a generic clinical workflow: clarify the working diagnosis and differentials, assess severity and red flags, review age, pregnancy/lactation status, vitals, allergies, renal/hepatic function, comorbidities, current medicines, contraindications, and drug interactions. Choose disease-appropriate therapy from local guidelines, include dose adjustment and monitoring, document escalation criteria, and arrange follow-up. Restart the model service for condition-specific medication options."
             )
         return (
             "I can explain medical conditions, report findings, lifestyle steps, warning signs, and what to discuss with your clinician. "
