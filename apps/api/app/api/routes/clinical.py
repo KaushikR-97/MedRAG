@@ -1,4 +1,5 @@
 import json
+import re
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -44,6 +45,8 @@ def ask_clinical_question(
 
     cache_service = ClinicalCacheService()
     cached = cache_service.get_cached_answer(payload.question, user.role, patient_id)
+    if cached and _is_gibberish_answer(cached.get("answer", "")):
+        cached = None
     if cached:
         AuditService(db).record(
             actor=user,
@@ -137,6 +140,13 @@ def ask_clinical_question(
             "rewritten_queries": [],
         }
     answer = PrivacyService().minimum_necessary_text(actor=user, patient_id=patient_id, text=state["answer"], db=db)
+    if _is_gibberish_answer(answer):
+        answer = _fallback_clinical_answer(payload.question, user.role)
+        state["safety_label"] = "fallback_answer"
+        state["query_route"] = "fallback"
+        state["query_route_reason"] = "Repetitive model output suppressed"
+        state["query_route_confidence"] = 0.0
+        state["query_route_used_fallback"] = True
     sources = [
         SourceSnippet(
             id=source.id,
@@ -200,6 +210,13 @@ def ask_clinical_question(
 
 def _fallback_clinical_answer(question: str, role: str) -> str:
     text = question.lower()
+    if role == "doctor" and any(term in text for term in ["diarrhea", "diarrhoea", "loose motion", "loose stools", "gastroenteritis"]):
+        return (
+            "For acute diarrhea, start with dehydration assessment and ORS. Check age, pregnancy, vitals, blood/mucus in stool, high fever, severe abdominal pain, recent antibiotics/C. difficile risk, travel exposure, immunocompromise, and duration. "
+            "For children, add zinc: 10 mg daily if under 6 months, 20 mg daily if 6 months or older, for 10-14 days. "
+            "For adults with non-bloody, afebrile watery diarrhea, loperamide can be used as 4 mg once, then 2 mg after each loose stool as needed within local max-dose limits; avoid it in dysentery, high fever, suspected invasive bacterial diarrhea, C. difficile, toxic megacolon risk, and young children unless guided. "
+            "Racecadotril 100 mg three times daily for a short course may be considered where available. Antibiotics are not routine; reserve targeted therapy or stool testing for dysentery, cholera suspicion, severe traveler diarrhea, sepsis, immunocompromise, outbreak context, or persistent symptoms. Escalate for severe dehydration, blood in stool, persistent vomiting, altered sensorium, pregnancy, infants/elderly, or symptoms beyond 3 days."
+        )
     if role == "doctor" and any(term in text for term in ["thyroid", "hypothyroid", "hyperthyroid", "thyroxine"]):
         return (
             "For thyroid treatment, first confirm TSH and free T4 and classify hypothyroid vs hyperthyroid. "
@@ -213,6 +230,21 @@ def _fallback_clinical_answer(question: str, role: str) -> str:
             "I could not complete the full retrieval workflow, but for a clinician treatment question: confirm diagnosis, severity, age, pregnancy status, renal/hepatic function, allergies, current medicines, and red flags; then choose disease-specific first-line therapy with dose adjustment, contraindications, monitoring, and escalation criteria."
         )
     return "I could not complete the clinical retrieval workflow. Please retry with symptoms, duration, age, relevant conditions, and current medicines."
+
+
+def _is_gibberish_answer(text: str) -> bool:
+    stripped = (text or "").strip()
+    if len(stripped) < 160:
+        return False
+    compact = re.sub(r"\s+", "", stripped.lower())
+    if re.search(r"([a-z]{3,12})\1{8,}", compact):
+        return True
+    words = re.findall(r"[a-zA-Z]{2,}", stripped.lower())
+    if len(words) < 40:
+        return False
+    unique_ratio = len(set(words)) / len(words)
+    most_common_count = max(words.count(word) for word in set(words))
+    return unique_ratio < 0.18 or most_common_count >= 18
 
 
 @router.get("/history", response_model=list[ClinicalHistoryItem])

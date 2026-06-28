@@ -568,8 +568,8 @@ export const api = {
   },
   updateAppointmentStatus(token: string, appointmentId: string, payload: { status: string; cancellation_reason?: string }) {
     return request<AppointmentRecord>(
-      `/hospitals/appointments/${encodeURIComponent(appointmentId)}`,
-      { method: "PATCH", body: JSON.stringify(payload) },
+      `/hospitals/appointments/${encodeURIComponent(appointmentId)}/status`,
+      { method: "POST", body: JSON.stringify(payload) },
       token,
     );
   },

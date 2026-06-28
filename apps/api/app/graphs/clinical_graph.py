@@ -336,6 +336,17 @@ class ClinicalRagGraph:
                 "Hypothyroidism: levothyroxine is first-line. In a healthy non-pregnant adult, common full replacement is about 1.6 mcg/kg/day orally, taken on an empty stomach. In older patients or coronary disease, start low, often 12.5-25 mcg daily, then titrate. Recheck TSH in 6-8 weeks after dose changes. Separate from iron, calcium, antacids, and PPIs when possible.\n\n"
                 "Hyperthyroidism: confirm cause. For Graves/toxic nodular disease, methimazole is commonly used except in first-trimester pregnancy or thyroid storm where PTU may be preferred. Add a beta blocker such as propranolol if symptomatic tachycardia/tremor and no contraindication. Monitor CBC/LFT warnings, agranulocytosis symptoms, pregnancy, and urgent red flags such as thyroid storm."
             )
+        elif user_role == "doctor" and any(term in question for term in ["diarrhea", "diarrhoea", "loose motion", "loose stools", "gastroenteritis"]):
+            aggregated_answer = (
+                "For acute diarrhea, first assess dehydration, vitals, age, pregnancy, immunocompromise, recent antibiotics/C. difficile risk, travel/food exposure, blood or mucus in stool, high fever, severe abdominal pain, and duration.\n\n"
+                "Core treatment:\n"
+                "1. Oral rehydration solution is first-line; continue feeding. Use IV fluids if severe dehydration, shock, altered sensorium, or unable to drink.\n"
+                "2. Zinc for children: 10 mg daily if under 6 months, 20 mg daily if 6 months or older, for 10-14 days.\n"
+                "3. Adults may use loperamide 4 mg once, then 2 mg after each loose stool as needed, within local max-dose limits. Avoid loperamide in bloody diarrhea, high fever, suspected invasive bacterial diarrhea, C. difficile, toxic megacolon risk, or young children unless specifically guided.\n"
+                "4. Racecadotril 100 mg three times daily for a short course can be considered for adults where available; use pediatric dosing only per weight/label.\n"
+                "5. Probiotics can be considered as an adjunct, especially for acute watery diarrhea, but they do not replace rehydration.\n\n"
+                "Antibiotics are not routine for uncomplicated watery diarrhea. Consider stool testing and targeted antibiotics for dysentery, suspected cholera, severe traveler diarrhea, persistent fever, sepsis, immunocompromise, or outbreak context. Escalate urgently for severe dehydration, blood in stool, persistent vomiting, severe pain, altered sensorium, infants/elderly, pregnancy, or symptoms lasting more than 3 days."
+            )
         elif user_role == "doctor" and "fever" in question and any(term in question for term in ["medicine", "medicines", "give", "prescribe", "drug"]):
             aggregated_answer = (
                 "For an uncomplicated adult fever, consider:\n\n"

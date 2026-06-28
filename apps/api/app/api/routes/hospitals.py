@@ -325,6 +325,16 @@ def update_appointment_status(
         raise HTTPException(400, f"Error updating appointment status: {str(exc)}\n{traceback.format_exc()}") from exc
 
 
+@router.post("/appointments/{appointment_id}/status")
+def post_appointment_status(
+    appointment_id: str,
+    payload: AppointmentStatusUpdate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return update_appointment_status(appointment_id=appointment_id, payload=payload, user=user, db=db)
+
+
 @router.get("/appointments")
 def list_my_appointments(
     patient_id: str | None = None,
