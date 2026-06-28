@@ -124,8 +124,14 @@ CLINICAL_BEHAVIOR_ROWS = [
     {
         "instruction": "Doctor role: answer a medication question for an adult outpatient. Give clinician-facing options, dose-safety checks, contraindications, monitoring, and escalation criteria. Do not refuse solely because treatment is being discussed.",
         "context": "Scenario: Stable adult with uncomplicated fever. No age, pregnancy status, allergies, liver disease, renal disease, dengue risk, current medicines, or vitals are supplied.",
-        "response": "For a stable adult with uncomplicated fever, first confirm severity, duration, temperature, hydration, local outbreak context, pregnancy status, allergies, liver disease, renal disease, anticoagulant use, and current medicines.\n\nMedication options to consider:\n1. Paracetamol/acetaminophen is the usual first-line antipyretic when no contraindication exists. Typical adult dosing is 500-1000 mg every 6-8 hours as needed. Keep total daily dose within local formulary limits, and use a lower maximum in older adults, low body weight, alcohol use, or liver disease.\n2. Avoid routine NSAIDs if dengue, significant dehydration, renal impairment, peptic ulcer disease, anticoagulant use, uncontrolled hypertension, heart failure, or pregnancy risk is present. If an NSAID is considered, document indication and GI/renal/cardiovascular risk.\n\nDo not mask danger signs. Escalate urgently for altered sensorium, breathlessness, hypotension, persistent high fever, bleeding, severe abdominal pain, neck stiffness, seizures, low oxygen saturation, pregnancy, infants/elderly/frail patients, or immunosuppression. Reassess if fever persists beyond 48-72 hours or local disease patterns suggest malaria, dengue, influenza, COVID-19, typhoid, sepsis, or another specific diagnosis.",
+        "response": "For a stable adult with uncomplicated fever, the usual first-line option is paracetamol/acetaminophen if there is no allergy or significant liver-risk factor. Common adult dosing is 500-1000 mg orally every 6-8 hours as needed; keep the total daily dose within the local formulary maximum, and use a lower ceiling in older adults, low body weight, alcohol use, chronic liver disease, or concurrent hepatotoxic medicines.\n\nNSAIDs are not first-line when the cause is unclear in India because dengue and dehydration are common practical risks. If dengue is unlikely and there is no renal impairment, dehydration, peptic ulcer disease, anticoagulant use, heart failure, uncontrolled hypertension, pregnancy risk, or NSAID allergy, ibuprofen 200-400 mg orally every 6-8 hours with food may be considered for short duration. Avoid aspirin.\n\nDo not give empiric antibiotics for an uncomplicated fever without a clinical focus or diagnostic indication. Reassess if fever persists beyond 48-72 hours. Escalate urgently for altered sensorium, hypotension, breathlessness, bleeding, severe abdominal pain, neck stiffness, seizures, hypoxia, persistent high fever, pregnancy, immunosuppression, extremes of age, dehydration, or clinical deterioration.",
         "metadata": {"source": "clinical_behavior_seed", "role": "doctor", "topic": "generic_fever"}
+    },
+    {
+        "instruction": "Doctor role: answer directly. What medicines can be considered for uncomplicated fever in an adult, including dose-safety checks?",
+        "context": "Scenario: Adult outpatient fever, stable, no red flags supplied. This is clinician decision support.",
+        "response": "For a stable adult with uncomplicated fever, consider symptomatic antipyretic treatment while evaluating likely cause and local outbreak risks.\n\n1. Paracetamol/acetaminophen: 500-1000 mg orally every 6-8 hours as needed. Keep within local maximum daily-dose limits. Use a lower maximum or avoid in chronic liver disease, heavy alcohol use, severe malnutrition/low body weight, or concurrent hepatotoxic medicines.\n2. Ibuprofen: 200-400 mg orally every 6-8 hours with food can be considered only if dengue is unlikely and renal/GI/CV risk is low. Avoid in renal impairment, significant dehydration, peptic ulcer/GI bleed risk, anticoagulant use, heart failure, uncontrolled hypertension, pregnancy risk, NSAID allergy/asthma sensitivity, or suspected dengue/bleeding illness.\n3. Avoid aspirin for routine fever management. Avoid empiric antibiotics unless there is a likely bacterial focus or diagnostic evidence.\n\nMonitoring and follow-up: document temperature trend, hydration, blood pressure, renal/liver risk, current medicines, and response. Review within 48-72 hours if fever persists or earlier if worsening.\n\nUrgent escalation: breathlessness, SpO2 drop, hypotension, confusion, seizure, neck stiffness, bleeding/rash, severe abdominal pain, persistent vomiting, dehydration, pregnancy, immunosuppression, or fever with rapid deterioration.",
+        "metadata": {"source": "clinical_behavior_seed", "role": "doctor", "topic": "fever_direct_answer"}
     },
     {
         "instruction": "Doctor role: provide a general treatment-planning framework for any disease without hardcoding a single disease. Include medication selection, safety checks, monitoring, and escalation.",
@@ -193,6 +199,15 @@ def load_existing_rows() -> list[dict]:
                 continue
     return rows
 
+
+def is_low_quality_template_row(row: dict) -> bool:
+    response = row.get("response", "").strip().lower()
+    if response.startswith("for clinician decision support, use the supplied reference together with"):
+        return True
+    if response.startswith("i can explain this in general terms. the key point from the supplied reference"):
+        return True
+    return False
+
 def generate_sft_examples():
     sft_rows = []
     existing_rows = load_existing_rows()
@@ -203,6 +218,8 @@ def generate_sft_examples():
         print("Offline fallback detected. Preserving existing checked-in SFT rows before adding behavior seeds.")
         seen_keys: set[str] = set()
         for row in existing_rows:
+            if is_low_quality_template_row(row):
+                continue
             key = json.dumps(
                 {
                     "instruction": row.get("instruction", ""),
