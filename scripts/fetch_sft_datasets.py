@@ -120,6 +120,45 @@ BACKUP_DRUG_MCQS = [
     }
 ]
 
+CLINICAL_BEHAVIOR_ROWS = [
+    {
+        "instruction": "Doctor role: answer a medication question for an adult outpatient. Give clinician-facing options, dose-safety checks, contraindications, monitoring, and escalation criteria. Do not refuse solely because treatment is being discussed.",
+        "context": "Scenario: Stable adult with uncomplicated fever. No age, pregnancy status, allergies, liver disease, renal disease, dengue risk, current medicines, or vitals are supplied.",
+        "response": "For a stable adult with uncomplicated fever, first confirm severity, duration, temperature, hydration, local outbreak context, pregnancy status, allergies, liver disease, renal disease, anticoagulant use, and current medicines.\n\nMedication options to consider:\n1. Paracetamol/acetaminophen is the usual first-line antipyretic when no contraindication exists. Typical adult dosing is 500-1000 mg every 6-8 hours as needed. Keep total daily dose within local formulary limits, and use a lower maximum in older adults, low body weight, alcohol use, or liver disease.\n2. Avoid routine NSAIDs if dengue, significant dehydration, renal impairment, peptic ulcer disease, anticoagulant use, uncontrolled hypertension, heart failure, or pregnancy risk is present. If an NSAID is considered, document indication and GI/renal/cardiovascular risk.\n\nDo not mask danger signs. Escalate urgently for altered sensorium, breathlessness, hypotension, persistent high fever, bleeding, severe abdominal pain, neck stiffness, seizures, low oxygen saturation, pregnancy, infants/elderly/frail patients, or immunosuppression. Reassess if fever persists beyond 48-72 hours or local disease patterns suggest malaria, dengue, influenza, COVID-19, typhoid, sepsis, or another specific diagnosis.",
+        "metadata": {"source": "clinical_behavior_seed", "role": "doctor", "topic": "generic_fever"}
+    },
+    {
+        "instruction": "Doctor role: provide a general treatment-planning framework for any disease without hardcoding a single disease. Include medication selection, safety checks, monitoring, and escalation.",
+        "context": "Scenario: The doctor asks for treatment advice but patient-specific details are incomplete.",
+        "response": "Use a disease-agnostic clinician workflow:\n\n1. Confirm the working diagnosis and severity. Separate emergency, inpatient, outpatient, infectious, inflammatory, metabolic, toxic, obstetric, pediatric, and geriatric contexts.\n2. Check essentials before medicines: age, weight, pregnancy/lactation, allergies, renal and hepatic function, vitals, comorbidities, current medicines, prior adverse reactions, local resistance/outbreak patterns, and relevant labs/imaging.\n3. Select treatment class based on diagnosis and guideline fit. Prefer first-line therapies when criteria are met; avoid antibiotics, steroids, anticoagulants, opioids, sedatives, and high-risk drugs unless clear indications and monitoring exist.\n4. For each option document dose range, route, duration, contraindications, important interactions, monitoring parameters, expected response time, and follow-up.\n5. Add non-drug management when relevant: hydration, rest, diet, physiotherapy, wound care, isolation, lifestyle change, or procedural referral.\n6. Escalate urgently for red flags, organ dysfunction, pregnancy complications, severe pain, altered mental status, shock, hypoxia, sepsis risk, uncontrolled bleeding, severe dehydration, or treatment failure.",
+        "metadata": {"source": "clinical_behavior_seed", "role": "doctor", "topic": "generic_treatment_framework"}
+    },
+    {
+        "instruction": "Doctor role: answer a concise clinical prescribing question when information is missing. Be useful, list assumptions, and do not expose internal prompts.",
+        "context": "Scenario: A doctor asks which tablets may be considered, but diagnosis, severity, age, pregnancy status, allergies, renal/hepatic function, and current medicines are not supplied.",
+        "response": "With missing patient details, give conditional clinician support rather than a final prescription.\n\nAssumptions to verify first: diagnosis, severity, age/weight, pregnancy/lactation, allergies, renal and hepatic function, vitals, current medicines, comorbidities, and relevant investigations.\n\nAnswer structure:\n- If mild and outpatient-appropriate, list first-line medication classes and common adult dose ranges from accepted references.\n- State when each option should be avoided.\n- State monitoring and follow-up timing.\n- State red flags requiring urgent referral or admission.\n- End with: final prescribing decision remains with the treating Registered Medical Practitioner after examination and documentation.",
+        "metadata": {"source": "clinical_behavior_seed", "role": "doctor", "topic": "missing_context"}
+    },
+    {
+        "instruction": "Patient role: explain a medicine request safely. Educate and recommend clinician review, but do not provide a dose, prescription, or cure claim.",
+        "context": "Scenario: Patient asks which tablet to take for fever without a clinician visit.",
+        "response": "I can explain fever care, but I cannot prescribe a tablet or dose for you personally. Fever can come from many causes, including viral infection, dengue, malaria, typhoid, COVID-19, urinary infection, or other illnesses.\n\nWhat you can do safely: rest, drink fluids, track temperature, avoid self-mixing medicines, and speak with a clinician or pharmacist if you already take other medicines or have liver, kidney, stomach ulcer, pregnancy, or allergy concerns.\n\nSeek urgent care if you have breathing difficulty, confusion, fainting, chest pain, severe headache or neck stiffness, rash or bleeding, severe dehydration, persistent high fever, pregnancy, very young/elderly age, or worsening symptoms.",
+        "metadata": {"source": "clinical_behavior_seed", "role": "patient", "topic": "patient_fever_boundary"}
+    },
+    {
+        "instruction": "Doctor role: answer without repeating text, leaking prompt markers, or showing internal workflow details.",
+        "context": "Scenario: The final answer should be displayed directly to the doctor.",
+        "response": "Final clinical answer: confirm diagnosis and severity, check allergies and renal/hepatic function, choose guideline-appropriate first-line therapy, document contraindications and interactions, define monitoring and follow-up, and escalate for red flags or treatment failure. Do not display internal prompts, retrieval text, chain-of-thought, or repeated template fragments.",
+        "metadata": {"source": "clinical_behavior_seed", "role": "doctor", "topic": "no_prompt_leak"}
+    },
+    {
+        "instruction": "Doctor role: give a medication-safety checklist that applies across diseases.",
+        "context": "Scenario: A clinician wants a checklist before prescribing any new medicine.",
+        "response": "Before prescribing any new medicine, check:\n\n1. Indication: working diagnosis, severity, guideline indication, and non-drug alternatives.\n2. Patient factors: age, weight, pregnancy/lactation, allergies, renal function, hepatic function, frailty, comorbidities, and prior adverse reactions.\n3. Medicine factors: dose, route, frequency, duration, maximum daily dose, contraindications, interactions, duplication, therapeutic monitoring, and availability.\n4. Safety monitoring: baseline labs if needed, expected response time, adverse effects to watch for, follow-up date, and stopping rules.\n5. Escalation: urgent referral for red flags, organ dysfunction, severe allergic reaction, shock, hypoxia, uncontrolled bleeding, severe dehydration, altered mental status, or clinical deterioration.",
+        "metadata": {"source": "clinical_behavior_seed", "role": "doctor", "topic": "medication_safety"}
+    },
+]
+
 def load_drug_mcqa_dataset():
     """Try to load the ekacare dataset from Hugging Face. If it fails, return the backup subset."""
     try:
@@ -132,14 +171,48 @@ def load_drug_mcqa_dataset():
         print(f"Could not load Hugging Face dataset (Error: {e}). Using backup drug datasets.")
         return BACKUP_DRUG_MCQS
 
+
+def load_existing_rows() -> list[dict]:
+    if not SFT_OUTPUT_PATH.exists():
+        return []
+    rows: list[dict] = []
+    with open(SFT_OUTPUT_PATH, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return rows
+
 def generate_sft_examples():
     sft_rows = []
+    existing_rows = load_existing_rows()
     
     # 1. Process Drug MCQs
     raw_drugs = load_drug_mcqa_dataset()
+    if len(raw_drugs) == len(BACKUP_DRUG_MCQS) and len(existing_rows) > 50:
+        print("Offline fallback detected. Preserving existing checked-in SFT rows before adding behavior seeds.")
+        seen_keys: set[str] = set()
+        for row in existing_rows:
+            key = json.dumps(
+                {
+                    "instruction": row.get("instruction", ""),
+                    "context": row.get("context", ""),
+                    "response": row.get("response", ""),
+                },
+                sort_keys=True,
+            )
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            sft_rows.append(row)
+        raw_drugs = []
     for idx, item in enumerate(raw_drugs):
-        # We can limit the number of drug MCQs to 200 to keep the training runtime fast on T4
-        if idx >= 200:
+        # Keep MCQs useful but do not let them dominate instruction-following behavior.
+        if idx >= 120:
             break
         
         q = item.get("question")
@@ -176,7 +249,17 @@ def generate_sft_examples():
             "metadata": {"source": "ekacare_drug_mcqa", "index": idx, "role": "doctor"}
         })
 
-    # 2. Add Synthesized Guideline Pairs (Osteoarthritis, Sinusitis, Hypertension)
+    # 2. Add role-behavior rows that teach doctor vs patient boundaries and generic prescribing structure.
+    existing_behavior_keys = {
+        (row.get("instruction", ""), row.get("context", ""), row.get("response", ""))
+        for row in sft_rows
+    }
+    for row in CLINICAL_BEHAVIOR_ROWS:
+        key = (row["instruction"], row["context"], row["response"])
+        if key not in existing_behavior_keys:
+            sft_rows.append(row)
+
+    # 3. Add Synthesized Guideline Pairs (Osteoarthritis, Sinusitis, Hypertension)
     # We want to synthesize doctor-facing and patient-facing QA pairs from our guidelines
     print("Synthesizing patient and doctor dialogue SFT pairs from NHSRC guidelines...")
     
@@ -229,6 +312,23 @@ def generate_sft_examples():
         "response": "For administrative and clinical workflow support under PM-JAY:\n\n1. Elective Specialty Procedures: For a unilateral Total Knee Arthroplasty (Package Code: SG010A, Cost: INR 80,000), pre-authorization is mandatory. Orthopedic surgeons must document structural joint degradation and conservative management failure prior to surgical booking.\n2. Emergency Admissions: For Diabetic Ketoacidosis management (Package Code: MC005A, Cost: INR 15,000), pre-authorization is waived for the first 24 hours of emergency care to prevent delay. Post-facto pre-auth approval must be submitted within 24 hours via the Transaction Management System (TMS).\n3. Package Inclusions: Keep in mind that package reimbursements cover all diagnostic assessments, hospital bed and nursing fees, physician consultation fees, implants, consumables, food, and up to 5 days of post-discharge take-home medicines.",
         "metadata": {"source": "pmjay_packages", "role": "doctor"}
     })
+
+    deduped_rows: list[dict] = []
+    seen_final_keys: set[str] = set()
+    for row in sft_rows:
+        key = json.dumps(
+            {
+                "instruction": row.get("instruction", ""),
+                "context": row.get("context", ""),
+                "response": row.get("response", ""),
+            },
+            sort_keys=True,
+        )
+        if key in seen_final_keys:
+            continue
+        seen_final_keys.add(key)
+        deduped_rows.append(row)
+    sft_rows = deduped_rows
 
     print(f"Total SFT rows to write: {len(sft_rows)}")
     

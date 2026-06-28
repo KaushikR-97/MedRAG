@@ -63,7 +63,15 @@ class LocalHuggingFaceModel:
         return settings.base_model_name
 
     def generate(self, prompt: str, *, max_new_tokens: int = 768) -> str:
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+        model_limit = getattr(self.model.config, "max_position_embeddings", 4096) or 4096
+        max_prompt_tokens = max(256, model_limit - max_new_tokens - 16)
+        self.tokenizer.truncation_side = "left"
+        inputs = self.tokenizer(
+            prompt,
+            return_tensors="pt",
+            truncation=True,
+            max_length=max_prompt_tokens,
+        ).to(self.model.device)
         input_len = inputs.input_ids.shape[1]
         with torch.no_grad():
             output = self.model.generate(

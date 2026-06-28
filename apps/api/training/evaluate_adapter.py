@@ -1,5 +1,6 @@
 import argparse
 import re
+import sys
 
 import torch
 from peft import PeftModel
@@ -33,6 +34,7 @@ def main() -> None:
     parser.add_argument("--adapter-path", default="models/biomistral-medical")
     parser.add_argument("--prompt", required=True)
     parser.add_argument("--max-new-tokens", type=int, default=192)
+    parser.add_argument("--max-input-tokens", type=int, default=0)
     args = parser.parse_args()
 
     tokenizer = AutoTokenizer.from_pretrained(args.base_model, use_fast=True, trust_remote_code=True)
@@ -52,7 +54,22 @@ def main() -> None:
     model = PeftModel.from_pretrained(base, args.adapter_path)
     model.eval()
     formatted_prompt = format_prompt(args.prompt)
-    inputs = tokenizer(formatted_prompt, return_tensors="pt").to(model.device)
+    model_limit = getattr(model.config, "max_position_embeddings", 4096) or 4096
+    max_input_tokens = args.max_input_tokens or max(256, model_limit - args.max_new_tokens - 16)
+    tokenizer.truncation_side = "left"
+    original_tokens = len(tokenizer(formatted_prompt, add_special_tokens=False).input_ids)
+    if original_tokens > max_input_tokens:
+        print(
+            f"Warning: prompt is {original_tokens} tokens; keeping the latest {max_input_tokens} tokens "
+            "so the model context is not exceeded.",
+            file=sys.stderr,
+        )
+    inputs = tokenizer(
+        formatted_prompt,
+        return_tensors="pt",
+        truncation=True,
+        max_length=max_input_tokens,
+    ).to(model.device)
     with torch.no_grad():
         output = model.generate(
             **inputs,

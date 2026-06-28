@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class ClinicalQuestion(BaseModel):
-    question: str = Field(min_length=4, max_length=2000)
+    question: str = Field(min_length=4, max_length=12000)
     patient_id: str | None = None
     conversation_id: UUID | None = None
 
@@ -46,7 +46,7 @@ class ClinicalHistoryItem(BaseModel):
 
 class ImportedChatMessage(BaseModel):
     role: str = Field(pattern="^(patient|doctor|assistant|system)$")
-    content: str = Field(min_length=1, max_length=4000)
+    content: str = Field(min_length=1, max_length=12000)
 
 
 class ImportChatHistoryRequest(BaseModel):

@@ -283,6 +283,19 @@ python training/evaluate_adapter.py \
   --prompt "Doctor role: provide a safe medication decision checklist."
 ```
 
+For long prompts, the evaluator keeps the latest text that fits the model
+context window and prints a warning if truncation is needed. You can override
+the input token budget:
+
+```bash
+python training/evaluate_adapter.py \
+  --base-model BioMistral/BioMistral-7B \
+  --adapter-path /teamspace/drive/medrag/models/biomistral-medical \
+  --max-input-tokens 3500 \
+  --max-new-tokens 384 \
+  --prompt "Doctor role: paste a long clinical question or report summary here."
+```
+
 ## 10. Run API And Worker In Studio
 
 API terminal:
