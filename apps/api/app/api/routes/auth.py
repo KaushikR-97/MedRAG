@@ -53,6 +53,12 @@ def _ensure_role_directory_records(db: Session, user: User) -> None:
                     phone=user.phone or "",
                     email=user.email,
                     emergency_phone=user.phone or "",
+                    ambulance_count=0,
+                    ambulance_types="",
+                    beds_total=0,
+                    rooms_total=0,
+                    icu_beds_total=0,
+                    ac_rooms_total=0,
                     admin_user_id=user.id,
                     active=True,
                 )

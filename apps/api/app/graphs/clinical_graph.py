@@ -330,6 +330,12 @@ class ClinicalRagGraph:
                 "3. Do not start TRT in prostate or breast cancer, markedly high hematocrit, untreated severe obstructive sleep apnea, uncontrolled heart failure, recent major cardiovascular event, or unexplained prostate findings until evaluated.\n\n"
                 "Monitor symptom response, testosterone level, hematocrit, BP, edema, acne/gynecomastia, sleep apnea worsening, fertility impact, and prostate safety according to local protocol."
             )
+        elif user_role == "doctor" and any(term in question for term in ["thyroid", "hypothyroid", "hyperthyroid", "thyroxine"]):
+            aggregated_answer = (
+                "For thyroid treatment, first separate hypothyroidism from hyperthyroidism using TSH with free T4, symptoms, pregnancy status, cardiac history, weight, interacting medicines, and prior thyroid surgery/RAI history.\n\n"
+                "Hypothyroidism: levothyroxine is first-line. In a healthy non-pregnant adult, common full replacement is about 1.6 mcg/kg/day orally, taken on an empty stomach. In older patients or coronary disease, start low, often 12.5-25 mcg daily, then titrate. Recheck TSH in 6-8 weeks after dose changes. Separate from iron, calcium, antacids, and PPIs when possible.\n\n"
+                "Hyperthyroidism: confirm cause. For Graves/toxic nodular disease, methimazole is commonly used except in first-trimester pregnancy or thyroid storm where PTU may be preferred. Add a beta blocker such as propranolol if symptomatic tachycardia/tremor and no contraindication. Monitor CBC/LFT warnings, agranulocytosis symptoms, pregnancy, and urgent red flags such as thyroid storm."
+            )
         elif user_role == "doctor" and "fever" in question and any(term in question for term in ["medicine", "medicines", "give", "prescribe", "drug"]):
             aggregated_answer = (
                 "For an uncomplicated adult fever, consider:\n\n"

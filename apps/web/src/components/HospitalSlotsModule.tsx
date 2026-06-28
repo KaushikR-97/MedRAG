@@ -20,6 +20,8 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
   // Search/Filters
   const [searchCity, setSearchCity] = useState(sessionCity || "Bengaluru");
   const [selectedSpecialty, setSelectedSpecialty] = useState("Cardiology");
+  const [selectedDoctorId, setSelectedDoctorId] = useState("");
+  const [selectedDoctorName, setSelectedDoctorName] = useState("");
   const [resourceBookings, setResourceBookings] = useState<any[]>([]);
   const [resourceHospitalId, setResourceHospitalId] = useState("");
   const [resourceType, setResourceType] = useState("general_bed");
@@ -58,8 +60,12 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
       const docRes = await api.listDoctorsByCity(city, selectedSpecialty);
       setDoctors(docRes);
 
-      const slotsRes = await api.listConsultationSlots({ speciality: selectedSpecialty, city });
-      setSlots(slotsRes);
+      if (selectedDoctorId) {
+        const slotsRes = await api.listConsultationSlots({ doctor_id: selectedDoctorId, city });
+        setSlots(slotsRes);
+      } else {
+        setSlots([]);
+      }
 
       const apptsRes = await api.listMyAppointments(token);
       setAppointments(apptsRes);
@@ -78,6 +84,38 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
   useEffect(() => {
     if (sessionCity && !searchCity) setSearchCity(sessionCity);
   }, [sessionCity]);
+
+  const handleSearchCatalog = async () => {
+    setSelectedDoctorId("");
+    setSelectedDoctorName("");
+    setSlots([]);
+    try {
+      const city = searchCity || sessionCity;
+      const hospRes = await api.listHospitals({ city });
+      setHospitals(hospRes);
+      if (!ambulanceHospitalId && hospRes.length) setAmbulanceHospitalId(hospRes[0].id);
+      if (!resourceHospitalId && hospRes.length) setResourceHospitalId(hospRes[0].id);
+      setDoctors(await api.listDoctorsByCity(city, selectedSpecialty));
+      setAppointments(await api.listMyAppointments(token));
+      if (sessionRole === "patient") setResourceBookings(await api.listHospitalResourceBookings(token));
+    } catch (err: any) {
+      setError(err.message || "Could not search doctors");
+    }
+  };
+
+  const handleSelectDoctor = async (doc: any) => {
+    setSelectedDoctorId(doc.id);
+    setSelectedDoctorName(doc.full_name);
+    setError("");
+    setSuccess("");
+    try {
+      const city = searchCity || sessionCity;
+      const slotsRes = await api.listConsultationSlots({ doctor_id: doc.id, city });
+      setSlots(slotsRes);
+    } catch (err: any) {
+      setError(err.message || "Could not load this doctor's slots");
+    }
+  };
 
   const handleBookAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -206,23 +244,36 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
             </select>
           </div>
         </div>
-        <button onClick={refreshData} className="button-sec" style={{ alignSelf: "flex-end" }}>Search Catalog</button>
+        <button onClick={handleSearchCatalog} className="button-sec" style={{ alignSelf: "flex-end" }}>Search Doctors</button>
 
         <h4 style={{ fontSize: "0.9rem", marginBottom: "4px" }}>Available Specialists ({doctors.length})</h4>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "200px", overflowY: "auto" }}>
           {doctors.map((doc) => (
-            <div key={doc.id} style={{ padding: "10px", background: "rgba(255,255,255,0.02)", borderRadius: "8px", border: "1px solid var(--line)", fontSize: "0.8rem" }}>
+            <button
+              key={doc.id}
+              onClick={() => handleSelectDoctor(doc)}
+              className={selectedDoctorId === doc.id ? "button" : "button-sec"}
+              style={{ padding: "10px", justifyContent: "space-between", textAlign: "left", fontSize: "0.8rem" }}
+            >
+              <div>
               <div style={{ fontWeight: 600 }}>{doc.full_name}</div>
               <div style={{ color: "var(--muted)", marginTop: "2px" }}>
-                Speciality: {doc.speciality} | Fee: INR {doc.consultation_fee} | Contact: {doc.phone}
+                {doc.speciality || selectedSpecialty} | INR {doc.consultation_fee} | {doc.city || searchCity}
               </div>
-            </div>
+              </div>
+            </button>
           ))}
         </div>
 
-        <h4 style={{ fontSize: "0.9rem", marginBottom: "4px" }}>Open Booking Slots ({slots.length})</h4>
+        <h4 style={{ fontSize: "0.9rem", marginBottom: "4px" }}>
+          {selectedDoctorId ? `Open Slots for ${selectedDoctorName} (${slots.length})` : "Select a doctor to view slots"}
+        </h4>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "250px", overflowY: "auto" }}>
-          {slots.map((s) => (
+          {!selectedDoctorId ? (
+            <p style={{ fontSize: "0.8rem", color: "var(--muted)", textAlign: "center" }}>Choose a doctor from the list above.</p>
+          ) : slots.length === 0 ? (
+            <p style={{ fontSize: "0.8rem", color: "var(--muted)", textAlign: "center" }}>No open slots for this doctor.</p>
+          ) : slots.map((s) => (
             <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px", background: "rgba(255,255,255,0.02)", borderRadius: "8px", border: "1px solid var(--line)" }}>
               <div>
                 <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>Dr. {s.doctor_name || "Specialist"}</span>

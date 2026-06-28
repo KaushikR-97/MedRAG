@@ -25,6 +25,7 @@ export const PatientDoctorChatModule: React.FC<PatientDoctorChatModuleProps> = (
   const doctorConversations = useMemo(() => {
     const map = new Map<string, { id: string; name: string; appointment?: AppointmentRecord }>();
     for (const appointment of appointments) {
+      if (appointment.status !== "confirmed") continue;
       if (!appointment.doctor_id) continue;
       map.set(appointment.doctor_id, {
         id: appointment.doctor_id,
@@ -164,7 +165,7 @@ export const PatientDoctorChatModule: React.FC<PatientDoctorChatModuleProps> = (
           Chat With Doctors
         </h3>
         <p style={{ color: "var(--muted)", fontSize: "0.84rem", marginBottom: "16px" }}>
-          Conversations appear after you book a consultation slot. Messages are encrypted locally for this demo.
+          Conversations appear after the doctor confirms your consultation. Messages open during the confirmed slot window.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {doctorConversations.length === 0 ? (

@@ -171,22 +171,21 @@ class HospitalService:
             query = query.filter(ConsultationSlot.doctor_id == doctor_id)
         if date:
             query = query.filter(ConsultationSlot.date == date)
-        if city:
+        if city or speciality:
             query = query.outerjoin(
                 Hospital,
                 Hospital.id == ConsultationSlot.hospital_id,
             ).outerjoin(
                 User,
                 User.id == ConsultationSlot.doctor_id,
-            ).filter(or_(Hospital.city.ilike(f"%{city}%"), User.city.ilike(f"%{city}%")))
-        if speciality:
-            query = query.outerjoin(
+            ).outerjoin(
                 HospitalDepartment,
                 HospitalDepartment.id == ConsultationSlot.department_id,
-            ).outerjoin(
-                User,
-                User.id == ConsultationSlot.doctor_id,
-            ).filter(
+            )
+        if city:
+            query = query.filter(or_(Hospital.city.ilike(f"%{city}%"), User.city.ilike(f"%{city}%")))
+        if speciality:
+            query = query.filter(
                 or_(
                     HospitalDepartment.speciality.ilike(f"%{speciality}%"),
                     User.speciality.ilike(f"%{speciality}%"),

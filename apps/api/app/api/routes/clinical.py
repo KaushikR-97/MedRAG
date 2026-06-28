@@ -112,15 +112,30 @@ def ask_clinical_question(
         actor=user,
         patient_id=patient_id,
     )
-    state = ClinicalRagGraph().invoke(
-        question=payload.question,
-        patient_id=patient_id,
-        user_role=user.role,
-        conversation_history=conversation_history,
-        policy_instruction=policy.instruction,
-        policy_mode=policy.mode,
-        policy_refusal=policy.refusal,
-    )
+    try:
+        state = ClinicalRagGraph().invoke(
+            question=payload.question,
+            patient_id=patient_id,
+            user_role=user.role,
+            conversation_history=conversation_history,
+            policy_instruction=policy.instruction,
+            policy_mode=policy.mode,
+            policy_refusal=policy.refusal,
+        )
+    except Exception as exc:
+        fallback_answer = _fallback_clinical_answer(payload.question, user.role)
+        state = {
+            "answer": fallback_answer,
+            "trace_id": str(uuid.uuid4()),
+            "safety_label": "fallback_answer",
+            "sources": [],
+            "query_route": "fallback",
+            "query_route_reason": f"Clinical graph failed: {exc}",
+            "query_route_confidence": 0.0,
+            "query_route_used_fallback": True,
+            "retrieval_source_types": [],
+            "rewritten_queries": [],
+        }
     answer = PrivacyService().minimum_necessary_text(actor=user, patient_id=patient_id, text=state["answer"], db=db)
     sources = [
         SourceSnippet(
@@ -181,6 +196,23 @@ def ask_clinical_question(
         retrieval_source_types=state.get("retrieval_source_types", []),
         rewritten_queries=state.get("rewritten_queries", []),
     )
+
+
+def _fallback_clinical_answer(question: str, role: str) -> str:
+    text = question.lower()
+    if role == "doctor" and any(term in text for term in ["thyroid", "hypothyroid", "hyperthyroid", "thyroxine"]):
+        return (
+            "For thyroid treatment, first confirm TSH and free T4 and classify hypothyroid vs hyperthyroid. "
+            "For hypothyroidism, levothyroxine is first-line; typical adult replacement is about 1.6 mcg/kg/day, "
+            "with lower starts such as 12.5-25 mcg daily in elderly or cardiac disease, then repeat TSH in 6-8 weeks. "
+            "For hyperthyroidism, confirm cause; methimazole is commonly used outside first-trimester pregnancy or thyroid storm, "
+            "and beta blockers can control tremor/tachycardia if not contraindicated. Monitor pregnancy status, cardiac risk, CBC/LFT warning symptoms, and urgent thyroid storm red flags."
+        )
+    if role == "doctor":
+        return (
+            "I could not complete the full retrieval workflow, but for a clinician treatment question: confirm diagnosis, severity, age, pregnancy status, renal/hepatic function, allergies, current medicines, and red flags; then choose disease-specific first-line therapy with dose adjustment, contraindications, monitoring, and escalation criteria."
+        )
+    return "I could not complete the clinical retrieval workflow. Please retry with symptoms, duration, age, relevant conditions, and current medicines."
 
 
 @router.get("/history", response_model=list[ClinicalHistoryItem])

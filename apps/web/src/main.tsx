@@ -246,6 +246,7 @@ function App() {
     if (!session) return [];
     const conversationsMap: { [key: string]: { id: string; name: string; lastMessage: string; timestamp: number; appointment?: AppointmentRecord } } = {};
     myAppointmentsList.forEach((appointment) => {
+      if (appointment.status !== "confirmed") return;
       const otherId = session.role === "doctor" ? appointment.patient_id : appointment.doctor_id;
       if (!otherId) return;
       conversationsMap[otherId] = {
