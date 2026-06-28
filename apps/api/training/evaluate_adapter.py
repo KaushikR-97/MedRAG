@@ -21,6 +21,21 @@ def clean_completion(text: str, prompt: str) -> str:
     completion = text
     if "[/INST]" in completion:
         completion = completion.split("[/INST]", 1)[1]
+    stop_markers = [
+        "[/INST]",
+        "[INST]",
+        "Patient-facing answers:",
+        "Doctor-facing answers:",
+        "Patient mode:",
+        "Doctor mode must be enabled",
+        "System:",
+        "Retrieved context:",
+        "Response policy:",
+    ]
+    for marker in stop_markers:
+        marker_index = completion.lower().find(marker.lower())
+        if marker_index > 0:
+            completion = completion[:marker_index]
     completion = completion.replace("</s>", "").strip()
     completion = re.sub(r"\s*\[INST\].*", "", completion, flags=re.DOTALL).strip()
     if prompt in completion:

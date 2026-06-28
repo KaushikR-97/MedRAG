@@ -209,15 +209,27 @@ class ClinicalGenerationService:
     @staticmethod
     def _clean_model_answer(answer: str) -> str:
         cleaned = answer.strip()
+        cut_markers = [
+            "[/inst]",
+            "[inst]",
+            "patient-facing answers:",
+            "doctor-facing answers:",
+            "patient mode:",
+            "doctor mode must be enabled",
+            "system:",
+            "retrieved context:",
+            "response policy:",
+        ]
+        lower = cleaned.lower()
+        for marker in cut_markers:
+            marker_index = lower.find(marker)
+            if marker_index > 0:
+                cleaned = cleaned[:marker_index].strip()
+                lower = cleaned.lower()
         blocked_markers = [
             "clinical answer scaffold",
             "conversation history:",
-            "retrieved context:",
-            "response policy:",
-            "system:",
-            "[/inst]",
         ]
-        lower = cleaned.lower()
         for marker in blocked_markers:
             if marker in lower:
                 return ""
