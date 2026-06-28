@@ -1,0 +1,39 @@
+﻿Title: NHSRC Standard Treatment Guidelines: Acute Sinusitis
+Publisher: National Health Systems Resource Centre / Ministry of Health and Family Welfare, India
+Scope: Clinical guidance for diagnosis and treatment of acute sinusitis in primary care.
+
+1. Definition and Etiology
+Acute sinusitis is defined as symptomatic inflammation of the nasal cavity and the paranasal sinuses lasting less than 4 weeks. Most cases are triggered by viral upper respiratory tract infections (common cold), with only 0.5% to 2% progressing to secondary acute bacterial sinusitis (ABRS).
+
+2. Clinical Diagnosis
+Key symptoms include nasal congestion, purulent nasal discharge, facial pain, pressure, or fullness (often unilateral and worsening when bending forward), headache, hyposmia, and maxillary dental pain.
+- Viral Rhinosinusitis: Symptoms last less than 10 days, typically peaking around day 3-5 and gradually improving.
+- Acute Bacterial Rhinosinusitis (ABRS): Suspect ABRS if any of the following are met:
+  * Persistent Symptoms: Symptoms last 10 or more days without clinical improvement.
+  * Double Sickening: Initial improvement followed by worsening of nasal discharge, congestion, fever, or headache within 10 days of onset.
+  * Severe Symptoms: High fever (>= 39°C) accompanied by purulent nasal discharge and severe facial pain for at least 3 consecutive days.
+
+3. Red Flags and Emergency Referral Criteria
+Hypothesize complications if any of the following signs are met. Refer immediately to tertiary care (ENT or neurosurgery):
+- Orbital signs: Periorbital edema, erythema, proptosis, double vision (diplopia), restricted eye movements, or decreased visual acuity.
+- Intranasal or facial signs: Severe swelling of the forehead or face (Pott's puffy tumor).
+- Neurological signs: Severe headache, neck stiffness, photophobia, altered mental status, or focal neurological deficits (suspect meningitis, subdural empyema, or cavernous sinus thrombosis).
+
+4. Treatment Plan
+Step 1: Supportive and Symptomatic Care (All patients)
+- Hydration and Steam Inhalation: Helps liquefy thick secretions.
+- Saline Nasal Irrigation: Buffered isotonic saline nasal sprays or rinses 2-3 times daily to clear secretions.
+- Analgesics: Paracetamol 500mg-1000mg every 6 hours or Ibuprofen 400mg every 8 hours as needed for facial pain and fever.
+- Decongestants: Short-term topical nasal decongestants (e.g., Oxymetazoline 0.05% nasal spray, 1-2 sprays per nostril twice daily) for a maximum of 3-5 consecutive days to prevent rhinitis medicamentosa (rebound congestion). Oral decongestants (e.g., Pseudoephedrine) may be considered but avoided in patients with severe hypertension or ischemic heart disease.
+
+Step 2: Antibiotic Therapy (Indicated only for confirmed ABRS)
+- First-line Antibiotic: Amoxicillin 500mg three times daily (or 875mg twice daily) for 5-7 days in adults.
+- Alternative First-line (for high resistance risk or failure after 72 hours): Amoxicillin-Clavulanate (Co-Amoxiclav) 625mg (500/125) three times daily or 1000mg (875/125) twice daily for 5-7 days.
+- Penicillin-allergic Patients:
+  * Doxycycline: 100mg twice daily for 5-7 days.
+  * Levofloxacin: 500mg once daily for 5 days.
+- Note: Avoid macrolides (Azithromycin) due to high rates of pneumococcal resistance in India unless no alternatives exist.
+
+5. Patient Safety and Education
+- Patient Mode: Counsel on steam inhalation, hydration, nasal saline washes, and short-term spray use. Warn against taking leftover antibiotics. If fever exceeds 39°C or orbital swelling occurs, direct to urgent care.
+- Doctor Mode: Support antibiotic stewardship. Advise deferring antibiotics for the first 10 days unless bacterial diagnostic criteria are met.

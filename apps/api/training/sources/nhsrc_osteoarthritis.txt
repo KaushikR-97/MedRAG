@@ -1,0 +1,38 @@
+﻿Title: NHSRC Standard Treatment Guidelines: Management of Osteoarthritis Knee
+Publisher: National Health Systems Resource Centre / Ministry of Health and Family Welfare, India
+Scope: Clinical decision support and patient education for knee osteoarthritis.
+
+1. Background
+Osteoarthritis (OA) of the knee is a degenerative joint disease and a leading cause of mobility impairment in the adult Indian population. It is characterized by progressive loss of articular cartilage, osteophyte formation, subchondral bone remodeling, and secondary synovitis.
+
+2. Diagnosis and Assessment
+- Clinical Diagnosis: Can be made without imaging in patients aged 50 years or older who present with activity-related knee joint pain, morning stiffness lasting less than 30 minutes, crepitus on active motion, bony enlargement, and no palpable warmth.
+- Radiographic Diagnosis: Standing anteroposterior and lateral view X-rays of the knee. Key radiographic findings include joint space narrowing, subchondral sclerosis, subchondral cysts, and marginal osteophytes (Kellgren-Lawrence grading system).
+- Red Flags: Severe local swelling, erythema, high fever, inability to bear weight (suspect septic arthritis, gout flare, or major structural fracture requiring emergency orthopedic review).
+
+3. Stepwise Treatment Workflow
+Step 1: Non-Pharmacological Management (Core Treatments)
+- Patient Education: Emphasize that osteoarthritis is manageable. Explain joint protection strategies.
+- Exercise: Core treatment for all patients. Recommend low-impact aerobic exercise (walking, swimming, cycling) and quadriceps/hamstring strengthening exercises. Encourage at least 150 minutes of moderate activity per week.
+- Weight Reduction: Strongly advised for overweight or obese patients (BMI > 23 kg/m² in India) to reduce mechanical load on the knee joints.
+- Orthoses and Assistive Devices: Walking canes held in the contralateral hand. Lateral wedge insoles for varus deformities, patellar taping, or soft knee sleeves.
+
+Step 2: First-line Pharmacological Therapy (Symptomatic Relief)
+- Topical Agents: Recommend Topical NSAIDs (e.g., Diclofenac 1% to 2% gel, applied 3-4 times daily) as first-line therapy, especially for patients with mild-to-moderate pain or those with high GI/cardiovascular risks.
+- Paracetamol (Acetaminophen): Can be used as an adjunct, starting at 500mg to 1000mg, up to a maximum of 3g per day. Caution in patients with chronic liver disease or alcohol dependence.
+
+Step 3: Second-line Pharmacological Therapy (Moderate-to-Severe Pain)
+- Oral NSAIDs: Consider if topical agents and paracetamol are inadequate. Select the lowest effective dose for the shortest duration.
+  * Ibuprofen: 400mg to 800mg three times daily.
+  * Naproxen: 250mg to 500mg twice daily.
+  * Diclofenac: 50mg two to three times daily.
+- Gastrointestinal Protection: Always co-prescribe a Proton Pump Inhibitor (e.g., Omeprazole 20mg once daily or Pantoprazole 40mg once daily) for elderly patients (>60 years) or those with a history of peptic ulcer disease.
+- Monitoring: Regular assessment of blood pressure, renal function (Serum Creatinine/eGFR), and signs of fluid retention, particularly in patients with hypertension, chronic kidney disease (CKD), or heart failure.
+
+Step 4: Advanced and Interventional Treatments
+- Intra-articular Corticosteroid Injections: Indicated for acute, severe pain flare-ups associated with joint effusion. Provides short-term relief (typically 1 to 4 weeks). Limit to 3-4 injections per year per joint to avoid cartilage acceleration decay.
+- Surgical Referral (Total Knee Arthroplasty): Refer for orthopedic evaluation for Total Knee Arthroplasty (TKA) if the patient has severe joint pain, structural damage, marked functional limitation, and poor response to conservative therapies.
+
+4. Patient Safety and Education Policy
+- Patient mode: Provide education on weight management, knee exercises, and when to seek urgent care. Refuse to prescribe oral NSAIDs or recommend specific doses to patient accounts.
+- Doctor mode: Act as clinician decision support. Detail the risk-benefit profile of oral NSAIDs, the necessity of PPI co-prescription, and renal/cardiovascular safety monitoring.

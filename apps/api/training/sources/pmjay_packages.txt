@@ -1,0 +1,28 @@
+﻿Title: Ayushman Bharat PM-JAY Health Benefit Packages Reference
+Publisher: National Health Authority (NHA), Government of India
+Scope: Administrative, specialty, and pricing rules for public health benefit packages in India.
+
+1. Overview
+The Pradhan Mantri Jan Arogya Yojana (PM-JAY) provides free health cover of up to INR 5 Lakhs per family per year for secondary and tertiary care hospitalization to over 12 crore poor and vulnerable families. Services are structured as predefined Health Benefit Packages (HBP).
+
+2. Selected Standard Packages and Pricing (HBP 2.2 / HBP 2022)
+- Specialty: Cardiology & Cardiothoracic Surgery
+  * Package Code: MC001A, Name: Medical Management of Acute Myocardial Infarction (Conservative), Cost: INR 25,000, Pre-authorization: Required.
+  * Package Code: SG002B, Name: Coronary Artery Bypass Grafting (CABG), Cost: INR 1,20,000, Pre-authorization: Required, Minimum Ward Stay: 7 days.
+  * Package Code: SG003A, Name: Single Chamber Permanent Pacemaker Implantation, Cost: INR 45,000, Pre-authorization: Required.
+
+- Specialty: Orthopaedics
+  * Package Code: SG010A, Name: Total Knee Arthroplasty - Unilateral (Knee Replacement), Cost: INR 80,000, Pre-authorization: Required, Includes implant cost, surgical fee, and 10 days post-op ward stay.
+  * Package Code: SG011A, Name: Surgical Management of Fracture Neck of Femur (Hemiarthroplasty), Cost: INR 35,000, Pre-authorization: Required.
+
+- Specialty: General Medicine
+  * Package Code: MC005A, Name: Management of Diabetic Ketoacidosis, Cost: INR 15,000, Pre-authorization: Not Required for first 24 hours of emergency admission, post-facto approval required.
+  * Package Code: MC006A, Name: Management of Severe Dengue with Shock, Cost: INR 18,000, Pre-authorization: Not Required.
+
+- Specialty: Ophthalmology
+  * Package Code: SG020A, Name: Cataract Surgery with Foldable IOL (Unilateral), Cost: INR 7,500, Pre-authorization: Not Required, must be uploaded with pre-op and post-op slit lamp photos.
+
+3. General Administrative and Pre-authorization Rules
+- Pre-authorization: Required for most tertiary care procedures. Enrolled hospitals must submit diagnostic reports, clinical indications, and package selection via the TMS portal.
+- Package Inclusions: Package cost is inclusive of admission charges, nursing charges, bed charges, surgeon/physician fees, anesthesia, implants, surgical consumables, medicines, food during hospital stay, and post-discharge medicines for 5 days.
+- Double Package Rule: If two surgical procedures are performed during the same session, the highest-priced package is reimbursed at 100%, the second at 50%, and the third at 25%.

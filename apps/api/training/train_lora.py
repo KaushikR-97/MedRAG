@@ -56,7 +56,7 @@ def main() -> None:
     parser.add_argument("--eval-split", type=float, default=0.1)
     parser.add_argument("--lora-r", type=int, default=8)
     parser.add_argument("--lora-alpha", type=int, default=16)
-    parser.add_argument("--target-modules", default="q_proj,v_proj")
+    parser.add_argument("--target-modules", default="q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj")
     parser.add_argument("--max-memory-json", default='{"0":"14GiB","cpu":"24GiB"}')
     parser.add_argument("--hf-cache", default=os.environ.get("HF_HOME", ""))
     args = parser.parse_args()

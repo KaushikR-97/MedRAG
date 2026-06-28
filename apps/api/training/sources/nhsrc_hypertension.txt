@@ -1,0 +1,43 @@
+﻿Title: NHSRC / IHCI Standard Treatment Guidelines: Primary Hypertension
+Publisher: National Health Systems Resource Centre / India Hypertension Control Initiative (IHCI)
+Scope: Screening, diagnosis, and medical management of primary hypertension in adults.
+
+1. Classification of Blood Pressure (BP)
+Blood pressure readings should be taken after the patient has rested for at least 5 minutes, in a sitting position, with the arm supported at heart level.
+- Normal: Systolic < 120 mmHg and Diastolic < 80 mmHg.
+- Prehypertension: Systolic 120-139 mmHg or Diastolic 80-89 mmHg.
+- Stage 1 Hypertension: Systolic 140-159 mmHg or Diastolic 90-99 mmHg.
+- Stage 2 Hypertension: Systolic >= 160 mmHg or Diastolic >= 100 mmHg.
+
+2. Diagnostic Protocol
+- Confirm diagnosis of hypertension with at least two separate blood pressure readings on two or more visits spaced 1-2 weeks apart.
+- Immediate diagnosis is made on a single visit if BP is >= 180/110 mmHg, or if the patient presents with hypertensive crisis (target organ damage like stroke, acute coronary syndrome, pulmonary edema, or aortic dissection).
+
+3. Management Protocol
+Step 1: Lifestyle Modifications (All Patients)
+- Dietary Sodium: Restrict salt intake to less than 5g per day (approx. one teaspoon). Avoid processed and salty foods.
+- DASH Diet: Emphasize intake of fresh fruits, vegetables, whole grains, low-fat dairy products, and reduce saturated fat intake.
+- Physical Activity: At least 30 minutes of moderate-intensity aerobic exercise (e.g., brisk walking, jogging, cycling) 5 days per week.
+- Weight Control: Maintain a healthy body weight. In India, target BMI is 18.5 to 22.9 kg/m², and waist circumference <90 cm for men and <80 cm for women.
+- Cessation of Tobacco and Alcohol: Strongly advise quitting smoking/tobacco chewing and limiting alcohol intake.
+
+Step 2: Pharmacological Treatment
+- Initiation Criteria:
+  * Stage 1 Hypertension: If BP remains >= 140/90 mmHg after 3 months of strict lifestyle modification, or start immediately if the patient has high cardiovascular risk, diabetes, coronary artery disease, or CKD.
+  * Stage 2 Hypertension: Initiate lifestyle modifications and pharmacological therapy immediately.
+- First-line Antihypertensive Drug Classes (Monotherapy):
+  * Calcium Channel Blockers (CCBs): Amlodipine 2.5mg to 5mg once daily (maximum 10mg). Side effects include pedal edema.
+  * Angiotensin Receptor Blockers (ARBs): Telmisartan 40mg once daily (range 40-80mg) or Losartan 50mg once daily.
+  * Thiazide/Thiazide-like Diuretics: Chlorthalidone 12.5mg once daily or Hydrochlorothiazide 12.5mg once daily.
+  * ACE Inhibitors (ACEis): Enalapril 5mg once daily (range 5-20mg). Side effect includes dry cough.
+
+Step 3: Combination Therapy and Special Populations
+- If BP is not controlled on monotherapy after 4 weeks, titrate to maximum dose or add a second drug from a different class (e.g., CCB + ARB).
+- Compelling Indications:
+  * Diabetes Mellitus or Chronic Kidney Disease (CKD): Start with an ARB (Telmisartan) or ACE Inhibitor (Enalapril) as first-line due to their nephroprotective properties (dilates efferent arteriole, reduces albuminuria). Contraindicated in pregnancy.
+  * Coronary Artery Disease / Post-Myocardial Infarction: Beta-blockers (e.g., Metoprolol Succinate 25-50mg once daily) and ACE inhibitors/ARBs are first-line.
+- Monitoring: Evaluate the patient every 2-4 weeks after drug initiation or dose titration. Once BP is controlled, check every 3 months. Check Serum Potassium and Serum Creatinine (to monitor eGFR) within 1-2 weeks of starting ACEi, ARB, or diuretics.
+
+4. Patient Safety and Guidelines
+- Patient Mode: Counsel on reducing salt, eating fruits/veg, exercising daily. Emphasize that hypertension is a silent killer and requires long-term compliance. Reject queries asking to stop medication when feeling fine. Refuse prescribing specific anti-hypertensives.
+- Doctor Mode: Support medication selection. Detail compelling indications, drug-drug combinations (avoid ACEi + ARB combinations due to risk of hyperkalemia and acute renal injury), and safety monitoring protocols.

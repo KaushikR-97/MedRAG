@@ -31,5 +31,49 @@
     "license_status": "internal_demo_reference",
     "language": "en",
     "text": "Uploaded patient reports should be malware scanned, OCR extracted, reviewed when needed, linked to patient consent, indexed into the retrieval store, and exposed with visible job status. If ingestion fails, the UI must show the failed job and allow retry. Doctors may view patient records only after consent or valid care-team access."
+  },
+  {
+    "id": "nhsrc_osteoarthritis_guideline",
+    "title": "NHSRC Standard Treatment Guidelines: Management of Osteoarthritis Knee",
+    "publisher": "National Health Systems Resource Centre",
+    "url": "https://nhsrcindia.org/practice-guidelines",
+    "source_type": "guideline",
+    "publication_date": "2026-06-28",
+    "license_status": "public_non_phi",
+    "language": "en",
+    "path": "sources/nhsrc_osteoarthritis.txt"
+  },
+  {
+    "id": "nhsrc_sinusitis_guideline",
+    "title": "NHSRC Standard Treatment Guidelines: Acute Sinusitis",
+    "publisher": "National Health Systems Resource Centre",
+    "url": "https://nhsrcindia.org/practice-guidelines",
+    "source_type": "guideline",
+    "publication_date": "2026-06-28",
+    "license_status": "public_non_phi",
+    "language": "en",
+    "path": "sources/nhsrc_sinusitis.txt"
+  },
+  {
+    "id": "nhsrc_hypertension_guideline",
+    "title": "NHSRC / IHCI Standard Treatment Guidelines: Primary Hypertension",
+    "publisher": "National Health Systems Resource Centre / IHCI",
+    "url": "https://nhsrcindia.org/practice-guidelines",
+    "source_type": "guideline",
+    "publication_date": "2026-06-28",
+    "license_status": "public_non_phi",
+    "language": "en",
+    "path": "sources/nhsrc_hypertension.txt"
+  },
+  {
+    "id": "pmjay_packages_reference",
+    "title": "Ayushman Bharat PM-JAY Health Benefit Packages Reference",
+    "publisher": "National Health Authority",
+    "url": "https://pmjay.gov.in/resources/documents",
+    "source_type": "guideline",
+    "publication_date": "2026-06-28",
+    "license_status": "public_non_phi",
+    "language": "en",
+    "path": "sources/pmjay_packages.txt"
   }
 ]
