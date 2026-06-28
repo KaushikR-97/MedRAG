@@ -251,7 +251,9 @@ function App() {
       if (!otherId) return;
       conversationsMap[otherId] = {
         id: otherId,
-        name: session.role === "doctor" ? `Patient ${otherId.slice(0, 6)}` : `Doctor ${otherId.slice(0, 6)}`,
+        name: session.role === "doctor"
+          ? appointment.patient_name || `Patient ${otherId.slice(0, 6)}`
+          : appointment.doctor_name || `Doctor ${otherId.slice(0, 6)}`,
         lastMessage: appointment.booking_reference || "Booked consultation",
         timestamp: Date.parse(appointment.date || "") || 0,
         appointment,

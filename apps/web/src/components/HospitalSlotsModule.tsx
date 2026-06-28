@@ -154,7 +154,7 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
     const end = new Date(`${appt.date}T${(endText || "").trim()}:00`);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
     const now = new Date();
-    return now.getTime() >= start.getTime() - 10 * 60 * 1000 && now.getTime() <= end.getTime() + 15 * 60 * 1000;
+    return now.getTime() >= start.getTime() && now.getTime() <= end.getTime();
   };
 
   const handleAmbulanceDispatch = async (e: React.FormEvent) => {

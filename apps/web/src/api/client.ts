@@ -145,7 +145,9 @@ export type HospitalDoctorRecord = {
 export type AppointmentRecord = {
   id: string;
   patient_id: string;
+  patient_name?: string;
   doctor_id: string | null;
+  doctor_name?: string;
   hospital_id: string;
   department_id: string;
   slot_id: string;
@@ -157,6 +159,7 @@ export type AppointmentRecord = {
   urgency: string;
   reason: string;
   booking_reference: string;
+  confirmed_at?: string | null;
 };
 
 export type ConsultationRoomRecord = {

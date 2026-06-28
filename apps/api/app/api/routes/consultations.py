@@ -97,7 +97,7 @@ def list_consultation_messages(
 ) -> list[ConsultationMessageRecord]:
     try:
         service = ConsultationService(db)
-        room = service.get_room_for_appointment(appointment_id=appointment_id, actor=user)
+        room = service.get_or_create_chat_room(appointment_id=appointment_id, actor=user)
         return [
             ConsultationMessageRecord(**record)
             for record in service.list_messages(room_id=room.id, actor=user, since_id=since_id, limit=limit)
@@ -118,7 +118,7 @@ def post_consultation_message(
 ) -> ConsultationMessageRecord:
     try:
         service = ConsultationService(db)
-        room = service.get_room_for_appointment(appointment_id=appointment_id, actor=user)
+        room = service.get_or_create_chat_room(appointment_id=appointment_id, actor=user)
         message = service.post_message(
             room_id=room.id,
             actor=user,

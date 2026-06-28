@@ -76,7 +76,7 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
   }, [chatMessages, sessionUserId, passphrase]);
 
   useEffect(() => {
-    if (!activeChatAppointment || !isVideoJoinLive(activeChatAppointment)) {
+    if (!activeChatAppointment || !isChatOpen(activeChatAppointment)) {
       setServerMessages([]);
       return;
     }
@@ -227,14 +227,21 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
     const end = new Date(`${appt.date}T${(endText || "").trim()}:00`);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
     const now = new Date();
-    return now.getTime() >= start.getTime() - 10 * 60 * 1000 && now.getTime() <= end.getTime() + 15 * 60 * 1000;
+    return now.getTime() >= start.getTime() && now.getTime() <= end.getTime();
+  };
+
+  const isChatOpen = (appt: AppointmentRecord) => {
+    if (appt.status !== "confirmed") return false;
+    const confirmedAt = appt.confirmed_at ? new Date(appt.confirmed_at) : new Date(`${appt.date}T00:00:00`);
+    if (Number.isNaN(confirmedAt.getTime())) return false;
+    return Date.now() <= confirmedAt.getTime() + 7 * 24 * 60 * 60 * 1000;
   };
 
   const handleSendMessage = async () => {
     if (!activeChatRecipient || !chatInput.trim()) return;
     if (activeChatAppointment) {
-      if (!isVideoJoinLive(activeChatAppointment)) {
-        setError("Secure consultation chat opens during the confirmed appointment window.");
+      if (!isChatOpen(activeChatAppointment)) {
+        setError("Secure consultation chat is available for 7 days after booking confirmation.");
         return;
       }
       try {
@@ -461,7 +468,7 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
             {myAppointments.map(appt => (
               <div key={appt.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px", background: "rgba(255,255,255,0.02)", borderRadius: "8px", border: "1px solid var(--line)" }}>
                 <div>
-                  <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>Patient: {appt.patient_id.slice(0, 8)}...</span>
+                  <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>Patient: {appt.patient_name || `${appt.patient_id.slice(0, 8)}...`}</span>
                   <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "2px" }}>
                     Slot: {appt.time_slot} | Status: {appt.status.toUpperCase()}
                   </div>
@@ -480,7 +487,7 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
                   <div style={{ display: "flex", gap: "6px" }}>
                     <button
                       onClick={() => {
-                        setActiveChatRecipient({ id: appt.patient_id, name: `Patient ${appt.patient_id.slice(0, 6)}` });
+                        setActiveChatRecipient({ id: appt.patient_id, name: appt.patient_name || `Patient ${appt.patient_id.slice(0, 6)}` });
                         setActiveChatAppointment(appt);
                       }}
                       className="button-sec"

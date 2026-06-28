@@ -116,6 +116,35 @@ class ConsultationService:
             return self.get_or_create_room(appointment_id=appointment_id, actor=actor)
         return room
 
+    def get_or_create_chat_room(self, *, appointment_id: str, actor: User) -> ConsultationRoom:
+        appointment = self._get_authorized_chat_appointment(appointment_id=appointment_id, actor=actor)
+        if not appointment.doctor_id:
+            raise PermissionError("Consultation has no assigned doctor")
+        room = (
+            self.db.query(ConsultationRoom)
+            .filter(ConsultationRoom.appointment_id == appointment.id)
+            .first()
+        )
+        now = datetime.now(UTC)
+        expires_at = self._chat_expires_at(appointment)
+        if room is None:
+            room = ConsultationRoom(
+                id=str(uuid.uuid4()),
+                appointment_id=appointment.id,
+                patient_id=appointment.patient_id,
+                doctor_id=appointment.doctor_id,
+                status="active",
+                created_at=now,
+                expires_at=expires_at,
+            )
+            self.db.add(room)
+        else:
+            room.status = "active"
+            room.expires_at = max(self._as_utc(room.expires_at), expires_at)
+        self.db.commit()
+        self.db.refresh(room)
+        return room
+
     def issue_room_token(self, *, room: ConsultationRoom, actor: User) -> str:
         self._assert_room_participant(room=room, actor=actor)
         expires_at = min(
@@ -142,7 +171,7 @@ class ConsultationService:
         client_message_id: str = "",
     ) -> ConsultationMessage:
         room = self._get_authorized_room(room_id=room_id, actor=actor)
-        if room.status != "active" or room.expires_at < datetime.now(UTC):
+        if room.status != "active" or self._as_utc(room.expires_at) < datetime.now(UTC):
             raise PermissionError("Consultation room is not active")
         recipient_id = self._other_participant_id(room=room, actor=actor)
         ciphertext = self.crypto.encrypt_json(
@@ -192,7 +221,7 @@ class ConsultationService:
         payload: dict[str, Any],
     ) -> ConsultationSignal:
         room = self._get_authorized_room(room_id=room_id, actor=actor)
-        if room.status != "active" or room.expires_at < datetime.now(UTC):
+        if room.status != "active" or self._as_utc(room.expires_at) < datetime.now(UTC):
             raise PermissionError("Consultation room is not active")
         signal = ConsultationSignal(
             id=str(uuid.uuid4()),
@@ -270,6 +299,31 @@ class ConsultationService:
             raise PermissionError("Video consultation opens only during the booked slot window")
         return appointment
 
+    def _get_authorized_chat_appointment(self, *, appointment_id: str, actor: User) -> Appointment:
+        appointment = self.db.get(Appointment, appointment_id)
+        if appointment is None:
+            raise LookupError("Appointment not found")
+        if appointment.status != "confirmed":
+            raise PermissionError("Doctor must confirm the booking before secure chat opens")
+        if actor.id not in {appointment.patient_id, appointment.doctor_id} and actor.role != "hospital_admin":
+            raise PermissionError("Only consultation participants can access this chat")
+        if appointment.status in {"cancelled", "no_show"}:
+            raise PermissionError("Consultation chat is not available")
+        if datetime.now(UTC) > self._chat_expires_at(appointment):
+            raise PermissionError("Secure consultation chat is available for 7 days after booking confirmation")
+        return appointment
+
+    @staticmethod
+    def _chat_expires_at(appointment: Appointment) -> datetime:
+        confirmed_at = appointment.confirmed_at or appointment.created_at
+        return ConsultationService._as_utc(confirmed_at) + timedelta(days=7)
+
+    @staticmethod
+    def _as_utc(value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
     @staticmethod
     def _is_appointment_time_window(appointment: Appointment) -> bool:
         try:
@@ -281,7 +335,7 @@ class ConsultationService:
         except ValueError:
             return False
         now = datetime.now(ConsultationService.LOCAL_TZ)
-        return start_dt - timedelta(minutes=10) <= now <= end_dt + timedelta(minutes=15)
+        return start_dt <= now <= end_dt
 
     def _get_authorized_room(self, *, room_id: str, actor: User) -> ConsultationRoom:
         room = self.db.get(ConsultationRoom, room_id)

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.security import get_current_user, require_role, hash_password, generate_12_digit_id
 from app.db.session import get_db
 from app.models.user import User
-from app.models.feature_modules import EmergencyDispatchRequest, Hospital, HospitalResourceBooking
+from app.models.feature_modules import Appointment, EmergencyDispatchRequest, Hospital, HospitalResourceBooking
 from app.schemas.features import (
     AppointmentStatusUpdate,
     ConsultationBookingCreate,
@@ -27,7 +27,25 @@ router = APIRouter()
 
 
 def _record(obj) -> dict:
-    return {column.name: getattr(obj, column.name) for column in obj.__table__.columns}
+    rec = {column.name: getattr(obj, column.name) for column in obj.__table__.columns}
+    if isinstance(obj, Appointment):
+        return _appointment_record(obj, rec)
+    return rec
+
+
+def _appointment_record(appointment: Appointment, rec: dict) -> dict:
+    db = getattr(appointment, "_sa_instance_state", None)
+    session = db.session if db is not None else None
+    if session is not None:
+        patient = session.get(User, appointment.patient_id) if appointment.patient_id else None
+        doctor = session.get(User, appointment.doctor_id) if appointment.doctor_id else None
+        rec["patient_name"] = patient.full_name if patient else appointment.patient_id
+        rec["doctor_name"] = doctor.full_name if doctor else (appointment.doctor_id or "")
+    else:
+        rec["patient_name"] = appointment.patient_id
+        rec["doctor_name"] = appointment.doctor_id or ""
+    rec["confirmed_at"] = appointment.confirmed_at.isoformat() if appointment.confirmed_at else None
+    return rec
 
 
 @router.post("")

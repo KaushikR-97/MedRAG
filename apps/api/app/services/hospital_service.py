@@ -280,6 +280,8 @@ class HospitalService:
             raise PermissionError("Patients can only cancel their own appointments")
         if actor.role == "doctor" and status == "confirmed" and appointment.doctor_id != actor.id:
             raise PermissionError("Doctor can only confirm own appointments")
+        if status == "confirmed" and appointment.status != "confirmed":
+            appointment.confirmed_at = datetime.now(UTC)
         appointment.status = status
         appointment.cancellation_reason = cancellation_reason
         self.db.commit()

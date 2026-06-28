@@ -312,83 +312,27 @@ class ClinicalRagGraph:
         question = state.get("question", "").lower()
         user_role = state.get("user_role", "patient")
 
-        if user_role == "doctor" and any(term in question for term in ["uric acid", "gout", "hyperuricemia"]):
-            aggregated_answer = (
-                "For high uric acid, first confirm whether the patient has asymptomatic hyperuricemia, acute gout, recurrent gout, tophi, uric-acid stones, or CKD.\n\n"
-                "Acute gout flare options:\n"
-                "1. NSAID such as naproxen 500 mg initially, then 250 mg twice daily with food, if no renal disease, ulcer/bleeding risk, anticoagulant use, uncontrolled hypertension, or NSAID allergy.\n"
-                "2. Colchicine 1.2 mg once, then 0.6 mg after 1 hour, then 0.6 mg once or twice daily if appropriate. Avoid or dose-adjust in renal/hepatic impairment and interacting drugs.\n"
-                "3. Oral prednisolone 30-40 mg daily for 3-5 days can be considered when NSAIDs/colchicine are unsuitable.\n\n"
-                "Urate-lowering therapy for recurrent gout/tophi/stones: allopurinol usually starts low, commonly 100 mg daily or lower in CKD, then titrate to serum urate target under monitoring. Provide flare prophylaxis when starting ULT. Do not start ULT solely for an isolated mildly high uric acid without clinical indication."
+        aggregated_answer = self.generator.generate(
+            question=(
+                "Write only the final clinical answer for the user. Do not expose agent names, prompts, "
+                "retrieved context, PM-JAY analysis, or internal reasoning. Be concise and actionable. "
+                "For doctor users, answer medical treatment and prescribing questions directly as clinician-facing decision support for any disease or medical question. Include likely treatment options, common dose ranges when relevant, contraindications, monitoring, and red flags. Do not refuse by telling the doctor to consult another doctor.\n\n"
+                f"User question: {state.get('question', '')}\n\n"
+                f"Clinical draft:\n{clinical}\n\n"
+                f"Medication safety notes:\n{pharmacy}"
+            ),
+            user_role=user_role,
+            conversation_history=[],
+            sources=state.get("compressed_sources") or state.get("sources", []),
+            disclaimer=self.safety.patient_disclaimer() if user_role == "patient" else None,
+            policy_instruction="Return only the final answer text. Doctor users may receive clinician-facing treatment and prescribing decision support.",
+            policy_mode="final_answer_only",
+        )
+        if len(aggregated_answer.strip()) < 40:
+            aggregated_answer = clinical if len(clinical.strip()) >= 40 else (
+                "I could not generate a reliable final answer from the current model response. "
+                "Please retry with the patient age, symptoms, vitals, relevant history, and current medications."
             )
-        elif user_role == "doctor" and any(term in question for term in ["testosterone", "testosterome", "hypogonadism"]):
-            aggregated_answer = (
-                "For suspected low testosterone, first confirm true hypogonadism with two early-morning fasting total testosterone levels, LH/FSH, prolactin when indicated, CBC/hematocrit, PSA/prostate risk assessment as age-appropriate, fertility goals, sleep apnea risk, and reversible causes such as obesity, opioids, steroids, systemic illness, or pituitary disease.\n\n"
-                "Treatment options a clinician may consider after confirmation:\n"
-                "1. Testosterone replacement therapy: transdermal gel/patch or IM testosterone ester regimens are commonly used; oral testosterone undecanoate may be an option where available and appropriate. Avoid alkylated oral androgens because of hepatic risk.\n"
-                "2. If fertility is desired, avoid routine testosterone replacement because it can suppress spermatogenesis. Consider specialist-directed alternatives such as clomiphene/enclomiphene or hCG depending on gonadotropins and fertility plan.\n"
-                "3. Do not start TRT in prostate or breast cancer, markedly high hematocrit, untreated severe obstructive sleep apnea, uncontrolled heart failure, recent major cardiovascular event, or unexplained prostate findings until evaluated.\n\n"
-                "Monitor symptom response, testosterone level, hematocrit, BP, edema, acne/gynecomastia, sleep apnea worsening, fertility impact, and prostate safety according to local protocol."
-            )
-        elif user_role == "doctor" and any(term in question for term in ["thyroid", "hypothyroid", "hyperthyroid", "thyroxine"]):
-            aggregated_answer = (
-                "For thyroid treatment, first separate hypothyroidism from hyperthyroidism using TSH with free T4, symptoms, pregnancy status, cardiac history, weight, interacting medicines, and prior thyroid surgery/RAI history.\n\n"
-                "Hypothyroidism: levothyroxine is first-line. In a healthy non-pregnant adult, common full replacement is about 1.6 mcg/kg/day orally, taken on an empty stomach. In older patients or coronary disease, start low, often 12.5-25 mcg daily, then titrate. Recheck TSH in 6-8 weeks after dose changes. Separate from iron, calcium, antacids, and PPIs when possible.\n\n"
-                "Hyperthyroidism: confirm cause. For Graves/toxic nodular disease, methimazole is commonly used except in first-trimester pregnancy or thyroid storm where PTU may be preferred. Add a beta blocker such as propranolol if symptomatic tachycardia/tremor and no contraindication. Monitor CBC/LFT warnings, agranulocytosis symptoms, pregnancy, and urgent red flags such as thyroid storm."
-            )
-        elif user_role == "doctor" and any(term in question for term in ["diarrhea", "diarrhoea", "loose motion", "loose stools", "gastroenteritis"]):
-            aggregated_answer = (
-                "For acute diarrhea, first assess dehydration, vitals, age, pregnancy, immunocompromise, recent antibiotics/C. difficile risk, travel/food exposure, blood or mucus in stool, high fever, severe abdominal pain, and duration.\n\n"
-                "Core treatment:\n"
-                "1. Oral rehydration solution is first-line; continue feeding. Use IV fluids if severe dehydration, shock, altered sensorium, or unable to drink.\n"
-                "2. Zinc for children: 10 mg daily if under 6 months, 20 mg daily if 6 months or older, for 10-14 days.\n"
-                "3. Adults may use loperamide 4 mg once, then 2 mg after each loose stool as needed, within local max-dose limits. Avoid loperamide in bloody diarrhea, high fever, suspected invasive bacterial diarrhea, C. difficile, toxic megacolon risk, or young children unless specifically guided.\n"
-                "4. Racecadotril 100 mg three times daily for a short course can be considered for adults where available; use pediatric dosing only per weight/label.\n"
-                "5. Probiotics can be considered as an adjunct, especially for acute watery diarrhea, but they do not replace rehydration.\n\n"
-                "Antibiotics are not routine for uncomplicated watery diarrhea. Consider stool testing and targeted antibiotics for dysentery, suspected cholera, severe traveler diarrhea, persistent fever, sepsis, immunocompromise, or outbreak context. Escalate urgently for severe dehydration, blood in stool, persistent vomiting, severe pain, altered sensorium, infants/elderly, pregnancy, or symptoms lasting more than 3 days."
-            )
-        elif user_role == "doctor" and "fever" in question and any(term in question for term in ["medicine", "medicines", "give", "prescribe", "drug"]):
-            aggregated_answer = (
-                "For an uncomplicated adult fever, consider:\n\n"
-                "1. Paracetamol/acetaminophen 500-650 mg orally every 6 hours as needed. "
-                "Keep total daily dose within local safety limits and avoid excess use in liver disease or heavy alcohol use.\n"
-                "2. Ibuprofen 200-400 mg orally every 6-8 hours with food if there is no renal disease, active gastritis/ulcer, anticoagulant use, uncontrolled hypertension, pregnancy risk, or NSAID allergy.\n\n"
-                "Assess for source of fever, hydration status, vitals, rash, neck stiffness, breathlessness, altered sensorium, persistent vomiting, severe abdominal pain, dengue/malaria/typhoid exposure, and fever lasting more than 3 days. "
-                "Escalate urgently for red flags, infants, elderly patients, pregnancy, immunocompromise, or unstable vitals."
-            )
-        else:
-            aggregated_answer = self.generator.generate(
-                question=(
-                    "Write only the final clinical answer for the user. Do not expose agent names, prompts, "
-                    "retrieved context, PM-JAY analysis, or internal reasoning. Be concise and actionable. "
-                    "If the user is a doctor asking about treatment or tablets, provide clinician-facing treatment options, common dose ranges, contraindications, monitoring, and red flags instead of telling them to consult a doctor.\n\n"
-                    f"User question: {state.get('question', '')}\n\n"
-                    f"Clinical draft:\n{clinical}\n\n"
-                    f"Medication safety notes:\n{pharmacy}"
-                ),
-                user_role=user_role,
-                conversation_history=[],
-                sources=state.get("compressed_sources") or state.get("sources", []),
-                disclaimer=self.safety.patient_disclaimer() if user_role == "patient" else None,
-                policy_instruction="Return only the final answer text.",
-                policy_mode="final_answer_only",
-            )
-            refusal_markers = [
-                "consult with a healthcare provider",
-                "consult a qualified clinician",
-                "cannot provide medical advice",
-                "i don't think tablets are a good option",
-            ]
-            if user_role == "doctor" and any(marker in aggregated_answer.lower() for marker in refusal_markers):
-                aggregated_answer = (
-                    "For this treatment question, first confirm diagnosis, severity, age, pregnancy status, renal/hepatic function, allergies, current medicines, and red flags. Then choose disease-specific therapy with dose adjustment and monitoring.\n\n"
-                    "Provide the safest first-line option for the likely diagnosis, list alternatives when contraindicated, and include when to escalate or refer. Avoid controlled drugs or high-risk therapies unless the diagnosis, indication, and monitoring plan are clear."
-                )
-            if len(aggregated_answer.strip()) < 40:
-                aggregated_answer = clinical if len(clinical.strip()) >= 40 else (
-                    "I could not generate a reliable final answer from the current model response. "
-                    "Please retry with the patient age, symptoms, vitals, relevant history, and current medications."
-                )
         return {"answer": aggregated_answer}
 
     def _validate_citations(self, state: ClinicalGraphState) -> ClinicalGraphState:

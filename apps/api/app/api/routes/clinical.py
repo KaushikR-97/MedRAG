@@ -209,25 +209,9 @@ def ask_clinical_question(
 
 
 def _fallback_clinical_answer(question: str, role: str) -> str:
-    text = question.lower()
-    if role == "doctor" and any(term in text for term in ["diarrhea", "diarrhoea", "loose motion", "loose stools", "gastroenteritis"]):
-        return (
-            "For acute diarrhea, start with dehydration assessment and ORS. Check age, pregnancy, vitals, blood/mucus in stool, high fever, severe abdominal pain, recent antibiotics/C. difficile risk, travel exposure, immunocompromise, and duration. "
-            "For children, add zinc: 10 mg daily if under 6 months, 20 mg daily if 6 months or older, for 10-14 days. "
-            "For adults with non-bloody, afebrile watery diarrhea, loperamide can be used as 4 mg once, then 2 mg after each loose stool as needed within local max-dose limits; avoid it in dysentery, high fever, suspected invasive bacterial diarrhea, C. difficile, toxic megacolon risk, and young children unless guided. "
-            "Racecadotril 100 mg three times daily for a short course may be considered where available. Antibiotics are not routine; reserve targeted therapy or stool testing for dysentery, cholera suspicion, severe traveler diarrhea, sepsis, immunocompromise, outbreak context, or persistent symptoms. Escalate for severe dehydration, blood in stool, persistent vomiting, altered sensorium, pregnancy, infants/elderly, or symptoms beyond 3 days."
-        )
-    if role == "doctor" and any(term in text for term in ["thyroid", "hypothyroid", "hyperthyroid", "thyroxine"]):
-        return (
-            "For thyroid treatment, first confirm TSH and free T4 and classify hypothyroid vs hyperthyroid. "
-            "For hypothyroidism, levothyroxine is first-line; typical adult replacement is about 1.6 mcg/kg/day, "
-            "with lower starts such as 12.5-25 mcg daily in elderly or cardiac disease, then repeat TSH in 6-8 weeks. "
-            "For hyperthyroidism, confirm cause; methimazole is commonly used outside first-trimester pregnancy or thyroid storm, "
-            "and beta blockers can control tremor/tachycardia if not contraindicated. Monitor pregnancy status, cardiac risk, CBC/LFT warning symptoms, and urgent thyroid storm red flags."
-        )
     if role == "doctor":
         return (
-            "I could not complete the full retrieval workflow, but for a clinician treatment question: confirm diagnosis, severity, age, pregnancy status, renal/hepatic function, allergies, current medicines, and red flags; then choose disease-specific first-line therapy with dose adjustment, contraindications, monitoring, and escalation criteria."
+            "I could not complete the full model workflow. For doctor decision support, please retry with the suspected diagnosis, age, pregnancy status, severity, vitals, renal/hepatic function, allergies, current medicines, and red flags so the LLM can provide disease-specific treatment options, dose ranges, contraindications, monitoring, and escalation criteria."
         )
     return "I could not complete the clinical retrieval workflow. Please retry with symptoms, duration, age, relevant conditions, and current medicines."
 

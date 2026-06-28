@@ -5,6 +5,7 @@ from typing import Annotated
 logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.security import create_access_token, create_refresh_token, hash_password, verify_password, get_current_user, generate_12_digit_id
@@ -91,10 +92,20 @@ def register(request: Request, payload: RegisterRequest, db: Session = Depends(g
         registration_number=payload.registration_number,
     )
     db.add(user)
-    if payload.role == "patient":
-        db.add(PatientProfile(id=str(uuid.uuid4()), user_id=user.id))
-    _ensure_role_directory_records(db, user)
-    db.commit()
+    try:
+        db.flush()
+        if payload.role == "patient":
+            db.add(PatientProfile(id=str(uuid.uuid4()), user_id=user.id))
+        _ensure_role_directory_records(db, user)
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        logger.exception("Registration integrity failure for role %s", payload.role)
+        raise HTTPException(400, "Registration could not be completed because a related record already exists or the database schema is out of date. Please retry with a unique email/registration number after migrations finish.") from exc
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.exception("Registration database failure for role %s", payload.role)
+        raise HTTPException(400, f"Registration database error: {exc.__class__.__name__}") from exc
 
     return AuthResponse(
         access_token=create_access_token(user.id, user.role),

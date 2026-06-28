@@ -29,7 +29,7 @@ export const PatientDoctorChatModule: React.FC<PatientDoctorChatModuleProps> = (
       if (!appointment.doctor_id) continue;
       map.set(appointment.doctor_id, {
         id: appointment.doctor_id,
-        name: `Doctor ${appointment.doctor_id.slice(0, 6)}`,
+        name: appointment.doctor_name || `Doctor ${appointment.doctor_id.slice(0, 6)}`,
         appointment,
       });
     }
@@ -82,7 +82,7 @@ export const PatientDoctorChatModule: React.FC<PatientDoctorChatModuleProps> = (
   }, [activeDoctor?.id, chatMessages, passphrase, sessionUserId]);
 
   useEffect(() => {
-    if (!activeDoctor?.appointment || !isVideoJoinLive(activeDoctor.appointment)) {
+    if (!activeDoctor?.appointment || !isChatOpen(activeDoctor.appointment)) {
       setServerMessages([]);
       return;
     }
@@ -116,8 +116,8 @@ export const PatientDoctorChatModule: React.FC<PatientDoctorChatModuleProps> = (
   const handleSend = async () => {
     if (!activeDoctor || !messageText.trim()) return;
     if (activeDoctor.appointment) {
-      if (!isVideoJoinLive(activeDoctor.appointment)) {
-        setError("Secure consultation chat opens during the confirmed appointment window.");
+      if (!isChatOpen(activeDoctor.appointment)) {
+        setError("Secure consultation chat is available for 7 days after booking confirmation.");
         return;
       }
       try {
@@ -154,7 +154,14 @@ export const PatientDoctorChatModule: React.FC<PatientDoctorChatModuleProps> = (
     const end = new Date(`${appointment.date}T${(endText || "").trim()}:00`);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
     const now = new Date();
-    return now.getTime() >= start.getTime() - 10 * 60 * 1000 && now.getTime() <= end.getTime() + 15 * 60 * 1000;
+    return now.getTime() >= start.getTime() && now.getTime() <= end.getTime();
+  };
+
+  const isChatOpen = (appointment?: AppointmentRecord) => {
+    if (!appointment || appointment.status !== "confirmed") return false;
+    const confirmedAt = appointment.confirmed_at ? new Date(appointment.confirmed_at) : new Date(`${appointment.date}T00:00:00`);
+    if (Number.isNaN(confirmedAt.getTime())) return false;
+    return Date.now() <= confirmedAt.getTime() + 7 * 24 * 60 * 60 * 1000;
   };
 
   return (
@@ -165,7 +172,7 @@ export const PatientDoctorChatModule: React.FC<PatientDoctorChatModuleProps> = (
           Chat With Doctors
         </h3>
         <p style={{ color: "var(--muted)", fontSize: "0.84rem", marginBottom: "16px" }}>
-          Conversations appear after the doctor confirms your consultation. Messages open during the confirmed slot window.
+          Conversations appear after the doctor confirms your consultation. Messages stay open for 7 days after confirmation.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {doctorConversations.length === 0 ? (

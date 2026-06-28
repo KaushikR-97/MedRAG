@@ -58,6 +58,7 @@ class Appointment(Base):
     insurance_provider: Mapped[str] = mapped_column(String(120), default="", nullable=True)
     insurance_policy_number: Mapped[str] = mapped_column(String(120), default="", nullable=True)
     consultation_fee: Mapped[float] = mapped_column(Float, default=0.0)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 
