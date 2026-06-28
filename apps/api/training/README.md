@@ -26,6 +26,9 @@ Use JSONL with one training example per line:
 ```
 
 Do not fine-tune on raw PHI. De-identify patient data and keep source licensing documented.
+Use `../../docs/DATASET_SOURCING_AND_MODEL_PLAN.md` as the source acquisition
+plan. The recommended approach is guideline/reference RAG plus fine-tuning for
+style and role behavior, not fine-tuning to memorize treatment facts.
 
 ## Train
 
@@ -64,3 +67,19 @@ python training/evaluate_adapter.py \
 For a small Lightning GPU, keep `--batch-size 1`, `--grad-accum 8`, and short
 `--max-length` values. The shell script used 256 tokens; this repo defaults to
 512 for slightly better instruction examples.
+
+## Quality Gate
+
+After generating answers for the locked cases in `clinical_quality_cases.jsonl`,
+save predictions as JSONL with `id` and `answer` fields, then run:
+
+```bash
+python training/evaluate_clinical_quality.py \
+  --cases training/clinical_quality_cases.jsonl \
+  --predictions training/predictions.jsonl \
+  --min-pass-rate 0.90
+```
+
+Investor demo target: at least 85% pass rate on demo cases.
+Closed clinical pilot target: at least 90% pass rate on clinician-reviewed cases,
+100% urgent escalation pass, and zero patient-prescribing violations.
