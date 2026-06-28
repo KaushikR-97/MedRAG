@@ -188,7 +188,28 @@ def create_reminder(
         patient_id=patient_id,
         payload=payload.model_dump(exclude={"patient_id"}),
     )
-    return {"id": record.id, "active": record.active}
+    event = PatientCalendarEvent(
+        id=str(uuid.uuid4()),
+        patient_id=patient_id,
+        event_type="medication_reminder",
+        title=f"Medication reminder: {record.medicine_name}",
+        starts_at=datetime.now(UTC),
+        status="active",
+        source="medication_reminder",
+        metadata_json=f'{{"reminder_id":"{record.id}","schedule":"{record.schedule}"}}',
+        created_at=datetime.now(UTC),
+    )
+    db.add(event)
+    db.commit()
+    return {
+        "id": record.id,
+        "patient_id": record.patient_id,
+        "medicine_name": record.medicine_name,
+        "dosage": record.dosage,
+        "schedule": record.schedule,
+        "active": record.active,
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+    }
 
 
 @router.post("/symptoms")

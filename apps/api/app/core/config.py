@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     s3_region: str = "ap-south-1"
     clamd_host: str = "clamav"
     clamd_port: int = 3310
+    malware_scan_fail_open: bool = True
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
     twilio_whatsapp_from: str = ""

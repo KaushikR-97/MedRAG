@@ -10,6 +10,7 @@ type CareRemindersModuleProps = {
 
 export const CareRemindersModule: React.FC<CareRemindersModuleProps> = ({ token, sessionRole, activePatientId }) => {
   const [reminders, setReminders] = useState<any[]>([]);
+  const [prescriptions, setPrescriptions] = useState<any[]>([]);
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [whatsappLogs, setWhatsappLogs] = useState<any[]>([]);
   const [smsLogs, setSmsLogs] = useState<any[]>([]);
@@ -28,6 +29,9 @@ export const CareRemindersModule: React.FC<CareRemindersModuleProps> = ({ token,
     try {
       const remindersRes = await api.listMedicationReminders(token, activePatientId || undefined);
       setReminders(remindersRes);
+      if (sessionRole === "patient") {
+        setPrescriptions(await api.listPrescriptions(token));
+      }
       
       if (sessionRole === "patient") {
         const familyRes = await api.listFamilyMembers(token);
@@ -53,16 +57,17 @@ export const CareRemindersModule: React.FC<CareRemindersModuleProps> = ({ token,
     setError("");
     setSuccess("");
     try {
-      await api.createMedicationReminder(token, {
+      const created = await api.createMedicationReminder(token, {
         medicine_name: medName,
         dosage,
         schedule,
         patient_id: sessionRole === "doctor" ? patientIdInput : undefined,
       });
+      setReminders((prev) => [created, ...prev.filter((item) => item.id !== created.id)]);
       setSuccess("Reminder successfully created.");
       setMedName("");
       setDosage("");
-      refreshData();
+      await refreshData();
     } catch (err: any) {
       setError(err.message || "Failed to create reminder");
     } finally {
@@ -184,6 +189,27 @@ export const CareRemindersModule: React.FC<CareRemindersModuleProps> = ({ token,
         )}
 
         <div>
+          {sessionRole === "patient" && (
+            <div style={{ marginBottom: "20px" }}>
+              <h3 style={{ fontSize: "1rem", display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                Signed Prescriptions
+              </h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "180px", overflowY: "auto" }}>
+                {prescriptions.length === 0 ? (
+                  <p style={{ fontSize: "0.8rem", color: "var(--muted)" }}>No signed prescriptions yet.</p>
+                ) : (
+                  prescriptions.map((rx) => (
+                    <div key={rx.id} style={{ padding: "10px", background: "rgba(255,255,255,0.02)", borderRadius: "8px", border: "1px solid var(--line)", fontSize: "0.78rem" }}>
+                      <div style={{ fontWeight: 700 }}>{rx.diagnosis}</div>
+                      <div style={{ color: "var(--muted)", marginTop: "3px" }}>Medicines: {rx.medications}</div>
+                      <div style={{ color: "var(--muted)", marginTop: "3px" }}>Dosage: {rx.dosage || "As directed"} | Duration: {rx.duration || "As directed"}</div>
+                      {rx.instructions && <div style={{ color: "var(--muted)", marginTop: "3px" }}>Instructions: {rx.instructions}</div>}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
           <h3 style={{ fontSize: "1rem", display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
             <MessageSquare size={16} style={{ color: "var(--primary)" }} />
             Simulated Notification Inbox

@@ -25,6 +25,7 @@ from app.services.compliance_service import ComplianceService
 from app.services.privacy_service import PrivacyService
 from app.services.trace_service import AnswerTraceService, TraceTimer
 from app.services.cache_service import ClinicalCacheService
+from app.services.generation_service import ClinicalGenerationService
 
 router = APIRouter()
 
@@ -209,11 +210,11 @@ def ask_clinical_question(
 
 
 def _fallback_clinical_answer(question: str, role: str) -> str:
-    if role == "doctor":
-        return (
-            "I could not complete the full model workflow. For doctor decision support, please retry with the suspected diagnosis, age, pregnancy status, severity, vitals, renal/hepatic function, allergies, current medicines, and red flags so the LLM can provide disease-specific treatment options, dose ranges, contraindications, monitoring, and escalation criteria."
-        )
-    return "I could not complete the clinical retrieval workflow. Please retry with symptoms, duration, age, relevant conditions, and current medicines."
+    return ClinicalGenerationService._fallback_generation(
+        question=question,
+        user_role=role,
+        reason="Clinical graph failed",
+    )
 
 
 def _is_gibberish_answer(text: str) -> bool:

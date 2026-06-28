@@ -221,6 +221,26 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
   return response.json() as Promise<T>;
 }
 
+async function requestBlob(path: string, options: RequestInit = {}, token?: string): Promise<Blob> {
+  const url = `${API_BASE}${path}`;
+  const response = await fetch(url, {
+    ...options,
+    credentials: "include",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    if (response.status === 401 && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("medrag:auth-expired", { detail }));
+    }
+    throw new Error(`${response.status} ${response.statusText} from ${url}: ${detail || "Request failed"}`);
+  }
+  return response.blob();
+}
+
 async function sha256(message: string): Promise<string> {
   const msgBuffer = new TextEncoder().encode(message);
   const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
@@ -562,6 +582,16 @@ export const api = {
   },
   deleteDocument(token: string, docId: string) {
     return request<{ status: string }>(`/documents/${encodeURIComponent(docId)}`, { method: "DELETE" }, token);
+  },
+  retryDocumentIngestion(token: string, docId: string) {
+    return request<DocumentRecord>(
+      `/documents/${encodeURIComponent(docId)}/retry-ingestion`,
+      { method: "POST" },
+      token,
+    );
+  },
+  viewDocument(token: string, docId: string) {
+    return requestBlob(`/documents/${encodeURIComponent(docId)}/download?inline=true`, { method: "GET" }, token);
   },
   getPatientProfile(token: string, patientId: string) {
     return request<{
@@ -1061,7 +1091,7 @@ export const api = {
     );
   },
   createMedicationReminder(token: string, payload: { medicine_name: string; dosage: string; schedule: string; patient_id?: string }) {
-    return request<{ id: string; active: boolean }>("/patient/medication-reminders", {
+    return request<any>("/patient/medication-reminders", {
       method: "POST",
       body: JSON.stringify(payload),
     }, token);

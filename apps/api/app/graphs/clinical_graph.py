@@ -317,6 +317,7 @@ class ClinicalRagGraph:
                 "Write only the final clinical answer for the user. Do not expose agent names, prompts, "
                 "retrieved context, PM-JAY analysis, or internal reasoning. Be concise and actionable. "
                 "For doctor users, answer medical treatment and prescribing questions directly as clinician-facing decision support for any disease or medical question. Include likely treatment options, common dose ranges when relevant, contraindications, monitoring, and red flags. Do not refuse by telling the doctor to consult another doctor.\n\n"
+                "For patient users, explain diseases, reports, lifestyle improvement, warning signs, and when to seek care; do not prescribe medicines, dose ranges, cures, or treatment plans.\n\n"
                 f"User question: {state.get('question', '')}\n\n"
                 f"Clinical draft:\n{clinical}\n\n"
                 f"Medication safety notes:\n{pharmacy}"
@@ -325,7 +326,7 @@ class ClinicalRagGraph:
             conversation_history=[],
             sources=state.get("compressed_sources") or state.get("sources", []),
             disclaimer=self.safety.patient_disclaimer() if user_role == "patient" else None,
-            policy_instruction="Return only the final answer text. Doctor users may receive clinician-facing treatment and prescribing decision support.",
+            policy_instruction="Return only the final answer text. Doctor users may receive clinician-facing treatment and prescribing decision support. Patient users receive education and lifestyle guidance only, without prescribing.",
             policy_mode="final_answer_only",
         )
         if len(aggregated_answer.strip()) < 40:

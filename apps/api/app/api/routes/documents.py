@@ -63,6 +63,35 @@ def delete_document(
     return {"status": "deleted"}
 
 
+@router.post("/{doc_id}/retry-ingestion", response_model=DocumentRecord)
+def retry_document_ingestion(
+    doc_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DocumentRecord:
+    doc = db.get(MedicalDocument, doc_id)
+    if doc is None:
+        raise HTTPException(404, "Document not found")
+    if doc.patient_id != user.id and not ComplianceService(db).can_access_patient(
+        actor=user,
+        patient_id=doc.patient_id,
+        scope="documents.read",
+    ):
+        raise HTTPException(403, "Access denied")
+    if doc.status == "deleted_by_patient":
+        raise HTTPException(404, "Document not found")
+
+    doc.status = "uploaded"
+    doc.malware_status = "pending"
+    doc.ocr_warning = ""
+    doc.ingested_to_rag = False
+    db.add(doc)
+    db.flush()
+    IngestionService(db).enqueue_document_pipeline(doc=doc, user=user)
+    db.refresh(doc)
+    return DocumentRecord.model_validate(doc, from_attributes=True)
+
+
 @router.get("", response_model=list[DocumentRecord])
 def list_documents(
     patient_id: str | None = None,

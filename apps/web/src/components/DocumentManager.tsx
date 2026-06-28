@@ -11,6 +11,8 @@ type DocumentManagerProps = {
 export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activePatientId, userRole }) => {
   const [documentsList, setDocumentsList] = useState<DocumentRecord[]>([]);
   const [documentJobs, setDocumentJobs] = useState<Record<string, any[]>>({});
+  const [pdfViewUrl, setPdfViewUrl] = useState("");
+  const [pdfViewName, setPdfViewName] = useState("");
   const [documentType, setDocumentType] = useState("past_record");
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -50,6 +52,12 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activeP
   useEffect(() => {
     loadDocuments();
   }, [token, activePatientId]);
+
+  useEffect(() => {
+    return () => {
+      if (pdfViewUrl) URL.revokeObjectURL(pdfViewUrl);
+    };
+  }, [pdfViewUrl]);
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,6 +115,36 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activeP
     } catch (err: any) {
       setError(err.message || "Could not delete document");
     }
+  };
+
+  const handleRetryIngestion = async (doc: DocumentRecord) => {
+    setError("");
+    setSuccess("");
+    try {
+      await api.retryDocumentIngestion(token, doc.id);
+      setSuccess("Document ingestion restarted. Watch the job status below for progress.");
+      loadDocuments();
+    } catch (err: any) {
+      setError(err.message || "Could not retry ingestion");
+    }
+  };
+
+  const handleViewDocument = async (doc: DocumentRecord) => {
+    setError("");
+    try {
+      const blob = await api.viewDocument(token, doc.id);
+      if (pdfViewUrl) URL.revokeObjectURL(pdfViewUrl);
+      setPdfViewUrl(URL.createObjectURL(blob));
+      setPdfViewName(doc.original_filename);
+    } catch (err: any) {
+      setError(err.message || "Could not open document");
+    }
+  };
+
+  const closePdfViewer = () => {
+    if (pdfViewUrl) URL.revokeObjectURL(pdfViewUrl);
+    setPdfViewUrl("");
+    setPdfViewName("");
   };
 
   return (
@@ -170,6 +208,16 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activeP
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: "6px" }}>
+                    {userRole === "patient" && (
+                      <button
+                        onClick={() => handleViewDocument(doc)}
+                        className="button-sec"
+                        style={{ padding: "4px 8px", fontSize: "0.7rem" }}
+                        title="View uploaded PDF"
+                      >
+                        View PDF
+                      </button>
+                    )}
                     <button 
                       onClick={() => handleSpellcheck(doc)} 
                       className="button-sec" 
@@ -186,6 +234,16 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activeP
                         title="Find Similar Clinical Cases"
                       >
                         Find Similar
+                      </button>
+                    )}
+                    {(doc.status === "blocked" || doc.status === "ocr_failed" || doc.status === "ingestion_failed" || doc.malware_status === "error") && (
+                      <button
+                        onClick={() => handleRetryIngestion(doc)}
+                        className="button-sec"
+                        style={{ padding: "4px 8px", fontSize: "0.7rem", borderColor: "rgba(0,176,255,0.45)", color: "var(--primary)" }}
+                        title="Restart OCR and RAG ingestion"
+                      >
+                        Retry Ingestion
                       </button>
                     )}
                     {userRole === "patient" && (
@@ -222,6 +280,26 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activeP
           )}
         </div>
       </div>
+
+      {pdfViewUrl && (
+        <div className="card" style={{ gridColumn: "span 2", marginTop: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <h4 style={{ fontSize: "0.95rem" }}>Viewing: {pdfViewName}</h4>
+            <button onClick={closePdfViewer} className="button-sec" style={{ padding: "4px 8px" }}>Close PDF</button>
+          </div>
+          <iframe
+            src={pdfViewUrl}
+            title={pdfViewName}
+            style={{
+              width: "100%",
+              height: "70vh",
+              border: "1px solid var(--line)",
+              borderRadius: "8px",
+              background: "#fff",
+            }}
+          />
+        </div>
+      )}
 
       {/* Spellcheck Results Modal/Section */}
       {activeSpellcheckDoc && (
