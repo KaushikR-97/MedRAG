@@ -234,6 +234,18 @@ function App() {
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+
+  useEffect(() => {
+    const handleExpiredAuth = () => {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      setSession(null);
+      setCurrentTab("home");
+      setActiveVideoCall(null);
+      setConsultationRoom(null);
+    };
+    window.addEventListener("medrag:auth-expired", handleExpiredAuth);
+    return () => window.removeEventListener("medrag:auth-expired", handleExpiredAuth);
+  }, []);
   
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);

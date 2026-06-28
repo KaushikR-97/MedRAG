@@ -208,6 +208,9 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
   });
   if (!response.ok) {
     const detail = await response.text();
+    if (response.status === 401 && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("medrag:auth-expired", { detail }));
+    }
     throw new Error(`${response.status} ${response.statusText} from ${url}: ${detail || "Request failed"}`);
   }
   return response.json() as Promise<T>;
@@ -714,7 +717,7 @@ export const api = {
   ) {
     return request<HospitalRecord>(
       `/hospitals/${encodeURIComponent(hospitalId)}/resources`,
-      { method: "PATCH", body: JSON.stringify(payload) },
+      { method: "POST", body: JSON.stringify(payload) },
       token,
     );
   },
@@ -727,8 +730,8 @@ export const api = {
   },
   updateHospitalResourceBooking(token: string, bookingId: string, payload: { status: string; admin_notes?: string }) {
     return request<any>(
-      `/hospitals/resource-bookings/${encodeURIComponent(bookingId)}`,
-      { method: "PATCH", body: JSON.stringify(payload) },
+      `/hospitals/resource-bookings/${encodeURIComponent(bookingId)}/status`,
+      { method: "POST", body: JSON.stringify(payload) },
       token,
     );
   },

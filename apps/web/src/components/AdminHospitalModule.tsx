@@ -211,12 +211,30 @@ export const AdminHospitalModule: React.FC<AdminHospitalModuleProps> = ({ token 
           {hospitals.map((hospital) => <option key={hospital.id} value={hospital.id}>{hospital.name}</option>)}
         </select>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", marginTop: "14px" }}>
-          <input className="input" type="number" value={ambulanceCount} onChange={(event) => setAmbulanceCount(event.target.value)} placeholder="Ambulances" />
-          <input className="input" value={ambulanceTypes} onChange={(event) => setAmbulanceTypes(event.target.value)} placeholder="Ambulance types" />
-          <input className="input" type="number" value={bedsTotal} onChange={(event) => setBedsTotal(event.target.value)} placeholder="Beds" />
-          <input className="input" type="number" value={roomsTotal} onChange={(event) => setRoomsTotal(event.target.value)} placeholder="Rooms" />
-          <input className="input" type="number" value={icuBedsTotal} onChange={(event) => setIcuBedsTotal(event.target.value)} placeholder="ICU beds" />
-          <input className="input" type="number" value={acRoomsTotal} onChange={(event) => setAcRoomsTotal(event.target.value)} placeholder="AC rooms" />
+          <div>
+            <label className="label">Number of Ambulances</label>
+            <input className="input" type="number" min={0} value={ambulanceCount} onChange={(event) => setAmbulanceCount(event.target.value)} />
+          </div>
+          <div>
+            <label className="label">Ambulance Types</label>
+            <input className="input" value={ambulanceTypes} onChange={(event) => setAmbulanceTypes(event.target.value)} placeholder="BLS, ALS, ICU ambulance" />
+          </div>
+          <div>
+            <label className="label">Total Beds</label>
+            <input className="input" type="number" min={0} value={bedsTotal} onChange={(event) => setBedsTotal(event.target.value)} />
+          </div>
+          <div>
+            <label className="label">Total Rooms</label>
+            <input className="input" type="number" min={0} value={roomsTotal} onChange={(event) => setRoomsTotal(event.target.value)} />
+          </div>
+          <div>
+            <label className="label">ICU Beds</label>
+            <input className="input" type="number" min={0} value={icuBedsTotal} onChange={(event) => setIcuBedsTotal(event.target.value)} />
+          </div>
+          <div>
+            <label className="label">AC Rooms</label>
+            <input className="input" type="number" min={0} value={acRoomsTotal} onChange={(event) => setAcRoomsTotal(event.target.value)} />
+          </div>
         </div>
         <button className="button" type="button" onClick={updateResources} disabled={!hospitalId} style={{ marginTop: "12px" }}>Publish Hospital Resources</button>
       </div>

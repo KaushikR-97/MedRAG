@@ -101,31 +101,50 @@ def update_hospital_resources(
         raise HTTPException(404, str(exc)) from exc
 
 
+@router.post("/{hospital_id}/resources")
+def post_hospital_resources(
+    hospital_id: str,
+    payload: HospitalResourceUpdate,
+    admin: User = Depends(require_role("hospital_admin")),
+    db: Session = Depends(get_db),
+) -> dict:
+    return update_hospital_resources(hospital_id=hospital_id, payload=payload, admin=admin, db=db)
+
+
 @router.post("/resource-bookings")
 def request_hospital_resource(
     payload: HospitalResourceBookingCreate,
     patient: User = Depends(require_role("patient")),
     db: Session = Depends(get_db),
 ) -> dict:
-    hospital = db.get(Hospital, payload.hospital_id)
-    if hospital is None or not hospital.active:
-        raise HTTPException(404, "Hospital not found")
-    booking = HospitalResourceBooking(
-        id=str(uuid.uuid4()),
-        patient_id=patient.id,
-        hospital_id=payload.hospital_id,
-        booking_type=payload.booking_type,
-        resource_type=payload.resource_type,
-        reason=payload.reason,
-        status="requested",
-        created_at=datetime.now(UTC),
-    )
-    db.add(booking)
-    db.commit()
-    db.refresh(booking)
-    rec = _record(booking)
-    rec["hospital_name"] = hospital.name
-    return rec
+    try:
+        hospital = db.get(Hospital, payload.hospital_id)
+        if hospital is None or not hospital.active:
+            raise HTTPException(404, "Hospital not found")
+        booking = HospitalResourceBooking(
+            id=str(uuid.uuid4()),
+            patient_id=patient.id,
+            hospital_id=payload.hospital_id,
+            booking_type=payload.booking_type,
+            resource_type=payload.resource_type,
+            reason=payload.reason,
+            status="requested",
+            created_at=datetime.now(UTC),
+        )
+        db.add(booking)
+        db.commit()
+        db.refresh(booking)
+        rec = _record(booking)
+        rec["hospital_name"] = hospital.name
+        return rec
+    except HTTPException:
+        raise
+    except Exception as exc:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        raise HTTPException(400, f"Error requesting hospital resource: {str(exc)}\n{traceback.format_exc()}") from exc
 
 
 @router.get("/resource-bookings")
@@ -183,6 +202,16 @@ def update_hospital_resource_booking(
     rec = _record(booking)
     rec["hospital_name"] = hospital.name
     return rec
+
+
+@router.post("/resource-bookings/{booking_id}/status")
+def post_hospital_resource_booking_status(
+    booking_id: str,
+    payload: HospitalResourceBookingUpdate,
+    admin: User = Depends(require_role("hospital_admin")),
+    db: Session = Depends(get_db),
+) -> dict:
+    return update_hospital_resource_booking(booking_id=booking_id, payload=payload, admin=admin, db=db)
 
 
 @router.post("/departments")
