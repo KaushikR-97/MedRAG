@@ -62,7 +62,7 @@ class LocalHuggingFaceModel:
             return f"{settings.base_model_name}+{self.adapter_path}"
         return settings.base_model_name
 
-    def generate(self, prompt: str, *, max_new_tokens: int = 512) -> str:
+    def generate(self, prompt: str, *, max_new_tokens: int = 768) -> str:
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
         input_len = inputs.input_ids.shape[1]
         with torch.no_grad():
@@ -71,7 +71,10 @@ class LocalHuggingFaceModel:
                 max_new_tokens=max_new_tokens,
                 temperature=0.1,
                 do_sample=False,
+                repetition_penalty=1.15,
+                no_repeat_ngram_size=4,
                 pad_token_id=self.tokenizer.eos_token_id,
+                eos_token_id=self.tokenizer.eos_token_id,
             )
         generated_tokens = output[0][input_len:]
         decoded = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)

@@ -336,7 +336,8 @@ class HybridMedicalRetriever:
         ]
 
     def _fallback_chunks(self, query: str) -> list[RetrievedChunk]:
-        return [
+        text = query.lower()
+        chunks = [
             RetrievedChunk(
                 id="safety-baseline",
                 title="Clinical safety baseline",
@@ -348,3 +349,41 @@ class HybridMedicalRetriever:
                 ),
             )
         ]
+        if any(term in text for term in ["diarrhea", "diarrhoea", "loose motion", "loose stool"]):
+            chunks.append(
+                RetrievedChunk(
+                    id="primary-care-diarrhea-framework",
+                    title="Primary care framework: acute diarrhea",
+                    score=0.78,
+                    text=(
+                        "Acute diarrhea assessment includes duration, stool frequency, blood or mucus, fever, vomiting, hydration, urine output, travel/food exposure, antibiotic use, pregnancy, age, comorbidities, and immunocompromise. "
+                        "Red flags include severe dehydration, blood in stool, persistent high fever, severe abdominal pain, altered sensorium, pregnancy, infants/elderly frailty, immunocompromise, and symptoms persisting beyond several days. "
+                        "Oral rehydration solution and continued fluids are core supportive care. Antibiotics or antimotility agents require clinician assessment and should be avoided in suspected invasive diarrhea unless clinically indicated."
+                    ),
+                )
+            )
+        if any(term in text for term in ["thyroid", "hypothyroid", "hyperthyroid", "tsh", "levothyroxine"]):
+            chunks.append(
+                RetrievedChunk(
+                    id="primary-care-thyroid-framework",
+                    title="Primary care framework: thyroid disorders",
+                    score=0.78,
+                    text=(
+                        "Thyroid assessment should review TSH, free T4, symptoms, pregnancy status, cardiac disease, age, weight, current medicines, adherence, and prior thyroid surgery or radioiodine. "
+                        "Hypothyroidism treatment commonly uses levothyroxine with dosing individualized by age, cardiac risk, pregnancy, and lab values. Hyperthyroidism needs cause assessment and may require antithyroid medicines, beta-blocker symptom control, or specialist care. "
+                        "Urgent red flags include severe palpitations, chest pain, confusion, high fever, severe weakness, thyroid storm concern, or pregnancy with uncontrolled thyroid disease."
+                    ),
+                )
+            )
+        chunks.append(
+            RetrievedChunk(
+                id="clinician-prescribing-framework",
+                title="General clinician prescribing framework",
+                score=0.72,
+                text=(
+                    "For clinician decision support, prescribing should confirm diagnosis, severity, contraindications, allergies, renal and hepatic function, pregnancy/lactation status, age/weight, drug interactions, monitoring needs, follow-up timing, and escalation criteria. "
+                    "Patient-facing answers should explain conditions and lifestyle guidance without providing prescriptions or dose instructions."
+                ),
+            )
+        )
+        return chunks

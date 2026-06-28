@@ -142,7 +142,7 @@ def ask_clinical_question(
         }
     answer = PrivacyService().minimum_necessary_text(actor=user, patient_id=patient_id, text=state["answer"], db=db)
     if _is_gibberish_answer(answer):
-        answer = _fallback_clinical_answer(payload.question, user.role)
+        answer = _fallback_clinical_answer(payload.question, user.role, sources=state.get("sources", []))
         state["safety_label"] = "fallback_answer"
         state["query_route"] = "fallback"
         state["query_route_reason"] = "Repetitive model output suppressed"
@@ -209,12 +209,17 @@ def ask_clinical_question(
     )
 
 
-def _fallback_clinical_answer(question: str, role: str) -> str:
+def _fallback_clinical_answer(question: str, role: str, sources: list[RetrievedChunk] | None = None) -> str:
     return ClinicalGenerationService._fallback_generation(
         question=question,
         user_role=role,
         reason="Clinical graph failed",
+        source_text=_source_text(sources or []),
     )
+
+
+def _source_text(sources: list[RetrievedChunk]) -> str:
+    return "\n".join(f"- [{source.id}] {source.title}: {source.text}" for source in sources)
 
 
 def _is_gibberish_answer(text: str) -> bool:

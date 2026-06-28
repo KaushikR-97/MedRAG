@@ -46,9 +46,22 @@ class ClinicalGenerationService:
                 policy_mode=policy_mode,
             )
             try:
-                return get_local_huggingface_model().generate(prompt)
+                cleaned = self._clean_model_answer(get_local_huggingface_model().generate(prompt))
+                if cleaned:
+                    return cleaned
+                return self._fallback_generation(
+                    question=question,
+                    user_role=user_role,
+                    reason="Model returned internal scaffold text",
+                    source_text=source_text,
+                )
             except Exception as exc:
-                return self._fallback_generation(question=question, user_role=user_role, reason=str(exc))
+                return self._fallback_generation(
+                    question=question,
+                    user_role=user_role,
+                    reason=str(exc),
+                    source_text=source_text,
+                )
 
         if user_role == "doctor":
             system_policy = (
@@ -108,18 +121,38 @@ class ClinicalGenerationService:
                         "policy_instruction": policy_instruction,
                     }
                 )
-                return str(response.content)
+                cleaned = self._clean_model_answer(str(response.content))
+                if cleaned:
+                    return cleaned
+                return self._fallback_generation(
+                    question=question,
+                    user_role=user_role,
+                    reason="Model returned internal scaffold text",
+                    source_text=source_text,
+                )
             except Exception as exc:
-                return self._fallback_generation(question=question, user_role=user_role, reason=str(exc))
+                return self._fallback_generation(
+                    question=question,
+                    user_role=user_role,
+                    reason=str(exc),
+                    source_text=source_text,
+                )
 
         return self._fallback_generation(
             question=question,
             user_role=user_role,
             reason="No configured generation provider",
+            source_text=source_text,
         )
 
     @staticmethod
-    def _fallback_generation(*, question: str, user_role: str, reason: str) -> str:
+    def _fallback_generation(*, question: str, user_role: str, reason: str, source_text: str = "") -> str:
+        if source_text.strip():
+            return ClinicalGenerationService._source_grounded_fallback(
+                question=question,
+                user_role=user_role,
+                source_text=source_text,
+            )
         if user_role == "doctor":
             lowered = question.lower()
             if "fever" in lowered:
@@ -142,6 +175,66 @@ class ClinicalGenerationService:
             "I cannot prescribe medicines, doses, cures, or treatment plans from the patient account. "
             "Please retry once the clinical model finishes starting, or ask about the condition/report you want explained."
         )
+
+    @staticmethod
+    def _source_grounded_fallback(*, question: str, user_role: str, source_text: str) -> str:
+        facts = ClinicalGenerationService._extract_relevant_facts(source_text, limit=8)
+        facts_text = "\n".join(f"- {fact}" for fact in facts) if facts else "- No specific retrieved facts were available."
+        if user_role == "doctor":
+            return (
+                "Clinical decision-support draft based on retrieved context:\n\n"
+                f"{facts_text}\n\n"
+                "Suggested clinician workflow:\n"
+                "- Confirm the working diagnosis and exclude urgent mimics or complications.\n"
+                "- Check age, pregnancy status, vitals, allergies, renal/hepatic function, comorbidities, and current medicines before prescribing.\n"
+                "- Select treatment according to diagnosis severity and local guideline availability; adjust dose for renal/hepatic risk and interactions.\n"
+                "- Give monitoring instructions, follow-up timing, and escalation criteria for worsening symptoms or red flags.\n\n"
+                "The full model service was unavailable or returned an unreliable response, so this answer is conservative and source-grounded."
+            )
+        return (
+            "Here is the patient-friendly explanation based on the information available:\n\n"
+            f"{facts_text}\n\n"
+            "What you can do next:\n"
+            "- Keep your reports, symptoms, duration, allergies, and current medicines ready for your clinician.\n"
+            "- Ask your doctor what the likely cause is, what warning signs to watch for, and when follow-up is needed.\n"
+            "- Seek urgent care for severe symptoms, breathing difficulty, chest pain, fainting, confusion, severe dehydration, or rapidly worsening illness.\n\n"
+            "I cannot prescribe medicines, doses, cures, or a personalized treatment plan from a patient account."
+        )
+
+    @staticmethod
+    def _extract_relevant_facts(source_text: str, *, limit: int) -> list[str]:
+        facts: list[str] = []
+        for raw_line in source_text.splitlines():
+            line = raw_line.strip(" -\t")
+            if not line:
+                continue
+            if line.startswith("[") and "]" in line:
+                line = line.split("]", 1)[1].strip(" :")
+            if len(line) < 12:
+                continue
+            if any(prefix in line.lower() for prefix in ["original query:", "use retrieved clinical guidelines"]):
+                continue
+            facts.append(line[:260])
+            if len(facts) >= limit:
+                break
+        return facts
+
+    @staticmethod
+    def _clean_model_answer(answer: str) -> str:
+        cleaned = answer.strip()
+        blocked_markers = [
+            "clinical answer scaffold",
+            "conversation history:",
+            "retrieved context:",
+            "response policy:",
+            "system:",
+            "[/inst]",
+        ]
+        lower = cleaned.lower()
+        for marker in blocked_markers:
+            if marker in lower:
+                return ""
+        return cleaned
 
     def _build_prompt(
         self,
