@@ -1,0 +1,35 @@
+[
+  {
+    "id": "medrag_role_policy_reference",
+    "title": "MedRAG India role policy reference",
+    "publisher": "MedRAG India",
+    "url": "",
+    "source_type": "guideline",
+    "publication_date": "2026-06-28",
+    "license_status": "internal_demo_reference",
+    "language": "en",
+    "text": "Patient-facing answers should explain medical concepts, report meaning, lifestyle measures, warning signs, and when to seek care. Patient-facing answers must not prescribe medicines, doses, cures, or personalized treatment plans. Doctor-facing answers are clinician decision support and may include differential diagnosis, treatment options, common dose ranges when relevant, contraindications, monitoring, escalation criteria, and uncertainty. Clinicians remain responsible for final decisions."
+  },
+  {
+    "id": "generic_prescribing_safety_reference",
+    "title": "Generic prescribing safety reference",
+    "publisher": "MedRAG India",
+    "url": "",
+    "source_type": "guideline",
+    "publication_date": "2026-06-28",
+    "license_status": "internal_demo_reference",
+    "language": "en",
+    "text": "Before prescribing for any condition, confirm the working diagnosis, important differentials, severity, red flags, age, weight, pregnancy or lactation status, allergies, renal function, hepatic function, comorbidities, current medicines, contraindications, drug interactions, monitoring requirements, follow-up timing, and escalation criteria. Use current local guidelines and patient-specific context."
+  },
+  {
+    "id": "document_ingestion_patient_report_reference",
+    "title": "Patient report interpretation workflow reference",
+    "publisher": "MedRAG India",
+    "url": "",
+    "source_type": "workflow_reference",
+    "publication_date": "2026-06-28",
+    "license_status": "internal_demo_reference",
+    "language": "en",
+    "text": "Uploaded patient reports should be malware scanned, OCR extracted, reviewed when needed, linked to patient consent, indexed into the retrieval store, and exposed with visible job status. If ingestion fails, the UI must show the failed job and allow retry. Doctors may view patient records only after consent or valid care-team access."
+  }
+]

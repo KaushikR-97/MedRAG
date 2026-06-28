@@ -8,6 +8,12 @@ clinical pilot. It is intentionally stricter than a feature checklist.
 The investor demo is ready when all items below pass on a fresh Lightning AI
 deployment from `main`.
 
+Run the automated portion with:
+
+```bash
+python scripts/readiness_check.py --level demo
+```
+
 | Area | Gate |
 | --- | --- |
 | Deployment | `npm install`, API start, web start, migrations, worker start, Qdrant/Redis/Postgres health checks documented and repeatable. |
@@ -24,6 +30,12 @@ deployment from `main`.
 ## Closed Clinical Pilot 100% Gate
 
 The closed pilot is ready when investor-demo gates pass plus the following.
+
+Run the automated/manual gate report with:
+
+```bash
+python scripts/readiness_check.py --level pilot
+```
 
 | Area | Gate |
 | --- | --- |

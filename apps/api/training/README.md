@@ -35,15 +35,25 @@ style and role behavior, not fine-tuning to memorize treatment facts.
 ```bash
 cd apps/api
 pip install -e ".[finetune]"
+python training/build_sft_from_sources.py \
+  --manifest training/rag_source_manifest.json \
+  --output training/generated_medrag_sft.jsonl
 python training/train_lora.py \
   --base-model BioMistral/BioMistral-7B \
-  --train-file training/sample_medrag_sft.jsonl \
+  --train-file training/generated_medrag_sft.jsonl \
   --output-dir models/biomistral-medical \
   --epochs 3 \
   --max-length 512 \
   --lora-r 8 \
   --lora-alpha 16 \
   --target-modules q_proj,v_proj
+```
+
+Before training, load approved reference sources into RAG:
+
+```bash
+python training/ingest_rag_sources.py --manifest training/rag_source_manifest.json --dry-run
+python training/ingest_rag_sources.py --manifest training/rag_source_manifest.json
 ```
 
 Then set:

@@ -28,13 +28,13 @@ PY
 
 ## 3. Train The BioMistral Adapter
 
-For a small demo dataset:
+For the checked-in starter SFT data:
 
 ```bash
 export HF_HOME=/teamspace/studios/this_studio/hf_cache
 python training/train_lora.py \
   --base-model BioMistral/BioMistral-7B \
-  --train-file training/sample_medrag_sft.jsonl \
+  --train-file training/generated_medrag_sft.jsonl \
   --output-dir models/biomistral-medical \
   --epochs 3 \
   --batch-size 1 \
@@ -45,6 +45,24 @@ python training/train_lora.py \
   --target-modules q_proj,v_proj \
   --max-memory-json '{"0":"14GiB","cpu":"24GiB"}'
 ```
+
+To rebuild SFT style examples from the approved RAG source manifest:
+
+```bash
+python training/build_sft_from_sources.py \
+  --manifest training/rag_source_manifest.json \
+  --output training/generated_medrag_sft.jsonl \
+  --max-chunks-per-source 20
+```
+
+To ingest approved guideline/reference sources into Qdrant:
+
+```bash
+python training/ingest_rag_sources.py \
+  --manifest training/rag_source_manifest.json
+```
+
+Use `--dry-run` first to confirm chunk counts without writing to Qdrant.
 
 If the GPU has less memory, reduce `--max-length 256` and use:
 
@@ -122,6 +140,28 @@ as:
 ```text
 BioMistral/BioMistral-7B+./models/biomistral-medical
 ```
+
+## 9. Evaluate Quality Gates
+
+Save model predictions as JSONL with `id` and `answer`, then run:
+
+```bash
+python training/evaluate_clinical_quality.py \
+  --cases training/clinical_quality_cases.jsonl \
+  --predictions training/predictions.jsonl \
+  --min-pass-rate 0.90
+```
+
+Run launch readiness checks from the repo root:
+
+```bash
+python scripts/readiness_check.py --level demo
+python scripts/readiness_check.py --level pilot
+```
+
+The pilot check intentionally fails manual gates until legal/privacy review,
+clinical governance sign-off, monitoring, backup/restore, dedicated video
+infrastructure, and licensed corpus loading are completed.
 
 ## Important Safety Rule
 

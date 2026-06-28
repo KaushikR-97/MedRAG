@@ -121,6 +121,62 @@ class MedicalVectorIndexer:
         self.client.upsert(collection_name=settings.qdrant_collection, points=points)
         return len(points)
 
+    def index_reference_document(
+        self,
+        *,
+        source_id: str,
+        title: str,
+        text: str,
+        source_type: str = "guideline",
+        url: str = "",
+        publisher: str = "",
+        publication_date: str = "",
+        license_status: str = "",
+        language: str = "en",
+    ) -> int:
+        if not settings.qdrant_url:
+            return 1 if settings.is_non_prod else 0
+        chunks = self._chunk(text)
+        if self.embedder is None or self.client is None:
+            return 0
+        chunk_texts = [chunk.text for chunk in chunks]
+        vectors = self.embedder.encode(chunk_texts).tolist()
+        vector_size = len(vectors[0]) if vectors else 0
+        if vector_size == 0:
+            return 0
+        self.ensure_collection(vector_size)
+        parent_id = f"{source_id}:parent"
+        points = []
+        for chunk_index, (chunk, vector) in enumerate(zip(chunks, vectors, strict=False)):
+            points.append(
+                PointStruct(
+                    id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"{source_id}:{chunk_index}")),
+                    vector=vector,
+                    payload={
+                        "document_id": source_id,
+                        "source_id": source_id,
+                        "parent_id": parent_id,
+                        "chunk_index": chunk_index,
+                        "chunk_type": chunk.chunk_type,
+                        "section": chunk.section,
+                        "start_char": chunk.start_char,
+                        "end_char": chunk.end_char,
+                        "title": title,
+                        "text": chunk.text,
+                        "parent_text": chunk.parent_text,
+                        "language": language,
+                        "source_type": source_type,
+                        "visibility": "public",
+                        "url": url,
+                        "publisher": publisher,
+                        "publication_date": publication_date,
+                        "license_status": license_status,
+                    },
+                )
+            )
+        self.client.upsert(collection_name=settings.qdrant_collection, points=points)
+        return len(points)
+
     def _chunk(
         self,
         text: str,

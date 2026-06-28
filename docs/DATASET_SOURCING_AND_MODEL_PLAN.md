@@ -69,6 +69,13 @@ scope must be reviewed carefully.
    Patient-uploaded PDFs can be used for per-user RAG after consent, but not for
    model training unless de-identified and approved.
 
+6. Keep recent documents, medical textbooks, and notifications in RAG.
+   Recent clinical notifications and official guideline updates should be ingested
+   as dated RAG sources with publisher, URL, publication date, retrieval date, and
+   license status. Medical textbooks should be ingested only when they are open
+   licensed, institutionally licensed for this use, or explicitly approved by the
+   rights holder. Do not commit copyrighted textbook text into this repository.
+
 ## Dataset Acquisition Backlog
 
 | Priority | Task | Output |
