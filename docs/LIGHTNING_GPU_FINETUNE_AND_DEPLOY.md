@@ -30,10 +30,23 @@ BASE_MODEL_NAME=BioMistral/BioMistral-7B
 FINETUNED_ADAPTER_PATH=./models/biomistral-medical
 LOCAL_MODEL_DEVICE=auto
 LOCAL_MODEL_LOAD_IN_4BIT=true
+LOCAL_MODEL_MAX_NEW_TOKENS=1536
+LOCAL_MODEL_MAX_INPUT_TOKENS=0
 ALLOWED_ORIGIN_REGEX=https://.*\.cloudspaces\.litng\.ai
 ```
 
 Use a real 32+ character `JWT_SECRET` before pilot use.
+
+`LOCAL_MODEL_MAX_NEW_TOKENS` controls how long the API answer can be. It was
+previously effectively capped by code defaults. Keep `1536` for useful long
+clinical answers on a 7B model. Increase only if the GPU has enough memory and
+latency is acceptable.
+
+`LOCAL_MODEL_MAX_INPUT_TOKENS=0` means the app computes the largest safe prompt
+size from the model context window. If the prompt is too long for the model, the
+latest tokens are kept so the request does not crash. No local 7B model can
+accept unlimited text in a single request; for very long PDFs or chats, ingest
+into RAG and ask against the indexed context.
 
 ## 2. Install API Dependencies
 
@@ -131,8 +144,26 @@ python training/train_lora.py \
 python training/evaluate_adapter.py \
   --base-model BioMistral/BioMistral-7B \
   --adapter-path models/biomistral-medical \
+  --max-input-tokens 3000 \
+  --max-new-tokens 1024 \
   --prompt "Doctor role: provide a safe medication decision checklist."
 ```
+
+For a longer doctor-mode output test:
+
+```bash
+python training/evaluate_adapter.py \
+  --base-model BioMistral/BioMistral-7B \
+  --adapter-path models/biomistral-medical \
+  --max-input-tokens 2500 \
+  --max-new-tokens 1536 \
+  --prompt "Doctor role: for a stable adult with uncomplicated fever, provide medication options, contraindications, monitoring, and escalation criteria."
+```
+
+The adapter evaluator prints a warning if the prompt exceeds the model context
+window. That is not a policy restriction; it is the model's finite context
+length. Use higher-context base models later if you need very long single-prompt
+reasoning.
 
 ## 8. Start API
 

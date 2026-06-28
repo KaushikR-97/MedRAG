@@ -62,9 +62,13 @@ class LocalHuggingFaceModel:
             return f"{settings.base_model_name}+{self.adapter_path}"
         return settings.base_model_name
 
-    def generate(self, prompt: str, *, max_new_tokens: int = 768) -> str:
+    def generate(self, prompt: str, *, max_new_tokens: int | None = None) -> str:
+        max_new_tokens = max_new_tokens or settings.local_model_max_new_tokens
         model_limit = getattr(self.model.config, "max_position_embeddings", 4096) or 4096
-        max_prompt_tokens = max(256, model_limit - max_new_tokens - 16)
+        max_new_tokens = min(max_new_tokens, max(64, model_limit - 272))
+        available_prompt_tokens = max(256, model_limit - max_new_tokens - 16)
+        configured_input_tokens = settings.local_model_max_input_tokens
+        max_prompt_tokens = min(configured_input_tokens or available_prompt_tokens, available_prompt_tokens)
         self.tokenizer.truncation_side = "left"
         inputs = self.tokenizer(
             prompt,

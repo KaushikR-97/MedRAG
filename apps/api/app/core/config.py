@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     finetuned_adapter_path: str = ""
     local_model_device: str = "auto"
     local_model_load_in_4bit: bool = True
+    local_model_max_new_tokens: int = 1536
+    local_model_max_input_tokens: int = 0
     qdrant_url: str = ""
     qdrant_api_key: str = ""
     qdrant_collection: str = "medical_guidelines"

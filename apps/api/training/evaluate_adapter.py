@@ -33,7 +33,7 @@ def main() -> None:
     parser.add_argument("--base-model", default="BioMistral/BioMistral-7B")
     parser.add_argument("--adapter-path", default="models/biomistral-medical")
     parser.add_argument("--prompt", required=True)
-    parser.add_argument("--max-new-tokens", type=int, default=192)
+    parser.add_argument("--max-new-tokens", type=int, default=1024)
     parser.add_argument("--max-input-tokens", type=int, default=0)
     args = parser.parse_args()
 
@@ -55,7 +55,9 @@ def main() -> None:
     model.eval()
     formatted_prompt = format_prompt(args.prompt)
     model_limit = getattr(model.config, "max_position_embeddings", 4096) or 4096
-    max_input_tokens = args.max_input_tokens or max(256, model_limit - args.max_new_tokens - 16)
+    max_new_tokens = min(args.max_new_tokens, max(64, model_limit - 272))
+    max_safe_input_tokens = max(256, model_limit - max_new_tokens - 16)
+    max_input_tokens = min(args.max_input_tokens or max_safe_input_tokens, max_safe_input_tokens)
     tokenizer.truncation_side = "left"
     original_tokens = len(tokenizer(formatted_prompt, add_special_tokens=False).input_ids)
     if original_tokens > max_input_tokens:
@@ -73,7 +75,7 @@ def main() -> None:
     with torch.no_grad():
         output = model.generate(
             **inputs,
-            max_new_tokens=args.max_new_tokens,
+            max_new_tokens=max_new_tokens,
             repetition_penalty=1.18,
             do_sample=False,
             pad_token_id=tokenizer.eos_token_id,
