@@ -234,6 +234,7 @@ function App() {
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
 
   useEffect(() => {
     const handleExpiredAuth = () => {
@@ -360,6 +361,7 @@ function App() {
   function stopConsultationMedia() {
     peerConnectionRef.current?.close();
     peerConnectionRef.current = null;
+    pendingIceCandidatesRef.current = [];
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
@@ -404,9 +406,13 @@ function App() {
       }
     };
     peer.ontrack = (event) => {
-      const [remoteStream] = event.streams;
-      if (remoteVideoRef.current && remoteStream) {
+      let [remoteStream] = event.streams;
+      if (!remoteStream) {
+        remoteStream = new MediaStream([event.track]);
+      }
+      if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = remoteStream;
+        remoteVideoRef.current.play().catch(() => undefined);
       }
     };
     peerConnectionRef.current = peer;
@@ -421,7 +427,10 @@ function App() {
       localStreamRef.current = stream;
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
       const peer = await ensurePeerConnection(appointmentId);
-      stream.getTracks().forEach((track) => peer.addTrack(track, stream));
+      const existingTrackIds = new Set(peer.getSenders().map((sender) => sender.track?.id).filter(Boolean));
+      stream.getTracks().forEach((track) => {
+        if (!existingTrackIds.has(track.id)) peer.addTrack(track, stream);
+      });
       setMediaStatus("connected");
 
       if (session?.role === "doctor") {
@@ -432,6 +441,7 @@ function App() {
           payload: { type: offer.type, sdp: offer.sdp },
         });
       }
+      await handleConsultationSignals(appointmentId);
     } catch (err) {
       setMediaStatus(err instanceof DOMException && err.name === "NotAllowedError" ? "blocked" : "failed");
       setError(err instanceof Error ? err.message : "Could not start camera and microphone");
@@ -445,6 +455,9 @@ function App() {
     for (const signal of signals) {
       if (signal.signal_type === "offer") {
         await peer.setRemoteDescription(new RTCSessionDescription(signal.payload as unknown as RTCSessionDescriptionInit));
+        for (const candidate of pendingIceCandidatesRef.current.splice(0)) {
+          await peer.addIceCandidate(new RTCIceCandidate(candidate));
+        }
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
         await api.postConsultationSignal(token, appointmentId, {
@@ -454,9 +467,17 @@ function App() {
       }
       if (signal.signal_type === "answer") {
         await peer.setRemoteDescription(new RTCSessionDescription(signal.payload as unknown as RTCSessionDescriptionInit));
+        for (const candidate of pendingIceCandidatesRef.current.splice(0)) {
+          await peer.addIceCandidate(new RTCIceCandidate(candidate));
+        }
       }
       if (signal.signal_type === "ice") {
-        await peer.addIceCandidate(new RTCIceCandidate(signal.payload as unknown as RTCIceCandidateInit));
+        const candidate = signal.payload as unknown as RTCIceCandidateInit;
+        if (peer.remoteDescription) {
+          await peer.addIceCandidate(new RTCIceCandidate(candidate));
+        } else {
+          pendingIceCandidatesRef.current.push(candidate);
+        }
       }
       if (signal.signal_type === "leave") {
         stopConsultationMedia();

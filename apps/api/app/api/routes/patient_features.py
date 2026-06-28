@@ -184,7 +184,10 @@ def create_reminder(
     patient_id = payload.patient_id or user.id
     if not ComplianceService(db).can_access_patient(actor=user, patient_id=patient_id, scope="profile.read"):
         raise HTTPException(403, "Missing patient consent or care-team access")
-    record = CareWorkflowService(db).create_medication_reminder(patient_id=patient_id, payload=payload.model_dump())
+    record = CareWorkflowService(db).create_medication_reminder(
+        patient_id=patient_id,
+        payload=payload.model_dump(exclude={"patient_id"}),
+    )
     return {"id": record.id, "active": record.active}
 
 

@@ -315,6 +315,9 @@ class ConsultationService:
 
     @staticmethod
     def _chat_expires_at(appointment: Appointment) -> datetime:
+        _start_dt, end_dt = ConsultationService._appointment_window(appointment)
+        if end_dt is not None:
+            return end_dt.astimezone(UTC) + timedelta(days=7)
         confirmed_at = appointment.confirmed_at or appointment.created_at
         return ConsultationService._as_utc(confirmed_at) + timedelta(days=7)
 
@@ -326,16 +329,24 @@ class ConsultationService:
 
     @staticmethod
     def _is_appointment_time_window(appointment: Appointment) -> bool:
+        start_dt, end_dt = ConsultationService._appointment_window(appointment)
+        if start_dt is None or end_dt is None:
+            return False
+        now = datetime.now(start_dt.tzinfo)
+        return start_dt <= now <= end_dt
+
+    @staticmethod
+    def _appointment_window(appointment: Appointment) -> tuple[datetime | None, datetime | None]:
         try:
             start_text, end_text = appointment.time_slot.split("-", 1)
             start_clock = time.fromisoformat(start_text.strip())
             end_clock = time.fromisoformat(end_text.strip())
-            start_dt = datetime.fromisoformat(f"{appointment.date}T{start_clock.isoformat()}").replace(tzinfo=ConsultationService.LOCAL_TZ)
-            end_dt = datetime.fromisoformat(f"{appointment.date}T{end_clock.isoformat()}").replace(tzinfo=ConsultationService.LOCAL_TZ)
-        except ValueError:
-            return False
-        now = datetime.now(ConsultationService.LOCAL_TZ)
-        return start_dt <= now <= end_dt
+            slot_tz = ZoneInfo(appointment.timezone or "Asia/Kolkata")
+            start_dt = datetime.fromisoformat(f"{appointment.date}T{start_clock.isoformat()}").replace(tzinfo=slot_tz)
+            end_dt = datetime.fromisoformat(f"{appointment.date}T{end_clock.isoformat()}").replace(tzinfo=slot_tz)
+            return start_dt, end_dt
+        except (ValueError, KeyError):
+            return None, None
 
     def _get_authorized_room(self, *, room_id: str, actor: User) -> ConsultationRoom:
         room = self.db.get(ConsultationRoom, room_id)

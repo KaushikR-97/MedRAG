@@ -110,8 +110,21 @@ def process_document_pipeline(job_id: str) -> None:
                 doc.status = "ocr_human_verification_required"
             else:
                 doc.status = "ocr_ready_for_verification"
+                doc.verified_text = ocr_result.text
+                doc.verified_by_patient = True
         job.status = "completed"
         db.commit()
+        if doc.verified_by_patient and doc.verified_text and not doc.ingested_to_rag:
+            ingest_job = IngestionJob(
+                id=f"rag-{doc.id}",
+                document_id=doc.id,
+                patient_id=doc.patient_id,
+                job_type="document_rag_ingest",
+                status="queued",
+            )
+            db.merge(ingest_job)
+            db.commit()
+            process_document_pipeline(ingest_job.id)
     except Exception as exc:
         if "job" in locals() and job is not None:
             job.status = "failed"

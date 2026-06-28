@@ -157,6 +157,27 @@ def get_job(
     return IngestionJobRecord.model_validate(job, from_attributes=True)
 
 
+@router.get("/{doc_id}/jobs", response_model=list[IngestionJobRecord])
+def list_document_jobs(
+    doc_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[IngestionJobRecord]:
+    doc = db.get(MedicalDocument, doc_id)
+    if doc is None:
+        raise HTTPException(404, "Document not found")
+    if not ComplianceService(db).can_access_patient(actor=user, patient_id=doc.patient_id, scope="documents.read"):
+        raise HTTPException(404, "Document not found")
+    jobs = (
+        db.query(IngestionJob)
+        .filter(IngestionJob.document_id == doc_id)
+        .order_by(IngestionJob.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    return [IngestionJobRecord.model_validate(job, from_attributes=True) for job in jobs]
+
+
 @router.get("/{doc_id}/download")
 def download_document(
     doc_id: str,

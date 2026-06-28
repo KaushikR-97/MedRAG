@@ -1,6 +1,7 @@
 import uuid
 import traceback
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
@@ -45,7 +46,26 @@ def _appointment_record(appointment: Appointment, rec: dict) -> dict:
         rec["patient_name"] = appointment.patient_id
         rec["doctor_name"] = appointment.doctor_id or ""
     rec["confirmed_at"] = appointment.confirmed_at.isoformat() if appointment.confirmed_at else None
+    rec["timezone"] = appointment.timezone or "Asia/Kolkata"
+    start_at, end_at = _appointment_window(appointment.date, appointment.time_slot, rec["timezone"])
+    rec["starts_at"] = start_at.isoformat() if start_at else ""
+    rec["ends_at"] = end_at.isoformat() if end_at else ""
+    rec["server_now"] = datetime.now(UTC).isoformat()
     return rec
+
+
+def _appointment_window(date_text: str, time_slot: str, timezone_name: str) -> tuple[datetime | None, datetime | None]:
+    try:
+        start_text, end_text = time_slot.split("-", 1)
+        slot_tz = ZoneInfo(timezone_name or "Asia/Kolkata")
+        start_clock = time.fromisoformat(start_text.strip())
+        end_clock = time.fromisoformat(end_text.strip())
+        return (
+            datetime.fromisoformat(f"{date_text}T{start_clock.isoformat()}").replace(tzinfo=slot_tz),
+            datetime.fromisoformat(f"{date_text}T{end_clock.isoformat()}").replace(tzinfo=slot_tz),
+        )
+    except (ValueError, KeyError):
+        return None, None
 
 
 @router.post("")

@@ -149,6 +149,10 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
 
   const isVideoJoinLive = (appt: AppointmentRecord) => {
     if (appt.status !== "confirmed" || appt.consultation_mode !== "video") return false;
+    if (appt.starts_at && appt.ends_at && appt.server_now) {
+      const now = Date.parse(appt.server_now);
+      return now >= Date.parse(appt.starts_at) && now <= Date.parse(appt.ends_at);
+    }
     const [startText, endText] = appt.time_slot.split("-");
     const start = new Date(`${appt.date}T${(startText || "").trim()}:00`);
     const end = new Date(`${appt.date}T${(endText || "").trim()}:00`);
@@ -278,7 +282,7 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
               <div>
                 <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>Dr. {s.doctor_name || "Specialist"}</span>
                 <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "2px" }}>
-                  Date: {s.date} | Time: {s.start_time} - {s.end_time} | Fee: INR {s.consultation_fee}
+                  Date: {s.date} | Time: {s.start_time} - {s.end_time} ({s.timezone || "Asia/Kolkata"}) | Fee: INR {s.consultation_fee}
                 </div>
               </div>
               {sessionRole === "patient" && (
@@ -406,6 +410,9 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100 }}>
           <div className="card" style={{ width: "400px", padding: "24px" }}>
             <h4 style={{ fontSize: "1rem", marginBottom: "16px" }}>Book Consultation Slot</h4>
+            <div style={{ color: "var(--muted)", fontSize: "0.8rem", marginBottom: "10px" }}>
+              Slot timezone: {activeSlotToBook.timezone || "Asia/Kolkata"}
+            </div>
             <form onSubmit={handleBookAppointment} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               <div>
                 <label className="label">Reason for Visit</label>

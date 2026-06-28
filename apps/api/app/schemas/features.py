@@ -100,6 +100,7 @@ class ConsultationSlotCreate(BaseModel):
     date: str
     start_time: str
     end_time: str
+    timezone: str = "Asia/Kolkata"
     slot_duration_minutes: int = Field(default=0, ge=0, le=480)
     consultation_mode: str = Field(default="in_person", pattern="^(in_person|video|phone)$")
     capacity: int = Field(default=1, ge=1, le=100)

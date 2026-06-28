@@ -10,6 +10,7 @@ type DocumentManagerProps = {
 
 export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activePatientId, userRole }) => {
   const [documentsList, setDocumentsList] = useState<DocumentRecord[]>([]);
+  const [documentJobs, setDocumentJobs] = useState<Record<string, any[]>>({});
   const [documentType, setDocumentType] = useState("past_record");
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -31,6 +32,16 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activeP
     try {
       const res = await api.listDocuments(token, activePatientId || undefined);
       setDocumentsList(res);
+      const pairs = await Promise.all(
+        res.map(async (doc) => {
+          try {
+            return [doc.id, await api.listDocumentJobs(token, doc.id)] as const;
+          } catch {
+            return [doc.id, []] as const;
+          }
+        }),
+      );
+      setDocumentJobs(Object.fromEntries(pairs));
     } catch (err: any) {
       console.error("Failed to load documents", err);
     }
@@ -155,7 +166,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activeP
                   <div>
                     <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>{doc.original_filename}</span>
                     <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "2px" }}>
-                      Type: {doc.document_type} | Verified: {doc.verified_by_patient ? "Yes" : "No"}
+                      Type: {doc.document_type} | Status: {doc.status} | Verified: {doc.verified_by_patient ? "Yes" : "No"} | RAG: {doc.ingested_to_rag ? "Ingested" : "Not ingested"}
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: "6px" }}>
@@ -196,6 +207,15 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activeP
                       {doc.ocr_text}
                     </p>
                   </details>
+                )}
+                {(documentJobs[doc.id] || []).length > 0 && (
+                  <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                    {(documentJobs[doc.id] || []).map((job) => (
+                      <div key={job.id} style={{ fontSize: "0.72rem", color: job.status === "failed" ? "#e74c3c" : "var(--muted)" }}>
+                        Job: {job.job_type} | {job.status.toUpperCase()}{job.error ? ` | ${job.error}` : ""}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             ))

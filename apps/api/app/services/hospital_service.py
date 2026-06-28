@@ -92,7 +92,7 @@ class HospitalService:
             slot_payloads = self._expand_slot_window(payload=payload, duration_minutes=duration_minutes)
             created_slots: list[ConsultationSlot] = []
             for slot_payload in slot_payloads:
-                if self._is_past_slot(slot_payload["date"], slot_payload["start_time"]):
+                if self._is_past_slot(slot_payload["date"], slot_payload["start_time"], slot_payload.get("timezone") or "Asia/Kolkata"):
                     raise ValueError("Cannot release consultation slots for a time that has already passed")
                 overlapping_slot = (
                     self.db.query(ConsultationSlot)
@@ -219,7 +219,7 @@ class HospitalService:
         slot = self.db.get(ConsultationSlot, slot_id)
         if slot is None or slot.status != "open":
             raise LookupError("Consultation slot not found")
-        if self._is_past_slot(slot.date, slot.start_time):
+        if self._is_past_slot(slot.date, slot.start_time, slot.timezone or "Asia/Kolkata"):
             raise ValueError("Consultation slot has already passed")
         if slot.booked_count >= slot.capacity:
             raise ValueError("Consultation slot is full")
@@ -238,6 +238,7 @@ class HospitalService:
             consultation_mode=slot.consultation_mode,
             date=slot.date,
             time_slot=f"{slot.start_time}-{slot.end_time}",
+            timezone=slot.timezone or "Asia/Kolkata",
             status="requested",
             urgency=urgency,
             notes=notes,
@@ -322,9 +323,10 @@ class HospitalService:
         stamp = datetime.now(UTC).strftime("%Y%m%d")
         return f"CONS-{stamp}-{uuid.uuid4().hex[:8].upper()}"
 
-    def _is_past_slot(self, date_text: str, start_time: str) -> bool:
+    def _is_past_slot(self, date_text: str, start_time: str, timezone_name: str = "Asia/Kolkata") -> bool:
         try:
-            slot_start = datetime.fromisoformat(f"{date_text}T{start_time}:00").replace(tzinfo=self.LOCAL_TZ)
-        except ValueError:
+            slot_tz = ZoneInfo(timezone_name or "Asia/Kolkata")
+            slot_start = datetime.fromisoformat(f"{date_text}T{start_time}:00").replace(tzinfo=slot_tz)
+        except (ValueError, KeyError):
             return True
-        return slot_start <= datetime.now(self.LOCAL_TZ)
+        return slot_start <= datetime.now(slot_tz)

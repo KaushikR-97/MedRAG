@@ -90,7 +90,6 @@ export const PatientDoctorChatModule: React.FC<PatientDoctorChatModuleProps> = (
     async function loadThread() {
       try {
         setError("");
-        await api.joinConsultationRoom(token, activeDoctor!.appointment!.id);
         const messages = await api.listConsultationMessages(token, activeDoctor!.appointment!.id);
         if (!cancelled) setServerMessages(messages);
       } catch (err: any) {
@@ -149,6 +148,10 @@ export const PatientDoctorChatModule: React.FC<PatientDoctorChatModuleProps> = (
 
   const isVideoJoinLive = (appointment?: AppointmentRecord) => {
     if (!appointment || appointment.status !== "confirmed" || appointment.consultation_mode !== "video") return false;
+    if (appointment.starts_at && appointment.ends_at && appointment.server_now) {
+      const now = Date.parse(appointment.server_now);
+      return now >= Date.parse(appointment.starts_at) && now <= Date.parse(appointment.ends_at);
+    }
     const [startText, endText] = appointment.time_slot.split("-");
     const start = new Date(`${appointment.date}T${(startText || "").trim()}:00`);
     const end = new Date(`${appointment.date}T${(endText || "").trim()}:00`);
@@ -159,9 +162,10 @@ export const PatientDoctorChatModule: React.FC<PatientDoctorChatModuleProps> = (
 
   const isChatOpen = (appointment?: AppointmentRecord) => {
     if (!appointment || appointment.status !== "confirmed") return false;
-    const confirmedAt = appointment.confirmed_at ? new Date(appointment.confirmed_at) : new Date(`${appointment.date}T00:00:00`);
-    if (Number.isNaN(confirmedAt.getTime())) return false;
-    return Date.now() <= confirmedAt.getTime() + 7 * 24 * 60 * 60 * 1000;
+    const start = appointment.confirmed_at ? Date.parse(appointment.confirmed_at) : Date.parse(appointment.server_now || "");
+    const end = appointment.ends_at ? Date.parse(appointment.ends_at) + 7 * 24 * 60 * 60 * 1000 : start + 7 * 24 * 60 * 60 * 1000;
+    const now = Date.parse(appointment.server_now || "") || Date.now();
+    return now >= start && now <= end;
   };
 
   return (

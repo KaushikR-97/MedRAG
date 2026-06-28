@@ -118,6 +118,7 @@ export type ConsultationSlotRecord = {
   date: string;
   start_time: string;
   end_time: string;
+  timezone?: string;
   consultation_mode: string;
   capacity: number;
   booked_count: number;
@@ -160,6 +161,10 @@ export type AppointmentRecord = {
   reason: string;
   booking_reference: string;
   confirmed_at?: string | null;
+  timezone?: string;
+  starts_at?: string;
+  ends_at?: string;
+  server_now?: string;
 };
 
 export type ConsultationRoomRecord = {
@@ -552,6 +557,9 @@ export const api = {
     const query = patientId ? `?patient_id=${encodeURIComponent(patientId)}` : "";
     return request<DocumentRecord[]>(`/documents${query}`, { method: "GET" }, token);
   },
+  listDocumentJobs(token: string, docId: string) {
+    return request<IngestionJobRecord[]>(`/documents/${encodeURIComponent(docId)}/jobs`, { method: "GET" }, token);
+  },
   deleteDocument(token: string, docId: string) {
     return request<{ status: string }>(`/documents/${encodeURIComponent(docId)}`, { method: "DELETE" }, token);
   },
@@ -763,6 +771,7 @@ export const api = {
       date: string;
       start_time: string;
       end_time: string;
+      timezone?: string;
       slot_duration_minutes?: number;
       consultation_mode?: string;
       capacity?: number;

@@ -51,6 +51,7 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
   const [slotStartTime, setSlotStartTime] = useState("09:00");
   const [slotEndTime, setSlotEndTime] = useState("10:00");
   const [slotDurationMinutes, setSlotDurationMinutes] = useState("30");
+  const [slotTimezone, setSlotTimezone] = useState("Asia/Kolkata");
   const [slotFee, setSlotFee] = useState("500.0");
   
   const [chatInput, setChatInput] = useState("");
@@ -84,7 +85,6 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
     const appointment = activeChatAppointment;
     async function loadThread() {
       try {
-        await api.joinConsultationRoom(token, appointment.id);
         const messages = await api.listConsultationMessages(token, appointment.id);
         if (!cancelled) setServerMessages(messages);
       } catch (err: any) {
@@ -179,6 +179,7 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
         date: slotDate,
         start_time: slotStartTime,
         end_time: slotEndTime,
+        timezone: slotTimezone,
         slot_duration_minutes: Number(slotDurationMinutes),
         consultation_mode: "video",
         capacity: 1,
@@ -222,6 +223,10 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
 
   const isVideoJoinLive = (appt: AppointmentRecord) => {
     if (appt.status !== "confirmed" || appt.consultation_mode !== "video") return false;
+    if (appt.starts_at && appt.ends_at && appt.server_now) {
+      const now = Date.parse(appt.server_now);
+      return now >= Date.parse(appt.starts_at) && now <= Date.parse(appt.ends_at);
+    }
     const [startText, endText] = appt.time_slot.split("-");
     const start = new Date(`${appt.date}T${(startText || "").trim()}:00`);
     const end = new Date(`${appt.date}T${(endText || "").trim()}:00`);
@@ -232,9 +237,10 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
 
   const isChatOpen = (appt: AppointmentRecord) => {
     if (appt.status !== "confirmed") return false;
-    const confirmedAt = appt.confirmed_at ? new Date(appt.confirmed_at) : new Date(`${appt.date}T00:00:00`);
-    if (Number.isNaN(confirmedAt.getTime())) return false;
-    return Date.now() <= confirmedAt.getTime() + 7 * 24 * 60 * 60 * 1000;
+    const start = appt.confirmed_at ? Date.parse(appt.confirmed_at) : Date.parse(appt.server_now || "");
+    const end = appt.ends_at ? Date.parse(appt.ends_at) + 7 * 24 * 60 * 60 * 1000 : start + 7 * 24 * 60 * 60 * 1000;
+    const now = Date.parse(appt.server_now || "") || Date.now();
+    return now >= start && now <= end;
   };
 
   const handleSendMessage = async () => {
@@ -350,7 +356,8 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
                 <ul style={{ margin: "6px 0 0 0", paddingLeft: "16px", display: "flex", flexDirection: "column", gap: "8px" }}>
                   {patientDocs.map(doc => (
                     <li key={doc.id}>
-                      <div>{doc.original_filename} ({doc.document_type}) | {doc.status}</div>
+                      <div>{doc.original_filename} ({doc.document_type}) | {doc.status} | RAG: {doc.ingested_to_rag ? "ingested" : "not ingested"}</div>
+                      {doc.ocr_warning && <div style={{ color: "#e74c3c", marginTop: "3px" }}>{doc.ocr_warning}</div>}
                       {doc.ocr_text && (
                         <details style={{ marginTop: "4px" }}>
                           <summary style={{ color: "var(--primary)", cursor: "pointer" }}>View extracted report text</summary>
@@ -449,9 +456,21 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
               <input type="time" value={slotEndTime} onChange={e => setSlotEndTime(e.target.value)} className="input" required />
             </div>
           </div>
-          <div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div>
               <label className="label">Consultation Fee (INR)</label>
               <input type="text" value={slotFee} onChange={e => setSlotFee(e.target.value)} className="input" required />
+            </div>
+            <div>
+              <label className="label">Slot Time Zone</label>
+              <select value={slotTimezone} onChange={e => setSlotTimezone(e.target.value)} className="input">
+                <option value="Asia/Kolkata">IST - India Standard Time</option>
+                <option value="Asia/Dubai">GST - Dubai</option>
+                <option value="Europe/London">London</option>
+                <option value="America/New_York">New York</option>
+                <option value="America/Los_Angeles">Los Angeles</option>
+              </select>
+            </div>
           </div>
           <p style={{ color: "var(--muted)", fontSize: "0.78rem" }}>
             This will create {previewSlotCount()} patient-selectable slots from {slotStartTime} to {slotEndTime}.
