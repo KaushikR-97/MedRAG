@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 
 import torch
@@ -39,7 +40,20 @@ def build_dataset(train_file: str, eval_split: float) -> dict[str, Dataset]:
 def parse_max_memory(value: str) -> dict[int | str, str] | None:
     if not value:
         return None
-    parsed = json.loads(value)
+    raw_value = value.strip()
+    try:
+        parsed = json.loads(raw_value)
+    except json.JSONDecodeError:
+        decoder = json.JSONDecoder()
+        parsed, end_index = decoder.raw_decode(raw_value)
+        trailing = raw_value[end_index:].strip()
+        if trailing:
+            print(
+                f"Warning: ignored trailing characters in --max-memory-json: {trailing!r}",
+                file=sys.stderr,
+            )
+    if not isinstance(parsed, dict):
+        raise ValueError("--max-memory-json must be a JSON object, for example '{\"0\":\"14GiB\",\"cpu\":\"24GiB\"}'")
     return {int(key) if str(key).isdigit() else key: memory for key, memory in parsed.items()}
 
 
