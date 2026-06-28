@@ -1,9 +1,12 @@
+from datetime import UTC, datetime, timedelta
+
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user
 from app.db.session import get_db
 from app.models.document import MedicalDocument
+from app.models.feature_modules import Hospital, HospitalResourceBooking
 from app.models.jobs import IngestionJob
 from app.models.user import User
 from app.schemas.documents import DocumentRecord, IngestionJobRecord, VerifyImageFindingsRequest, VerifyOcrRequest
@@ -19,16 +22,45 @@ router = APIRouter()
 @router.post("/upload", response_model=DocumentRecord)
 async def upload_document(
     document_type: str,
+    patient_id: str | None = None,
     file: UploadFile = File(...),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> DocumentRecord:
+    target_patient_id = patient_id or user.id
+    if user.role == "patient" and target_patient_id != user.id:
+        raise HTTPException(403, "Patients can only upload to their own vault")
+    if user.role == "hospital_admin" and not _hospital_can_upload_for_patient(db, user, target_patient_id):
+        raise HTTPException(403, "Hospital upload window is closed. Uploads are allowed until 3 days after discharge.")
+    if user.role not in {"patient", "hospital_admin"} and target_patient_id != user.id:
+        raise HTTPException(403, "Only patients or authorized hospital admins can upload patient records")
     try:
-        doc = await DocumentService(db).register_upload(user=user, file=file, document_type=document_type)
+        doc = await DocumentService(db).register_upload(
+            user=user,
+            file=file,
+            document_type=document_type,
+            patient_id=target_patient_id,
+        )
         IngestionService(db).enqueue_document_pipeline(doc=doc, user=user)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return DocumentRecord.model_validate(doc, from_attributes=True)
+
+
+@router.delete("/{doc_id}")
+def delete_document(
+    doc_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    doc = db.get(MedicalDocument, doc_id)
+    if doc is None:
+        raise HTTPException(404, "Document not found")
+    if doc.patient_id != user.id:
+        raise HTTPException(403, "Only the patient can delete this record")
+    doc.status = "deleted_by_patient"
+    db.commit()
+    return {"status": "deleted"}
 
 
 @router.get("", response_model=list[DocumentRecord])
@@ -40,8 +72,30 @@ def list_documents(
     target_id = patient_id or user.id
     if not ComplianceService(db).can_access_patient(actor=user, patient_id=target_id, scope="documents.read"):
         raise HTTPException(403, "Access denied")
-    docs = db.query(MedicalDocument).filter(MedicalDocument.patient_id == target_id).all()
+    docs = db.query(MedicalDocument).filter(
+        MedicalDocument.patient_id == target_id,
+        MedicalDocument.status != "deleted_by_patient",
+    ).all()
     return [DocumentRecord.model_validate(d, from_attributes=True) for d in docs]
+
+
+def _hospital_can_upload_for_patient(db: Session, admin: User, patient_id: str) -> bool:
+    now = datetime.now(UTC)
+    return (
+        db.query(HospitalResourceBooking)
+        .join(Hospital, Hospital.id == HospitalResourceBooking.hospital_id)
+        .filter(
+            Hospital.admin_user_id == admin.id,
+            HospitalResourceBooking.patient_id == patient_id,
+            HospitalResourceBooking.status.in_(["approved", "admitted", "discharged"]),
+            (
+                HospitalResourceBooking.discharged_at.is_(None)
+                | (HospitalResourceBooking.discharged_at >= now - timedelta(days=3))
+            ),
+        )
+        .first()
+        is not None
+    )
 
 
 @router.post("/{doc_id}/verify-image-findings", response_model=DocumentRecord)

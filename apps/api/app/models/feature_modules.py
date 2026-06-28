@@ -75,6 +75,12 @@ class Hospital(Base):
     phone: Mapped[str] = mapped_column(String(40), default="")
     email: Mapped[str] = mapped_column(String(320), default="")
     emergency_phone: Mapped[str] = mapped_column(String(40), default="")
+    ambulance_count: Mapped[int] = mapped_column(Integer, default=0)
+    ambulance_types: Mapped[str] = mapped_column(Text, default="")
+    beds_total: Mapped[int] = mapped_column(Integer, default=0)
+    rooms_total: Mapped[int] = mapped_column(Integer, default=0)
+    icu_beds_total: Mapped[int] = mapped_column(Integer, default=0)
+    ac_rooms_total: Mapped[int] = mapped_column(Integer, default=0)
     admin_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
@@ -296,6 +302,22 @@ class EmergencyDispatchRequest(Base):
     status: Mapped[str] = mapped_column(String(32), default="requested", index=True)
     provider_reference: Mapped[str] = mapped_column(String(120), default="")
     safety_label: Mapped[str] = mapped_column(String(80), default="urgent_escalation", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+class HospitalResourceBooking(Base):
+    __tablename__ = "hospital_resource_bookings"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    hospital_id: Mapped[str] = mapped_column(ForeignKey("hospitals.id"), index=True)
+    booking_type: Mapped[str] = mapped_column(String(40), default="room", index=True)
+    resource_type: Mapped[str] = mapped_column(String(80), default="general_bed", index=True)
+    reason: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(32), default="requested", index=True)
+    admin_notes: Mapped[str] = mapped_column(Text, default="")
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    discharged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 

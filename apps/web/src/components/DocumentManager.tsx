@@ -86,6 +86,18 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activeP
     }
   };
 
+  const handleDeleteDocument = async (doc: DocumentRecord) => {
+    setError("");
+    setSuccess("");
+    try {
+      await api.deleteDocument(token, doc.id);
+      setSuccess("Record deleted from your patient vault.");
+      loadDocuments();
+    } catch (err: any) {
+      setError(err.message || "Could not delete document");
+    }
+  };
+
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
       {/* Upload card */}
@@ -115,8 +127,10 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activeP
             <label className="label">Document Classification</label>
             <select value={documentType} onChange={e => setDocumentType(e.target.value)} className="input">
               <option value="past_record">Past Patient Record</option>
-              <option value="guideline">Clinical Practice Guideline</option>
-              <option value="imagery">Diagnostic Imagery/Lab Report</option>
+              <option value="lab_report">Lab Report</option>
+              <option value="discharge_summary">Discharge Summary</option>
+              <option value="imagery">Diagnostic Imagery</option>
+              <option value="prescription">Prescription</option>
             </select>
           </div>
           <button type="submit" className="button" disabled={uploading || !selectedFile}>
@@ -161,6 +175,16 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activeP
                         title="Find Similar Clinical Cases"
                       >
                         Find Similar
+                      </button>
+                    )}
+                    {userRole === "patient" && (
+                      <button
+                        onClick={() => handleDeleteDocument(doc)}
+                        className="button-sec"
+                        style={{ padding: "4px 8px", fontSize: "0.7rem", borderColor: "rgba(231,76,60,0.35)", color: "#e74c3c" }}
+                        title="Delete record"
+                      >
+                        Delete
                       </button>
                     )}
                   </div>

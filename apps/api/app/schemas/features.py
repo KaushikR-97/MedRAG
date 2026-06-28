@@ -49,6 +49,33 @@ class HospitalCreate(BaseModel):
     phone: str = ""
     email: str = ""
     emergency_phone: str = ""
+    ambulance_count: int = Field(default=0, ge=0)
+    ambulance_types: str = ""
+    beds_total: int = Field(default=0, ge=0)
+    rooms_total: int = Field(default=0, ge=0)
+    icu_beds_total: int = Field(default=0, ge=0)
+    ac_rooms_total: int = Field(default=0, ge=0)
+
+
+class HospitalResourceUpdate(BaseModel):
+    ambulance_count: int = Field(default=0, ge=0)
+    ambulance_types: str = ""
+    beds_total: int = Field(default=0, ge=0)
+    rooms_total: int = Field(default=0, ge=0)
+    icu_beds_total: int = Field(default=0, ge=0)
+    ac_rooms_total: int = Field(default=0, ge=0)
+
+
+class HospitalResourceBookingCreate(BaseModel):
+    hospital_id: str
+    booking_type: str = Field(default="room", pattern="^(bed|room|icu|ac_room)$")
+    resource_type: str = "general_bed"
+    reason: str = ""
+
+
+class HospitalResourceBookingUpdate(BaseModel):
+    status: str = Field(pattern="^(requested|approved|admitted|discharged|rejected|cancelled)$")
+    admin_notes: str = ""
 
 
 class HospitalDepartmentCreate(BaseModel):

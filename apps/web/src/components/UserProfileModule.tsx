@@ -14,6 +14,7 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({ token, ses
   const [fullName, setFullName] = useState(session.full_name || "");
   const [phone, setPhone] = useState("");
   const [age, setAge] = useState("");
+  const [gender, setGender] = useState("");
   const [city, setCity] = useState("Bengaluru");
   const [speciality, setSpeciality] = useState("");
 
@@ -33,6 +34,7 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({ token, ses
         setFullName(me.full_name || session.full_name || "");
         setPhone(me.phone || "");
         setAge(me.age ? String(me.age) : "");
+        setGender(me.gender || "");
         setCity(me.city || "");
         setSpeciality(me.speciality || "");
       })
@@ -54,6 +56,7 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({ token, ses
         full_name: fullName,
         phone: phone || undefined,
         age: age ? parseInt(age) : undefined,
+        gender: gender || undefined,
         city: city || undefined,
         speciality: speciality || undefined
       });
@@ -121,6 +124,18 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({ token, ses
               <label className="label">City Location</label>
               <input type="text" value={city} onChange={e => setCity(e.target.value)} className="input" />
             </div>
+            {session.role === "patient" && (
+              <div>
+                <label className="label">Gender</label>
+                <select value={gender} onChange={e => setGender(e.target.value)} className="input">
+                  <option value="">Select gender</option>
+                  <option value="female">Female</option>
+                  <option value="male">Male</option>
+                  <option value="other">Other</option>
+                  <option value="prefer_not_to_say">Prefer not to say</option>
+                </select>
+              </div>
+            )}
             {session.role === "doctor" && (
               <div>
                 <label className="label">Medical Specialty</label>

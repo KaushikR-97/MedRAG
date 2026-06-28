@@ -4,6 +4,9 @@ export type AuthResponse = {
   user_id: string;
   role: string;
   full_name?: string;
+  age?: number;
+  city?: string;
+  gender?: string;
 };
 
 export type LoginResponse = {
@@ -99,6 +102,12 @@ export type HospitalRecord = {
   state: string;
   phone: string;
   emergency_phone: string;
+  ambulance_count: number;
+  ambulance_types: string;
+  beds_total: number;
+  rooms_total: number;
+  icu_beds_total: number;
+  ac_rooms_total: number;
 };
 
 export type ConsultationSlotRecord = {
@@ -289,6 +298,7 @@ export const api = {
       registration_number: string;
       age?: number;
       city?: string;
+      gender?: string;
       speciality?: string;
     };
     try {
@@ -307,6 +317,7 @@ export const api = {
       phone?: string;
       age?: number;
       city?: string;
+      gender?: string;
       speciality?: string;
     },
   ) {
@@ -319,6 +330,7 @@ export const api = {
       registration_number: string;
       age?: number;
       city?: string;
+      gender?: string;
       speciality?: string;
     };
     try {
@@ -534,6 +546,9 @@ export const api = {
     const query = patientId ? `?patient_id=${encodeURIComponent(patientId)}` : "";
     return request<DocumentRecord[]>(`/documents${query}`, { method: "GET" }, token);
   },
+  deleteDocument(token: string, docId: string) {
+    return request<{ status: string }>(`/documents/${encodeURIComponent(docId)}`, { method: "DELETE" }, token);
+  },
   getPatientProfile(token: string, patientId: string) {
     return request<{
       blood_group?: string;
@@ -634,6 +649,7 @@ export const api = {
     doctor_id?: string;
     speciality?: string;
     date?: string;
+    city?: string;
   } = {}) {
     const query = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {
@@ -671,9 +687,47 @@ export const api = {
       phone?: string;
       email?: string;
       emergency_phone?: string;
+      ambulance_count?: number;
+      ambulance_types?: string;
+      beds_total?: number;
+      rooms_total?: number;
+      icu_beds_total?: number;
+      ac_rooms_total?: number;
     },
   ) {
     return request<HospitalRecord>("/hospitals", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  updateHospitalResources(
+    token: string,
+    hospitalId: string,
+    payload: {
+      ambulance_count: number;
+      ambulance_types: string;
+      beds_total: number;
+      rooms_total: number;
+      icu_beds_total: number;
+      ac_rooms_total: number;
+    },
+  ) {
+    return request<HospitalRecord>(
+      `/hospitals/${encodeURIComponent(hospitalId)}/resources`,
+      { method: "PATCH", body: JSON.stringify(payload) },
+      token,
+    );
+  },
+  createHospitalResourceBooking(token: string, payload: { hospital_id: string; booking_type: string; resource_type: string; reason?: string }) {
+    return request<any>("/hospitals/resource-bookings", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  listHospitalResourceBookings(token: string, status = "") {
+    const query = status ? `?status=${encodeURIComponent(status)}` : "";
+    return request<any[]>(`/hospitals/resource-bookings${query}`, {}, token);
+  },
+  updateHospitalResourceBooking(token: string, bookingId: string, payload: { status: string; admin_notes?: string }) {
+    return request<any>(
+      `/hospitals/resource-bookings/${encodeURIComponent(bookingId)}`,
+      { method: "PATCH", body: JSON.stringify(payload) },
+      token,
+    );
   },
   createDepartment(token: string, payload: { hospital_id: string; name: string; speciality?: string; description?: string }) {
     return request<HospitalDepartmentRecord>(

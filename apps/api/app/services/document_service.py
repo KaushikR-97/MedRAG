@@ -27,20 +27,28 @@ class DocumentService:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    async def register_upload(self, *, user: User, file: UploadFile, document_type: str) -> MedicalDocument:
+    async def register_upload(
+        self,
+        *,
+        user: User,
+        file: UploadFile,
+        document_type: str,
+        patient_id: str | None = None,
+    ) -> MedicalDocument:
         if document_type not in ALLOWED_DOCUMENT_TYPES:
             raise ValueError("Unsupported medical document category")
         if file.content_type not in ALLOWED_MIME_TYPES:
             raise ValueError("Unsupported document type")
 
-        key = f"patients/{user.id}/documents/{uuid.uuid4()}-{file.filename or 'upload'}"
+        target_patient_id = patient_id or user.id
+        key = f"patients/{target_patient_id}/documents/{uuid.uuid4()}-{file.filename or 'upload'}"
         stored = await ObjectStorageService().put_upload(file=file, key=key)
         if stored.size_bytes > MAX_UPLOAD_BYTES:
             raise ValueError("Document exceeds 20 MB limit")
 
         doc = MedicalDocument(
             id=str(uuid.uuid4()),
-            patient_id=user.id,
+            patient_id=target_patient_id,
             original_filename=file.filename or "upload",
             storage_uri=stored.uri,
             storage_bucket=stored.bucket,

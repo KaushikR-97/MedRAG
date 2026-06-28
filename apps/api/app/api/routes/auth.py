@@ -37,7 +37,12 @@ router = APIRouter()
 def _ensure_role_directory_records(db: Session, user: User) -> None:
     if user.role == "hospital_admin":
         existing = db.query(Hospital).filter(Hospital.admin_user_id == user.id).first()
-        if existing is None:
+        if existing is not None:
+            existing.city = user.city or existing.city or ""
+            existing.phone = user.phone or existing.phone or ""
+            existing.emergency_phone = user.phone or existing.emergency_phone or ""
+            existing.email = user.email or existing.email or ""
+        else:
             hospital_name = user.full_name if "hospital" in user.full_name.lower() else f"{user.full_name} Hospital"
             db.add(
                 Hospital(
@@ -310,6 +315,9 @@ def change_password(
 @router.get("/me")
 @router.get("/profile")
 def get_me(current_user: User = Depends(get_current_user)) -> dict:
+    gender = ""
+    if current_user.role == "patient" and current_user.profile:
+        gender = current_user.profile.gender or ""
     return {
         "id": current_user.id,
         "email": current_user.email,
@@ -319,6 +327,7 @@ def get_me(current_user: User = Depends(get_current_user)) -> dict:
         "registration_number": current_user.registration_number,
         "age": current_user.age,
         "city": current_user.city,
+        "gender": gender,
         "speciality": current_user.speciality,
     }
 
@@ -338,8 +347,15 @@ def update_me(
         current_user.age = payload.age
     if payload.city is not None:
         current_user.city = payload.city
+    if payload.gender is not None and current_user.role == "patient":
+        profile = current_user.profile or db.query(PatientProfile).filter(PatientProfile.user_id == current_user.id).first()
+        if profile is None:
+            profile = PatientProfile(id=str(uuid.uuid4()), user_id=current_user.id)
+            db.add(profile)
+        profile.gender = payload.gender
     if payload.speciality is not None:
         current_user.speciality = payload.speciality
+    _ensure_role_directory_records(db, current_user)
     db.commit()
     return {
         "id": current_user.id,
@@ -350,6 +366,7 @@ def update_me(
         "registration_number": current_user.registration_number,
         "age": current_user.age,
         "city": current_user.city,
+        "gender": current_user.profile.gender if current_user.role == "patient" and current_user.profile else "",
         "speciality": current_user.speciality,
     }
 

@@ -140,6 +140,77 @@ function readUserChatMessages(userId: string): ChatMessage[] {
   return [];
 }
 
+function PatientOnboarding({
+  token,
+  session,
+  onComplete,
+}: {
+  token: string;
+  session: AuthResponse;
+  onComplete: (next: AuthResponse) => void;
+}) {
+  const [age, setAge] = useState(session.age ? String(session.age) : "");
+  const [gender, setGender] = useState(session.gender || "");
+  const [city, setCity] = useState(session.city || "");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      const profile = await api.updateProfile(token, {
+        age: Number(age),
+        gender,
+        city: city.trim(),
+      });
+      onComplete({
+        ...session,
+        age: profile.age,
+        city: profile.city,
+        gender: profile.gender,
+        full_name: profile.full_name || session.full_name,
+      });
+    } catch (err: any) {
+      setError(err.message || "Could not save onboarding details");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: "24px" }}>
+      <form className="card" onSubmit={save} style={{ width: "min(460px, 100%)", display: "flex", flexDirection: "column", gap: "14px" }}>
+        <h2 style={{ fontSize: "1.25rem" }}>Complete Patient Onboarding</h2>
+        <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
+          These details help match doctors, hospitals, slots, ambulances, and rooms from your city by default.
+        </p>
+        {error && <div className="toast toast-error">{error}</div>}
+        <div>
+          <label className="label">Age</label>
+          <input className="input" type="number" min={0} max={130} value={age} onChange={(event) => setAge(event.target.value)} required />
+        </div>
+        <div>
+          <label className="label">Gender</label>
+          <select className="input" value={gender} onChange={(event) => setGender(event.target.value)} required>
+            <option value="">Select gender</option>
+            <option value="female">Female</option>
+            <option value="male">Male</option>
+            <option value="other">Other</option>
+            <option value="prefer_not_to_say">Prefer not to say</option>
+          </select>
+        </div>
+        <div>
+          <label className="label">City / Location</label>
+          <input className="input" value={city} onChange={(event) => setCity(event.target.value)} placeholder="Bengaluru" required />
+        </div>
+        <button className="button" disabled={saving} type="submit">{saving ? "Saving..." : "Continue"}</button>
+      </form>
+    </div>
+  );
+}
+
 function App() {
   const [session, setSession] = useState<AuthResponse | null>(() => {
     const stored = safeReadJson<AuthResponse | null>(localStorage, SESSION_STORAGE_KEY, null);
@@ -244,6 +315,9 @@ function App() {
           user_id: me.id || session.user_id,
           role: me.role || session.role,
           full_name: me.full_name || session.full_name,
+          age: me.age,
+          city: me.city,
+          gender: me.gender,
         });
         setSession(refreshed);
         safeWriteJson(localStorage, SESSION_STORAGE_KEY, refreshed);
@@ -474,6 +548,20 @@ function App() {
     );
   }
 
+  if (session.role === "patient" && (!session.age || !session.city || !session.gender)) {
+    return (
+      <PatientOnboarding
+        token={token}
+        session={session}
+        onComplete={(next) => {
+          const normalized = normalizeSession(next);
+          setSession(normalized);
+          safeWriteJson(localStorage, SESSION_STORAGE_KEY, normalized);
+        }}
+      />
+    );
+  }
+
   const t = (key: string) => translations[lang][key] || key;
   const navItems = getRoleNavItems(session.role);
 
@@ -544,7 +632,7 @@ function App() {
         {currentTab === "hospitals" && (
           session.role === "hospital_admin" || session.role === "admin"
             ? <AdminHospitalModule token={token} />
-            : <HospitalSlotsModule token={token} sessionRole={session.role} onStartVideoCall={setActiveVideoCall} />
+            : <HospitalSlotsModule token={token} sessionRole={session.role} sessionCity={session.city || ""} onStartVideoCall={setActiveVideoCall} />
         )}
         {currentTab === "trust" && <ComplianceModule token={token} sessionRole={session.role} />}
         {currentTab === "public-health" && <PublicHealthModule token={token} />}

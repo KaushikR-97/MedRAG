@@ -162,6 +162,7 @@ class HospitalService:
         doctor_id: str = "",
         speciality: str = "",
         date: str = "",
+        city: str = "",
     ) -> list[ConsultationSlot]:
         query = self.db.query(ConsultationSlot).filter(ConsultationSlot.status == "open")
         if hospital_id:
@@ -170,6 +171,14 @@ class HospitalService:
             query = query.filter(ConsultationSlot.doctor_id == doctor_id)
         if date:
             query = query.filter(ConsultationSlot.date == date)
+        if city:
+            query = query.outerjoin(
+                Hospital,
+                Hospital.id == ConsultationSlot.hospital_id,
+            ).outerjoin(
+                User,
+                User.id == ConsultationSlot.doctor_id,
+            ).filter(or_(Hospital.city.ilike(f"%{city}%"), User.city.ilike(f"%{city}%")))
         if speciality:
             query = query.outerjoin(
                 HospitalDepartment,

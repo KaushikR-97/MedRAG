@@ -58,6 +58,7 @@ class ProfileUpdateRequest(BaseModel):
     phone: str | None = None
     age: int | None = None
     city: str | None = None
+    gender: str | None = None
     speciality: str | None = None
 
 

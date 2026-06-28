@@ -1,12 +1,13 @@
 import uuid
 import traceback
+from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user, require_role, hash_password, generate_12_digit_id
 from app.db.session import get_db
 from app.models.user import User
-from app.models.feature_modules import EmergencyDispatchRequest, Hospital
+from app.models.feature_modules import EmergencyDispatchRequest, Hospital, HospitalResourceBooking
 from app.schemas.features import (
     AppointmentStatusUpdate,
     ConsultationBookingCreate,
@@ -15,6 +16,9 @@ from app.schemas.features import (
     HospitalDepartmentCreate,
     HospitalDoctorCreate,
     HospitalDoctorRegister,
+    HospitalResourceBookingCreate,
+    HospitalResourceBookingUpdate,
+    HospitalResourceUpdate,
 )
 from app.services.hospital_service import HospitalService
 from app.services.compliance_service import ComplianceService
@@ -57,6 +61,110 @@ def list_hospitals(
         ]
     except Exception as exc:
         raise HTTPException(400, f"Error listing hospitals: {str(exc)}\n{traceback.format_exc()}") from exc
+
+
+@router.patch("/{hospital_id}/resources")
+def update_hospital_resources(
+    hospital_id: str,
+    payload: HospitalResourceUpdate,
+    admin: User = Depends(require_role("hospital_admin")),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        hospital = HospitalService(db)._assert_hospital_admin(admin=admin, hospital_id=hospital_id)
+        for key, value in payload.model_dump().items():
+            setattr(hospital, key, value)
+        db.commit()
+        db.refresh(hospital)
+        return _record(hospital)
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.post("/resource-bookings")
+def request_hospital_resource(
+    payload: HospitalResourceBookingCreate,
+    patient: User = Depends(require_role("patient")),
+    db: Session = Depends(get_db),
+) -> dict:
+    hospital = db.get(Hospital, payload.hospital_id)
+    if hospital is None or not hospital.active:
+        raise HTTPException(404, "Hospital not found")
+    booking = HospitalResourceBooking(
+        id=str(uuid.uuid4()),
+        patient_id=patient.id,
+        hospital_id=payload.hospital_id,
+        booking_type=payload.booking_type,
+        resource_type=payload.resource_type,
+        reason=payload.reason,
+        status="requested",
+        created_at=datetime.now(UTC),
+    )
+    db.add(booking)
+    db.commit()
+    db.refresh(booking)
+    rec = _record(booking)
+    rec["hospital_name"] = hospital.name
+    return rec
+
+
+@router.get("/resource-bookings")
+def list_hospital_resource_bookings(
+    status: str = Query(default=""),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    query = db.query(HospitalResourceBooking)
+    if user.role == "patient":
+        query = query.filter(HospitalResourceBooking.patient_id == user.id)
+    elif user.role == "hospital_admin":
+        hospital_ids = [h.id for h in db.query(Hospital).filter(Hospital.admin_user_id == user.id).all()]
+        query = query.filter(HospitalResourceBooking.hospital_id.in_(hospital_ids or [""]))
+    else:
+        raise HTTPException(403, "Unsupported role")
+    if status:
+        query = query.filter(HospitalResourceBooking.status == status)
+    rows = query.order_by(HospitalResourceBooking.created_at.desc()).limit(100).all()
+    result = []
+    for row in rows:
+        hospital = db.get(Hospital, row.hospital_id)
+        patient = db.get(User, row.patient_id)
+        rec = _record(row)
+        rec["hospital_name"] = hospital.name if hospital else ""
+        rec["patient_name"] = patient.full_name if patient else row.patient_id
+        rec["created_at"] = row.created_at.isoformat() if row.created_at else ""
+        rec["approved_at"] = row.approved_at.isoformat() if row.approved_at else None
+        rec["discharged_at"] = row.discharged_at.isoformat() if row.discharged_at else None
+        result.append(rec)
+    return result
+
+
+@router.patch("/resource-bookings/{booking_id}")
+def update_hospital_resource_booking(
+    booking_id: str,
+    payload: HospitalResourceBookingUpdate,
+    admin: User = Depends(require_role("hospital_admin")),
+    db: Session = Depends(get_db),
+) -> dict:
+    booking = db.get(HospitalResourceBooking, booking_id)
+    if booking is None:
+        raise HTTPException(404, "Booking not found")
+    hospital = db.get(Hospital, booking.hospital_id)
+    if hospital is None or hospital.admin_user_id != admin.id:
+        raise HTTPException(403, "Only the selected hospital admin can update this booking")
+    booking.status = payload.status
+    booking.admin_notes = payload.admin_notes
+    if payload.status in {"approved", "admitted"} and booking.approved_at is None:
+        booking.approved_at = datetime.now(UTC)
+    if payload.status == "discharged":
+        booking.discharged_at = datetime.now(UTC)
+    db.commit()
+    db.refresh(booking)
+    rec = _record(booking)
+    rec["hospital_name"] = hospital.name
+    return rec
 
 
 @router.post("/departments")
@@ -128,6 +236,7 @@ def list_consultation_slots(
     doctor_id: str = Query(default=""),
     speciality: str = Query(default=""),
     date: str = Query(default=""),
+    city: str = Query(default=""),
     db: Session = Depends(get_db),
 ) -> list[dict]:
     try:
@@ -136,6 +245,7 @@ def list_consultation_slots(
             doctor_id=doctor_id,
             speciality=speciality,
             date=date,
+            city=city,
         )
         records = []
         from app.models.user import User
@@ -257,6 +367,7 @@ def create_doctor_profile(
             phone=payload.phone,
             registration_number=payload.registration_number,
             speciality=payload.speciality,
+            city=db.get(Hospital, payload.hospital_id).city if db.get(Hospital, payload.hospital_id) else "",
         )
         db.add(doctor)
         db.flush()

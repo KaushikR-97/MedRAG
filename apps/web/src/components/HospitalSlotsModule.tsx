@@ -6,10 +6,11 @@ import { RazorpayModal } from "./RazorpayModal";
 type HospitalSlotsModuleProps = {
   token: string;
   sessionRole: string;
+  sessionCity: string;
   onStartVideoCall: (appt: AppointmentRecord) => void;
 };
 
-export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token, sessionRole, onStartVideoCall }) => {
+export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token, sessionRole, sessionCity, onStartVideoCall }) => {
   const [hospitals, setHospitals] = useState<any[]>([]);
   const [doctors, setDoctors] = useState<any[]>([]);
   const [slots, setSlots] = useState<any[]>([]);
@@ -17,8 +18,12 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
   const [showRazorpay, setShowRazorpay] = useState(false);
 
   // Search/Filters
-  const [searchCity, setSearchCity] = useState("Bengaluru");
+  const [searchCity, setSearchCity] = useState(sessionCity || "Bengaluru");
   const [selectedSpecialty, setSelectedSpecialty] = useState("Cardiology");
+  const [resourceBookings, setResourceBookings] = useState<any[]>([]);
+  const [resourceHospitalId, setResourceHospitalId] = useState("");
+  const [resourceType, setResourceType] = useState("general_bed");
+  const [resourceReason, setResourceReason] = useState("Planned admission request");
   
   // Booking Form States
   const [activeSlotToBook, setActiveSlotToBook] = useState<any | null>(null);
@@ -40,20 +45,27 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
 
   const refreshData = async () => {
     try {
-      const hospRes = await api.listHospitals();
+      const city = searchCity || sessionCity;
+      const hospRes = await api.listHospitals({ city });
       setHospitals(hospRes);
       if (!ambulanceHospitalId && hospRes.length) {
         setAmbulanceHospitalId(hospRes[0].id);
       }
+      if (!resourceHospitalId && hospRes.length) {
+        setResourceHospitalId(hospRes[0].id);
+      }
       
-      const docRes = await api.listDoctorsByCity(searchCity, selectedSpecialty);
+      const docRes = await api.listDoctorsByCity(city, selectedSpecialty);
       setDoctors(docRes);
 
-      const slotsRes = await api.listConsultationSlots({ speciality: selectedSpecialty });
+      const slotsRes = await api.listConsultationSlots({ speciality: selectedSpecialty, city });
       setSlots(slotsRes);
 
       const apptsRes = await api.listMyAppointments(token);
       setAppointments(apptsRes);
+      if (sessionRole === "patient") {
+        setResourceBookings(await api.listHospitalResourceBookings(token));
+      }
     } catch (err: any) {
       console.error("Failed to load hospital configurations", err);
     }
@@ -62,6 +74,10 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
   useEffect(() => {
     refreshData();
   }, [token]);
+
+  useEffect(() => {
+    if (sessionCity && !searchCity) setSearchCity(sessionCity);
+  }, [sessionCity]);
 
   const handleBookAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,6 +138,24 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
       setError(err.message || "Ambulance booking failed");
     } finally {
       setAmbulanceLoading(false);
+    }
+  };
+
+  const handleResourceBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    try {
+      await api.createHospitalResourceBooking(token, {
+        hospital_id: resourceHospitalId,
+        booking_type: resourceType === "icu" ? "icu" : resourceType === "ac_room" ? "ac_room" : resourceType === "room" ? "room" : "bed",
+        resource_type: resourceType,
+        reason: resourceReason,
+      });
+      setSuccess("Hospital resource request sent for admin approval.");
+      refreshData();
+    } catch (err: any) {
+      setError(err.message || "Could not request hospital resource");
     }
   };
 
@@ -241,6 +275,39 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
 
         {/* Emergency ambulance card */}
         {sessionRole === "patient" && (
+          <>
+          <div style={{ background: "rgba(0,169,255,0.05)", padding: "16px", borderRadius: "12px", border: "1px solid rgba(0,169,255,0.2)" }}>
+            <h3 style={{ fontSize: "0.95rem", display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
+              <Building2 size={18} style={{ color: "var(--primary)" }} />
+              Book Bed / Room From Home
+            </h3>
+            <form onSubmit={handleResourceBooking} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <select value={resourceHospitalId} onChange={e => setResourceHospitalId(e.target.value)} className="input" required>
+                <option value="">Select hospital</option>
+                {hospitals.map((hospital) => (
+                  <option key={hospital.id} value={hospital.id}>
+                    {hospital.name} - Beds {hospital.beds_total || 0}, Rooms {hospital.rooms_total || 0}, ICU {hospital.icu_beds_total || 0}, AC {hospital.ac_rooms_total || 0}
+                  </option>
+                ))}
+              </select>
+              <select value={resourceType} onChange={e => setResourceType(e.target.value)} className="input">
+                <option value="general_bed">General Bed</option>
+                <option value="room">Room</option>
+                <option value="icu">ICU Bed</option>
+                <option value="ac_room">AC Room</option>
+              </select>
+              <input className="input" value={resourceReason} onChange={e => setResourceReason(e.target.value)} placeholder="Reason for admission or room request" />
+              <button type="submit" className="button">Request Approval</button>
+            </form>
+            <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "6px", maxHeight: "120px", overflowY: "auto" }}>
+              {resourceBookings.slice(0, 4).map((booking) => (
+                <div key={booking.id} style={{ fontSize: "0.78rem", color: "var(--muted)" }}>
+                  {booking.hospital_name} | {booking.resource_type} | {booking.status.toUpperCase()}
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div style={{ background: "rgba(231,76,60,0.05)", padding: "16px", borderRadius: "12px", border: "1px solid rgba(231,76,60,0.2)" }}>
             <h3 style={{ fontSize: "0.95rem", color: "#e74c3c", display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
               <Ambulance size={18} />
@@ -253,7 +320,7 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
                 <select value={ambulanceHospitalId} onChange={e => setAmbulanceHospitalId(e.target.value)} className="input" style={{ borderColor: "rgba(231,76,60,0.3)" }} required>
                   <option value="">Select hospital</option>
                   {hospitals.map((hospital) => (
-                    <option key={hospital.id} value={hospital.id}>{hospital.name} - {hospital.city}</option>
+                    <option key={hospital.id} value={hospital.id}>{hospital.name} - {hospital.city} | Ambulances {hospital.ambulance_count || 0} ({hospital.ambulance_types || "standard"})</option>
                   ))}
                 </select>
               </div>
@@ -279,6 +346,7 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
               </div>
             )}
           </div>
+          </>
         )}
       </div>
 
