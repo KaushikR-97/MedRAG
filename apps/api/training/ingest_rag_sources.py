@@ -1,9 +1,17 @@
 import argparse
 import json
+import os
 import re
+import sys
 import tempfile
 import urllib.request
 from pathlib import Path
+
+os.environ.setdefault("JWT_SECRET", "training-script-dummy-secret-change-in-runtime")
+
+API_ROOT = Path(__file__).resolve().parents[1]
+if str(API_ROOT) not in sys.path:
+    sys.path.insert(0, str(API_ROOT))
 
 from app.rag.indexer import MedicalVectorIndexer
 

@@ -57,6 +57,12 @@ Run the automated/manual gate report with:
 python scripts/readiness_check.py --level pilot
 ```
 
+For the Lightning cluster deployment sequence, use:
+
+```text
+docs/LIGHTNING_CLUSTER_DEPLOYMENT_PLAN.md
+```
+
 | Area | Gate |
 | --- | --- |
 | Clinical governance | Named supervising doctors approve AI behavior, prescription workflow, escalation text, and disclaimers. |

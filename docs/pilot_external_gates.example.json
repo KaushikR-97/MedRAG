@@ -1,0 +1,12 @@
+{
+  "clinical_governance_signoff": false,
+  "legal_privacy_review": false,
+  "backup_restore_tested": false,
+  "monitoring_alerts_configured": false,
+  "dedicated_turn_or_video_sfu_configured": false,
+  "licensed_guideline_corpus_loaded": false,
+  "clinician_reviewed_eval_cases_200_plus": false,
+  "urgent_escalation_100_percent": false,
+  "zero_patient_prescribing_violations": false,
+  "incident_response_runbook_approved": false
+}

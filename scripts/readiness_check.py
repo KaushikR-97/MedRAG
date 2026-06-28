@@ -51,6 +51,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="MedRAG investor-demo and closed-pilot readiness check.")
     parser.add_argument("--level", choices=["demo", "pilot"], default="demo")
     parser.add_argument("--env-file", default="apps/api/.env.example")
+    parser.add_argument("--external-gates-file", default="")
     parser.add_argument("--skip-build", action="store_true")
     args = parser.parse_args()
 
@@ -96,16 +97,40 @@ def main() -> None:
         checks.append({"name": "python_compile", "passed": passed, "detail": output or "ok"})
 
     if args.level == "pilot":
-        pilot_manual = [
-            "clinical_governance_signoff",
-            "legal_privacy_review",
-            "backup_restore_tested",
-            "monitoring_alerts_configured",
-            "dedicated_turn_or_video_sfu_configured",
-            "licensed_guideline_corpus_loaded",
+        pilot_files = [
+            "docs/CLINICAL_PILOT_VALIDATION_PROTOCOL.md",
+            "docs/CLINICAL_PILOT_OPERATIONS_RUNBOOK.md",
+            "docs/CLINICAL_EVAL_REVIEW_TEMPLATE.md",
+            "docs/LIGHTNING_CLUSTER_DEPLOYMENT_PLAN.md",
+            "docs/pilot_external_gates.example.json",
         ]
-        for name in pilot_manual:
-            checks.append({"name": name, "passed": False, "detail": "manual external gate required"})
+        for file_path in pilot_files:
+            passed, detail = check_file(file_path)
+            checks.append({"name": f"file:{file_path}", "passed": passed, "detail": detail})
+        pilot_manual = {
+            "clinical_governance_signoff": False,
+            "legal_privacy_review": False,
+            "backup_restore_tested": False,
+            "monitoring_alerts_configured": False,
+            "dedicated_turn_or_video_sfu_configured": False,
+            "licensed_guideline_corpus_loaded": False,
+            "clinician_reviewed_eval_cases_200_plus": False,
+            "urgent_escalation_100_percent": False,
+            "zero_patient_prescribing_violations": False,
+            "incident_response_runbook_approved": False,
+        }
+        if args.external_gates_file:
+            try:
+                gate_values = json.loads((ROOT / args.external_gates_file).read_text(encoding="utf-8-sig"))
+                pilot_manual.update({key: bool(value) for key, value in gate_values.items() if key in pilot_manual})
+            except Exception as exc:
+                checks.append({"name": "external_gates_file_parse", "passed": False, "detail": str(exc)})
+        for name, passed in pilot_manual.items():
+            checks.append({
+                "name": name,
+                "passed": passed,
+                "detail": "approved" if passed else "manual external gate required",
+            })
 
     passed_count = sum(1 for check in checks if check["passed"])
     total = len(checks)

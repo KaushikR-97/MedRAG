@@ -1,9 +1,19 @@
 import argparse
 import json
+import os
+import sys
 from pathlib import Path
 
+os.environ.setdefault("JWT_SECRET", "training-script-dummy-secret-change-in-runtime")
+
+API_ROOT = Path(__file__).resolve().parents[1]
+TRAINING_ROOT = Path(__file__).resolve().parent
+for path in (str(API_ROOT), str(TRAINING_ROOT)):
+    if path not in sys.path:
+        sys.path.insert(0, path)
+
 from app.rag.indexer import MedicalVectorIndexer
-from training.ingest_rag_sources import load_source_text, read_manifest
+from ingest_rag_sources import load_source_text, read_manifest
 
 
 def jsonl_write(path: Path, rows: list[dict]) -> None:
