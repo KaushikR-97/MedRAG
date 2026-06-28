@@ -14,6 +14,12 @@ Run the automated portion with:
 python scripts/readiness_check.py --level demo
 ```
 
+After the API is running, run the live smoke test:
+
+```bash
+python scripts/demo_smoke.py --api-base http://localhost:8000
+```
+
 | Area | Gate |
 | --- | --- |
 | Deployment | `npm install`, API start, web start, migrations, worker start, Qdrant/Redis/Postgres health checks documented and repeatable. |
@@ -26,6 +32,20 @@ python scripts/readiness_check.py --level demo
 | Telehealth | Video call connects both sides on laptop-to-laptop, chat works from confirmation through allowed window, video window is time-gated. |
 | Audit | Consent, document access, prescription, chat/video room creation, and break-glass events are logged. |
 | Recovery | Failed document ingestion shows job failure and retry action. |
+
+## Demo Day Command Sequence
+
+```bash
+cp apps/api/.env.example apps/api/.env
+docker compose up --build
+python scripts/readiness_check.py --level demo
+python scripts/demo_smoke.py --api-base http://localhost:8000
+cd apps/api
+python training/ingest_rag_sources.py --manifest training/rag_source_manifest.json --dry-run
+```
+
+On Lightning, run the same checks after setting public URLs and starting the API,
+worker, web app, Redis, Postgres, Qdrant, and MinIO.
 
 ## Closed Clinical Pilot 100% Gate
 
