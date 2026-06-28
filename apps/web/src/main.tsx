@@ -26,6 +26,19 @@ const SESSION_STORAGE_KEY = "medrag_session";
 const CONVERSATION_STORAGE_KEY = "medrag_conversation_id";
 const CHAT_STORAGE_VERSION = 2;
 const CHAT_STORAGE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const HD_VIDEO_CONSTRAINTS: MediaStreamConstraints = {
+  video: {
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    frameRate: { ideal: 30, max: 30 },
+  },
+  audio: {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+  },
+};
+const VIDEO_SENDER_BITRATE_BPS = 2_500_000;
 
 type StoredEnvelope<T> = {
   version: number;
@@ -251,6 +264,7 @@ function App() {
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
   const [mediaStatus, setMediaStatus] = useState<"idle" | "connecting" | "connected" | "blocked" | "failed">("idle");
+  const [videoQualityLabel, setVideoQualityLabel] = useState("HD requested");
   const [error, setError] = useState("");
   const [myAppointmentsList, setMyAppointmentsList] = useState<AppointmentRecord[]>([]);
 
@@ -423,7 +437,7 @@ function App() {
     if (!token) return;
     setMediaStatus("connecting");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia(HD_VIDEO_CONSTRAINTS);
       localStreamRef.current = stream;
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
       const peer = await ensurePeerConnection(appointmentId);
@@ -431,6 +445,23 @@ function App() {
       stream.getTracks().forEach((track) => {
         if (!existingTrackIds.has(track.id)) peer.addTrack(track, stream);
       });
+      const videoTrack = stream.getVideoTracks()[0];
+      const videoSettings = videoTrack?.getSettings();
+      if (videoSettings?.width && videoSettings?.height) {
+        setVideoQualityLabel(`${videoSettings.width}x${videoSettings.height}${videoSettings.frameRate ? ` @ ${Math.round(videoSettings.frameRate)}fps` : ""}`);
+      }
+      for (const sender of peer.getSenders()) {
+        if (sender.track?.kind !== "video") continue;
+        const params = sender.getParameters();
+        params.encodings = params.encodings?.length ? params.encodings : [{}];
+        params.encodings[0] = {
+          ...params.encodings[0],
+          maxBitrate: VIDEO_SENDER_BITRATE_BPS,
+          maxFramerate: 30,
+          scaleResolutionDownBy: 1,
+        };
+        await sender.setParameters(params).catch((err) => console.warn("Could not apply HD sender parameters", err));
+      }
       setMediaStatus("connected");
 
       if (session?.role === "doctor") {
@@ -690,14 +721,17 @@ function App() {
 
       {/* Active Video Call WebRTC Overlays */}
       {activeVideoCall && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.9)", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", zIndex: 999 }}>
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.92)", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", zIndex: 999, padding: "24px" }}>
           <h3 style={{ color: "white", marginBottom: "20px" }}>Active Video Consultation Call</h3>
-          <div style={{ display: "flex", gap: "20px", marginBottom: "20px" }}>
-            <div style={{ width: "320px", height: "240px", background: "#222", borderRadius: "12px", overflow: "hidden", position: "relative" }}>
+          <div style={{ color: "rgba(255,255,255,0.75)", fontSize: "0.85rem", marginBottom: "14px" }}>
+            Video quality: {videoQualityLabel} | Status: {mediaStatus}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))", gap: "20px", width: "min(100%, 1320px)", marginBottom: "20px" }}>
+            <div style={{ aspectRatio: "16 / 9", background: "#111827", borderRadius: "12px", overflow: "hidden", position: "relative", border: "1px solid rgba(255,255,255,0.12)" }}>
               <video ref={localVideoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               <span style={{ position: "absolute", bottom: "10px", left: "10px", color: "white", fontSize: "0.8rem", background: "rgba(0,0,0,0.5)", padding: "2px 6px", borderRadius: "4px" }}>Local Feed (You)</span>
             </div>
-            <div style={{ width: "320px", height: "240px", background: "#222", borderRadius: "12px", overflow: "hidden", position: "relative" }}>
+            <div style={{ aspectRatio: "16 / 9", background: "#111827", borderRadius: "12px", overflow: "hidden", position: "relative", border: "1px solid rgba(255,255,255,0.12)" }}>
               <video ref={remoteVideoRef} autoPlay playsInline style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               <span style={{ position: "absolute", bottom: "10px", left: "10px", color: "white", fontSize: "0.8rem", background: "rgba(0,0,0,0.5)", padding: "2px 6px", borderRadius: "4px" }}>Remote Feed</span>
             </div>
