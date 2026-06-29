@@ -41,6 +41,12 @@ IMAGE_EMBEDDING_DEVICE=cpu
 QUERY_ROUTER_DEVICE=cpu
 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 ALLOWED_ORIGIN_REGEX=https://.*\.cloudspaces\.litng\.ai
+API_PUBLIC_BASE_URL=https://YOUR-8000-CLOUDSPACE-URL
+PUBLIC_APP_BASE_URL=https://YOUR-5173-CLOUDSPACE-URL
+FITBIT_CLIENT_ID=
+FITBIT_CLIENT_SECRET=
+GOOGLE_FIT_CLIENT_ID=
+GOOGLE_FIT_CLIENT_SECRET=
 ```
 
 Use a real 32+ character `JWT_SECRET` before pilot use.
@@ -68,6 +74,13 @@ For a T4, treat the GPU as the LLM-only device:
 - `LOCAL_MODEL_CLEANUP_CUDA=true` clears transient generation cache after each API answer.
 - Do not run LoRA training and the API server in the same Studio at the same time on a single T4.
 - If RAG ingestion runs while the API is answering, it should still use CPU embeddings; expect slower ingestion but much lower OOM risk.
+
+Fitness integrations:
+
+- Fitbit and Google Fit need OAuth app credentials and redirect URLs pointing to the API public URL.
+- Fitbit redirect: `https://YOUR-8000-CLOUDSPACE-URL/fitness/fitbit/callback`
+- Google Fit redirect: `https://YOUR-8000-CLOUDSPACE-URL/fitness/google_fit/callback`
+- Apple Health does not offer a normal server OAuth flow. Use an iOS HealthKit bridge or import Apple Health exported summaries into `/fitness/apple_health/import`.
 
 ## 2. Install API Dependencies
 

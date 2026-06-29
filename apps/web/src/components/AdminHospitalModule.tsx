@@ -8,6 +8,13 @@ type AdminHospitalModuleProps = {
 
 export const AdminHospitalModule: React.FC<AdminHospitalModuleProps> = ({ token }) => {
   const [hospitals, setHospitals] = useState<any[]>([]);
+  const [organizations, setOrganizations] = useState<any[]>([]);
+  const [organizationId, setOrganizationId] = useState("");
+  const [organizationName, setOrganizationName] = useState("My Clinic");
+  const [organizationType, setOrganizationType] = useState("clinic");
+  const [staffUserId, setStaffUserId] = useState("");
+  const [staffRole, setStaffRole] = useState("front_desk");
+  const [staffScope, setStaffScope] = useState("appointments,records");
   const [hospitalId, setHospitalId] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [departmentName, setDepartmentName] = useState("General Medicine");
@@ -51,6 +58,16 @@ export const AdminHospitalModule: React.FC<AdminHospitalModuleProps> = ({ token 
     }
   };
 
+  const refreshOrganizations = async () => {
+    try {
+      const result = await api.listOrganizations(token);
+      setOrganizations(result);
+      if (!organizationId && result.length) setOrganizationId(result[0].id);
+    } catch {
+      setOrganizations([]);
+    }
+  };
+
   const refreshAmbulanceRequests = async () => {
     try {
       const requests = await api.listAmbulanceRequests(token, "requested");
@@ -70,11 +87,49 @@ export const AdminHospitalModule: React.FC<AdminHospitalModuleProps> = ({ token 
 
   useEffect(() => {
     refreshHospitals();
+    refreshOrganizations();
     refreshAmbulanceRequests();
     refreshResourceBookings();
     const timer = window.setInterval(refreshAmbulanceRequests, 10000);
     return () => window.clearInterval(timer);
   }, []);
+
+  const createOrganization = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    try {
+      const org = await api.createOrganization(token, {
+        name: organizationName,
+        organization_type: organizationType,
+        linked_hospital_id: organizationType === "hospital" ? hospitalId : null,
+      });
+      setOrganizationId(org.id);
+      setMessage(`${org.organization_type.replace("_", " ")} organization created.`);
+      await refreshOrganizations();
+    } catch (err: any) {
+      setError(err.message || "Could not create organization");
+    }
+  };
+
+  const addOrganizationMember = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!organizationId || !staffUserId) return;
+    setError("");
+    setMessage("");
+    try {
+      await api.addOrganizationMember(token, organizationId, {
+        user_id: staffUserId,
+        member_role: staffRole,
+        task_scope: staffScope,
+      });
+      setMessage("Organization member added with scoped tasks.");
+      setStaffUserId("");
+      await refreshOrganizations();
+    } catch (err: any) {
+      setError(err.message || "Could not add organization member");
+    }
+  };
 
   const createDepartment = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -203,8 +258,54 @@ export const AdminHospitalModule: React.FC<AdminHospitalModuleProps> = ({ token 
       <div className="card">
         <h3 style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "1rem", marginBottom: "12px" }}>
           <Building2 size={18} style={{ color: "var(--primary)" }} />
-          Hospital Workspace
+          Clinic / Hospital Organization
         </h3>
+        <form onSubmit={createOrganization} style={{ display: "grid", gridTemplateColumns: "1fr 180px auto", gap: "10px", marginBottom: "14px", alignItems: "end" }}>
+          <div>
+            <label className="label">Organization Name</label>
+            <input className="input" value={organizationName} onChange={(event) => setOrganizationName(event.target.value)} />
+          </div>
+          <div>
+            <label className="label">Structure</label>
+            <select className="input" value={organizationType} onChange={(event) => setOrganizationType(event.target.value)}>
+              <option value="solo_clinic">Solo Clinic</option>
+              <option value="clinic">Clinic</option>
+              <option value="hospital">Hospital</option>
+              <option value="diagnostic_center">Diagnostic Center</option>
+              <option value="pharmacy">Pharmacy</option>
+            </select>
+          </div>
+          <button className="button" type="submit">Create Org</button>
+        </form>
+        <label className="label">Active Organization</label>
+        <select className="input" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} style={{ marginBottom: "14px" }}>
+          <option value="">Select organization</option>
+          {organizations.map((org) => <option key={org.id} value={org.id}>{org.name} ({org.organization_type})</option>)}
+        </select>
+        <form onSubmit={addOrganizationMember} style={{ display: "grid", gridTemplateColumns: "1fr 160px 1fr auto", gap: "10px", marginBottom: "14px", alignItems: "end" }}>
+          <div>
+            <label className="label">Staff User ID</label>
+            <input className="input" value={staffUserId} onChange={(event) => setStaffUserId(event.target.value)} placeholder="Doctor/admin/staff user ID" />
+          </div>
+          <div>
+            <label className="label">Role</label>
+            <select className="input" value={staffRole} onChange={(event) => setStaffRole(event.target.value)}>
+              <option value="doctor">Doctor</option>
+              <option value="admin">Admin</option>
+              <option value="nurse">Nurse</option>
+              <option value="front_desk">Front Desk</option>
+              <option value="pharmacist">Pharmacist</option>
+              <option value="lab_staff">Lab Staff</option>
+              <option value="billing">Billing</option>
+              <option value="ambulance_dispatch">Ambulance Dispatch</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Task Scope</label>
+            <input className="input" value={staffScope} onChange={(event) => setStaffScope(event.target.value)} />
+          </div>
+          <button className="button-sec" type="submit" disabled={!organizationId}>Add Staff</button>
+        </form>
         <label className="label">Managed Hospital</label>
         <select className="input" value={hospitalId} onChange={(event) => setHospitalId(event.target.value)}>
           <option value="">Select assigned hospital</option>

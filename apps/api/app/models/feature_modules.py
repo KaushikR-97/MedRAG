@@ -112,6 +112,35 @@ class HospitalDoctor(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 
+class CareOrganization(Base):
+    __tablename__ = "care_organizations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), index=True)
+    organization_type: Mapped[str] = mapped_column(String(40), default="clinic", index=True)
+    owner_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    linked_hospital_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    address: Mapped[str] = mapped_column(Text, default="")
+    city: Mapped[str] = mapped_column(String(120), default="", index=True)
+    state: Mapped[str] = mapped_column(String(120), default="", index=True)
+    phone: Mapped[str] = mapped_column(String(40), default="")
+    email: Mapped[str] = mapped_column(String(320), default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+class OrganizationMember(Base):
+    __tablename__ = "organization_members"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("care_organizations.id"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    member_role: Mapped[str] = mapped_column(String(60), default="staff", index=True)
+    task_scope: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(32), default="active", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
 class ConsultationSlot(Base):
     __tablename__ = "consultation_slots"
 
@@ -445,3 +474,35 @@ class PreConsultationIntake(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
+
+
+class FitnessConnection(Base):
+    __tablename__ = "fitness_connections"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    provider: Mapped[str] = mapped_column(String(40), index=True)
+    connection_mode: Mapped[str] = mapped_column(String(40), default="oauth", index=True)
+    status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
+    access_token: Mapped[str] = mapped_column(Text, default="")
+    refresh_token: Mapped[str] = mapped_column(Text, default="")
+    scope: Mapped[str] = mapped_column(Text, default="")
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    metadata_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+class FitnessActivitySample(Base):
+    __tablename__ = "fitness_activity_samples"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    provider: Mapped[str] = mapped_column(String(40), index=True)
+    activity_date: Mapped[str] = mapped_column(String(32), index=True)
+    steps: Mapped[int] = mapped_column(Integer, default=0)
+    exercise_minutes: Mapped[int] = mapped_column(Integer, default=0)
+    calories: Mapped[int] = mapped_column(Integer, default=0)
+    distance_meters: Mapped[float] = mapped_column(Float, default=0)
+    raw_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))

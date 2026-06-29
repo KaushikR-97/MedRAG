@@ -79,6 +79,12 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     nhr_api_base: str = ""
     openweather_api_key: str = ""
+    public_app_base_url: str = "http://localhost:5173"
+    api_public_base_url: str = "http://localhost:8000"
+    fitbit_client_id: str = ""
+    fitbit_client_secret: str = ""
+    google_fit_client_id: str = ""
+    google_fit_client_secret: str = ""
 
     @field_validator("allowed_origins", mode="before")
     @classmethod

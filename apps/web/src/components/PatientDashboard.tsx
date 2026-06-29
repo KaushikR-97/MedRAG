@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Sparkles, FileText, Heart, Activity, Users, MessageSquare, Pill, CheckCircle2, AlertTriangle } from "lucide-react";
-import { api, AuthResponse, PatientCareBrief, PrescriptionRecord } from "../api/client";
+import { api, AuthResponse, FitnessActivityRecord, PatientCareBrief, PrescriptionRecord } from "../api/client";
 
 type PatientDashboardProps = {
   token: string;
@@ -14,6 +14,11 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ token, sessi
   const [prescriptionError, setPrescriptionError] = useState("");
   const [careBrief, setCareBrief] = useState<PatientCareBrief | null>(null);
   const [briefError, setBriefError] = useState("");
+  const [fitnessActivities, setFitnessActivities] = useState<FitnessActivityRecord[]>([]);
+  const [fitnessMessage, setFitnessMessage] = useState("");
+  const [fitnessError, setFitnessError] = useState("");
+  const [appleSteps, setAppleSteps] = useState("6500");
+  const [appleMinutes, setAppleMinutes] = useState("30");
 
   useEffect(() => {
     if (!token) return;
@@ -37,6 +42,62 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ token, sessi
       cancelled = true;
     };
   }, [token]);
+
+  const loadFitnessActivities = async () => {
+    try {
+      const result = await api.listFitnessActivities(token);
+      setFitnessActivities(result.activities.slice(0, 5));
+    } catch (err: any) {
+      setFitnessError(err.message || "Could not load fitness activity");
+    }
+  };
+
+  useEffect(() => {
+    if (token) loadFitnessActivities();
+  }, [token]);
+
+  const connectFitness = async (provider: string) => {
+    setFitnessError("");
+    setFitnessMessage("");
+    try {
+      const result = await api.connectFitnessProvider(token, provider);
+      if (result.authorization_url) {
+        window.open(result.authorization_url, "_blank", "noreferrer");
+        setFitnessMessage(`Opened ${provider} authorization. Complete login and paste the callback code into backend callback when available.`);
+      } else {
+        setFitnessMessage((result.instructions || []).join(" "));
+      }
+    } catch (err: any) {
+      setFitnessError(err.message || `Could not connect ${provider}`);
+    }
+  };
+
+  const syncFitness = async (provider: string) => {
+    setFitnessError("");
+    setFitnessMessage("");
+    try {
+      await api.syncFitnessProvider(token, provider);
+      setFitnessMessage(`${provider} activity synced.`);
+      await loadFitnessActivities();
+    } catch (err: any) {
+      setFitnessError(err.message || `Could not sync ${provider}`);
+    }
+  };
+
+  const importApple = async () => {
+    setFitnessError("");
+    setFitnessMessage("");
+    try {
+      await api.importAppleHealthSample(token, {
+        steps: Number(appleSteps) || 0,
+        exercise_minutes: Number(appleMinutes) || 0,
+      });
+      setFitnessMessage("Apple Health sample imported.");
+      await loadFitnessActivities();
+    } catch (err: any) {
+      setFitnessError(err.message || "Could not import Apple Health sample");
+    }
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -94,6 +155,45 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ token, sessi
         {careBrief && careBrief.active_diseases.length > 0 && (
           <div style={{ marginTop: "12px", color: "var(--muted)", fontSize: "0.8rem" }}>
             Active treatment context: {careBrief.active_diseases.map((item) => item.diagnosis).join(", ")}
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        <h3 style={{ fontSize: "1rem", display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+          <Activity size={18} style={{ color: "var(--primary)" }} />
+          Fitness & Exercise Sync
+        </h3>
+        {fitnessError && <div className="toast toast-error" style={{ marginBottom: "10px" }}>{fitnessError}</div>}
+        {fitnessMessage && <div className="toast toast-success" style={{ marginBottom: "10px" }}>{fitnessMessage}</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px" }}>
+          {["fitbit", "google_fit"].map((provider) => (
+            <div key={provider} style={{ border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", background: "rgba(255,255,255,0.02)" }}>
+              <strong>{provider === "google_fit" ? "Google Fit" : "Fitbit"}</strong>
+              <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+                <button className="button-sec" onClick={() => connectFitness(provider)}>Connect</button>
+                <button className="button" onClick={() => syncFitness(provider)}>Sync</button>
+              </div>
+            </div>
+          ))}
+          <div style={{ border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", background: "rgba(255,255,255,0.02)" }}>
+            <strong>Apple Health</strong>
+            <p style={{ color: "var(--muted)", fontSize: "0.76rem", margin: "6px 0" }}>Use HealthKit bridge/export import.</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "8px" }}>
+              <input className="input" value={appleSteps} onChange={(event) => setAppleSteps(event.target.value)} placeholder="Steps" />
+              <input className="input" value={appleMinutes} onChange={(event) => setAppleMinutes(event.target.value)} placeholder="Exercise min" />
+              <button className="button" onClick={importApple}>Import</button>
+            </div>
+          </div>
+        </div>
+        {fitnessActivities.length > 0 && (
+          <div style={{ marginTop: "12px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "8px" }}>
+            {fitnessActivities.map((item) => (
+              <div key={item.id} style={{ border: "1px solid var(--line)", borderRadius: "8px", padding: "10px", fontSize: "0.8rem" }}>
+                <strong>{item.activity_date}</strong>
+                <div style={{ color: "var(--muted)" }}>{item.provider} | {item.steps} steps | {item.exercise_minutes} min</div>
+              </div>
+            ))}
           </div>
         )}
       </div>

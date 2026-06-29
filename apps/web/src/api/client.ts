@@ -249,6 +249,32 @@ export type DoctorConsultPrep = {
   red_flags: string[];
 };
 
+export type FitnessActivityRecord = {
+  id: string;
+  provider: string;
+  activity_date: string;
+  steps: number;
+  exercise_minutes: number;
+  calories: number;
+  distance_meters: number;
+  created_at: string;
+};
+
+export type CareOrganizationRecord = {
+  id: string;
+  name: string;
+  organization_type: string;
+  owner_user_id: string;
+  linked_hospital_id?: string | null;
+  city: string;
+  state: string;
+  phone: string;
+  email: string;
+  active: boolean;
+  members_count: number;
+  created_at: string;
+};
+
 export type ConsultationSignalRecord = {
   id: string;
   room_id: string;
@@ -1174,6 +1200,33 @@ export const api = {
   },
   getDoctorConsultPrep(token: string, appointmentId: string) {
     return request<DoctorConsultPrep>(`/doctor/consult-prep/${encodeURIComponent(appointmentId)}`, {}, token);
+  },
+  listFitnessProviders(token: string) {
+    return request<any>("/fitness/providers", {}, token);
+  },
+  connectFitnessProvider(token: string, provider: string) {
+    return request<any>(`/fitness/${encodeURIComponent(provider)}/connect`, { method: "POST" }, token);
+  },
+  syncFitnessProvider(token: string, provider: string) {
+    return request<any>(`/fitness/${encodeURIComponent(provider)}/sync`, { method: "POST" }, token);
+  },
+  importAppleHealthSample(token: string, payload: { activity_date?: string; steps: number; exercise_minutes: number; calories?: number; distance_meters?: number; source_note?: string }) {
+    return request<any>("/fitness/apple_health/import", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  listFitnessActivities(token: string) {
+    return request<{ activities: FitnessActivityRecord[] }>("/fitness/activities", {}, token);
+  },
+  createOrganization(token: string, payload: { name: string; organization_type: string; linked_hospital_id?: string | null; city?: string; state?: string; phone?: string; email?: string; address?: string }) {
+    return request<CareOrganizationRecord>("/organizations", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  listOrganizations(token: string) {
+    return request<CareOrganizationRecord[]>("/organizations", {}, token);
+  },
+  addOrganizationMember(token: string, organizationId: string, payload: { user_id: string; member_role: string; task_scope: string }) {
+    return request<any>(`/organizations/${encodeURIComponent(organizationId)}/members`, { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  listOrganizationMembers(token: string, organizationId: string) {
+    return request<any[]>(`/organizations/${encodeURIComponent(organizationId)}/members`, {}, token);
   },
   joinConsultationRoom(token: string, appointmentId: string) {
     return request<ConsultationRoomRecord>(
