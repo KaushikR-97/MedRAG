@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, PointStruct, VectorParams
+from qdrant_client.models import Distance, FieldCondition, Filter, FilterSelector, MatchValue, PointStruct, VectorParams
 from sentence_transformers import SentenceTransformer
 
 from app.core.config import settings
@@ -80,11 +80,20 @@ class MedicalVectorIndexer:
         patient_id: str,
         title: str,
         text: str,
+        document_type: str = "",
+        source_created_at: str = "",
+        clinical_context: dict[str, str] | None = None,
         language: str = "en",
     ) -> int:
         if not settings.qdrant_url:
             return 1 if settings.is_non_prod else 0
-        chunks = self._chunk(text)
+        clinical_context = clinical_context or {}
+        context_header = self._clinical_context_header(
+            document_type=document_type,
+            source_created_at=source_created_at,
+            clinical_context=clinical_context,
+        )
+        chunks = self._chunk(f"{context_header}\n{text}" if context_header else text)
         if self.embedder is None or self.client is None:
             return 0
         chunk_texts = [chunk.text for chunk in chunks]
@@ -93,12 +102,13 @@ class MedicalVectorIndexer:
         if vector_size == 0:
             return 0
         self.ensure_collection(vector_size)
+        self._delete_existing_document_points(document_id=document_id)
         parent_id = f"{document_id}:parent"
         points = []
         for chunk_index, (chunk, vector) in enumerate(zip(chunks, vectors, strict=False)):
             points.append(
                 PointStruct(
-                    id=str(uuid.uuid4()),
+                    id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"{document_id}:{chunk_index}")),
                     vector=vector,
                     payload={
                         "document_id": document_id,
@@ -115,11 +125,39 @@ class MedicalVectorIndexer:
                         "language": language,
                         "source_type": "verified_patient_document",
                         "visibility": f"patient:{patient_id}",
+                        "document_type": document_type,
+                        "timeline_state": clinical_context.get("timeline_state", ""),
+                        "clinical_record_role": clinical_context.get("clinical_record_role", ""),
+                        "lab_group": clinical_context.get("lab_group", ""),
+                        "disease_names": clinical_context.get("disease_names", ""),
+                        "prescription_state": clinical_context.get("prescription_state", ""),
+                        "source_created_at": source_created_at,
                     },
                 )
             )
         self.client.upsert(collection_name=settings.qdrant_collection, points=points)
         return len(points)
+
+    def _delete_existing_document_points(self, *, document_id: str) -> None:
+        if self.client is None:
+            return
+        try:
+            self.client.delete(
+                collection_name=settings.qdrant_collection,
+                points_selector=FilterSelector(
+                    filter=Filter(
+                        must=[
+                            FieldCondition(
+                                key="document_id",
+                                match=MatchValue(value=document_id),
+                            )
+                        ]
+                    )
+                ),
+                wait=True,
+            )
+        except Exception:
+            return
 
     def index_reference_document(
         self,
@@ -370,3 +408,33 @@ class MedicalVectorIndexer:
 
     def _format_chunk(self, *, section: str, text: str) -> str:
         return f"Section: {section}\n{text.strip()}" if section != "general" else text.strip()
+
+    def _clinical_context_header(
+        self,
+        *,
+        document_type: str,
+        source_created_at: str,
+        clinical_context: dict[str, str],
+    ) -> str:
+        if not document_type and not clinical_context:
+            return ""
+        lines = [
+            "Clinical timeline metadata:",
+            f"Document type: {document_type or 'unknown'}",
+        ]
+        if source_created_at:
+            lines.append(f"Record date: {source_created_at}")
+        for key, label in {
+            "clinical_record_role": "Record role",
+            "timeline_state": "Timeline state",
+            "lab_group": "Lab/report group",
+            "disease_names": "Disease/diagnosis names",
+            "prescription_state": "Prescription state",
+        }.items():
+            value = clinical_context.get(key, "")
+            if value:
+                lines.append(f"{label}: {value}")
+        lines.append(
+            "Retrieval rule: current-state answers should prefer current_snapshot or active records; historical and discharge records are background history unless the user asks for trends or past history."
+        )
+        return "\n".join(lines)

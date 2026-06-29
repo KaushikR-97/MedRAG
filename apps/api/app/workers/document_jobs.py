@@ -1,6 +1,7 @@
 from app.db.session import SessionLocal
 from app.models.document import MedicalDocument
 from app.models.jobs import IngestionJob
+from app.rag.clinical_timeline import build_document_timeline_context
 from app.rag.indexer import MedicalVectorIndexer
 from app.services.image_embedding_service import BioMedClipImageIndexer
 from app.services.malware_service import MalwareScanner
@@ -42,6 +43,9 @@ def process_document_pipeline(job_id: str) -> None:
                 patient_id=doc.patient_id,
                 title=doc.original_filename,
                 text=doc.verified_text,
+                document_type=doc.document_type,
+                source_created_at=doc.created_at.isoformat() if doc.created_at else "",
+                clinical_context=build_document_timeline_context(db, doc).as_payload(),
             )
             doc.ingested_to_rag = indexed > 0
             doc.status = "rag_ingested" if indexed > 0 else "ingestion_failed"

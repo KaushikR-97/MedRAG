@@ -19,6 +19,7 @@ from app.models.feature_modules import (
     VaccinationRecord,
 )
 from app.models.jobs import IngestionJob
+from app.rag.clinical_timeline import build_prescription_timeline_context
 from app.models.user import User
 from app.rag.indexer import MedicalVectorIndexer
 from app.services.clinical_tools_service import ClinicalToolsService
@@ -113,6 +114,9 @@ class CareWorkflowService:
                 patient_id=doc.patient_id,
                 title=doc.original_filename,
                 text=text,
+                document_type=doc.document_type,
+                source_created_at=doc.created_at.isoformat() if doc.created_at else "",
+                clinical_context=build_prescription_timeline_context(rx).as_payload(),
             )
         except Exception as exc:
             indexed = 0

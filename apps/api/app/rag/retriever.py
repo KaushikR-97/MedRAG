@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import FieldCondition, Filter, MatchAny, MatchValue
@@ -6,6 +7,7 @@ from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder, SentenceTransformer
 
 from app.core.config import settings
+from app.rag.clinical_timeline import build_document_timeline_context
 
 
 @dataclass(frozen=True)
@@ -197,15 +199,36 @@ class HybridMedicalRetriever:
                     with SessionLocal() as db:
                         docs = db.query(MedicalDocument).filter(
                             MedicalDocument.patient_id == patient_id,
-                            MedicalDocument.verified_text != ""
+                            MedicalDocument.verified_text != "",
+                            MedicalDocument.status != "deleted_by_patient",
                         ).all()
-                        for doc in docs:
+                        ranked_docs = sorted(
+                            docs,
+                            key=lambda item: (
+                                _timeline_rank(build_document_timeline_context(db, item).timeline_state),
+                                item.created_at or datetime.min.replace(tzinfo=UTC),
+                            ),
+                            reverse=True,
+                        )
+                        for doc in ranked_docs:
+                            context = build_document_timeline_context(db, doc)
                             db_chunks.append(
                                 RetrievedChunk(
                                     id=doc.id,
                                     title=doc.original_filename,
                                     score=0.95,
-                                    text=doc.verified_text,
+                                    text=(
+                                        "Clinical timeline metadata:\n"
+                                        f"Document type: {doc.document_type}\n"
+                                        f"Record date: {doc.created_at.isoformat() if doc.created_at else ''}\n"
+                                        f"Record role: {context.clinical_record_role}\n"
+                                        f"Timeline state: {context.timeline_state}\n"
+                                        f"Lab/report group: {context.lab_group}\n"
+                                        f"Disease/diagnosis names: {context.disease_names}\n"
+                                        f"Prescription state: {context.prescription_state}\n"
+                                        "Retrieval rule: current-state answers should prefer current_snapshot or active records; historical and discharge records are background history unless the user asks for trends or past history.\n\n"
+                                        f"{doc.verified_text}"
+                                    ),
                                 )
                             )
                 except Exception:
@@ -229,15 +252,22 @@ class HybridMedicalRetriever:
             hits = self._query_qdrant(query_vector=query_vector, qfilter=qfilter, top_k=top_k)
         except Exception:
             return self._fallback_chunks(query)
-        return [
-            RetrievedChunk(
-                id=str(hit.id),
-                title=str((hit.payload or {}).get("title", "Untitled source")),
-                score=float(hit.score or 0),
-                text=str((hit.payload or {}).get("parent_text") or (hit.payload or {}).get("text", "")),
+        chunks = []
+        for hit in hits:
+            payload = hit.payload or {}
+            timeline_state = str(payload.get("timeline_state", ""))
+            source_created_at = str(payload.get("source_created_at", ""))
+            clinical_boost = _timeline_rank(timeline_state) * 0.015
+            recency_boost = _recency_boost(source_created_at)
+            chunks.append(
+                RetrievedChunk(
+                    id=str(hit.id),
+                    title=str(payload.get("title", "Untitled source")),
+                    score=float(hit.score or 0) + clinical_boost + recency_boost,
+                    text=str(payload.get("parent_text") or payload.get("text", "")),
+                )
             )
-            for hit in hits
-        ]
+        return sorted(chunks, key=lambda chunk: chunk.score, reverse=True)
 
     def _query_qdrant(self, *, query_vector: list[float], qfilter: Filter, top_k: int):
         if hasattr(self.qdrant, "query_points"):
@@ -322,3 +352,32 @@ class HybridMedicalRetriever:
             )
         )
         return chunks
+
+
+def _timeline_rank(timeline_state: str) -> int:
+    if timeline_state in {"current_snapshot", "active_condition"}:
+        return 3
+    if timeline_state == "historical":
+        return 2
+    if timeline_state == "past_condition":
+        return 1
+    return 0
+
+
+def _recency_boost(source_created_at: str) -> float:
+    if not source_created_at:
+        return 0.0
+    try:
+        created = datetime.fromisoformat(source_created_at)
+    except ValueError:
+        return 0.0
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=UTC)
+    age_days = max(0, (datetime.now(UTC) - created).days)
+    if age_days <= 30:
+        return 0.02
+    if age_days <= 180:
+        return 0.01
+    if age_days <= 365:
+        return 0.005
+    return 0.0
