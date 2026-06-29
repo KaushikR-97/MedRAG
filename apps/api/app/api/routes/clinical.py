@@ -144,7 +144,7 @@ def ask_clinical_question(
     direct_value_answer = _direct_lab_value_answer(payload.question, state.get("sources", []))
     raw_answer = direct_value_answer or state["answer"]
     answer = PrivacyService().minimum_necessary_text(actor=user, patient_id=patient_id, text=raw_answer, db=db)
-    if _is_gibberish_answer(answer):
+    if _is_low_quality_answer(answer, user.role):
         answer = _fallback_clinical_answer(payload.question, user.role, sources=state.get("sources", []))
         state["safety_label"] = "fallback_answer"
         state["query_route"] = "fallback"
@@ -241,6 +241,35 @@ def _is_gibberish_answer(text: str) -> bool:
     return unique_ratio < 0.18 or most_common_count >= 18
 
 
+def _is_low_quality_answer(text: str, role: str) -> bool:
+    if _is_gibberish_answer(text):
+        return True
+    lowered = (text or "").lower()
+    leak_markers = [
+        "[inst]",
+        "[/inst]",
+        "retrieved context:",
+        "conversation history:",
+        "role policy",
+        "prompt version",
+        "clinical draft:",
+        "medication safety notes:",
+    ]
+    if any(marker in lowered for marker in leak_markers):
+        return True
+    if role == "doctor" and len(text) < 700:
+        weak_refusals = [
+            "i cannot prescribe",
+            "consult a qualified clinician",
+            "consult your doctor",
+            "consult with your doctor",
+            "i'm sorry",
+        ]
+        if any(marker in lowered for marker in weak_refusals):
+            return True
+    return False
+
+
 LAB_VALUE_ALIASES: dict[str, list[str]] = {
     "uric acid": ["uric acid", "serum uric acid", "s uric acid"],
     "hba1c": ["hba1c", "hb a1c", "glycated hemoglobin", "glycated haemoglobin"],
@@ -251,6 +280,13 @@ LAB_VALUE_ALIASES: dict[str, list[str]] = {
     "triglyceride": ["triglyceride", "triglycerides"],
     "hemoglobin": ["hemoglobin", "haemoglobin", "hb"],
     "platelet": ["platelet", "platelets", "platelet count"],
+    "vitamin d": ["vitamin d", "25 hydroxy vitamin d", "25-oh vitamin d"],
+    "vitamin b12": ["vitamin b12", "b12", "cobalamin"],
+    "alt": ["alt", "sgpt"],
+    "ast": ["ast", "sgot"],
+    "bilirubin": ["bilirubin", "total bilirubin"],
+    "ldl": ["ldl", "ldl cholesterol"],
+    "hdl": ["hdl", "hdl cholesterol"],
 }
 
 
@@ -294,8 +330,8 @@ def _extract_lab_value(text: str, aliases: list[str]) -> str | None:
                 continue
             escaped = re.escape(alias)
             patterns = [
-                rf"{escaped}\s*(?:[:=\-]|\s)\s*([0-9]+(?:\.[0-9]+)?\s*(?:mg/dl|mg/dL|mmol/L|%|g/dL|g/dl|u/L|IU/L|mIU/L|ng/mL|cells/[a-zA-Z]+)?)",
-                rf"([0-9]+(?:\.[0-9]+)?\s*(?:mg/dl|mg/dL|mmol/L|%|g/dL|g/dl|u/L|IU/L|mIU/L|ng/mL|cells/[a-zA-Z]+)?)\s+{escaped}",
+                rf"{escaped}\s*(?:[:=\-]|\s)\s*([<>]?\s*[0-9]+(?:\.[0-9]+)?\s*(?:mg/dl|mg/dL|mmol/L|%|g/dL|g/dl|u/L|U/L|IU/L|mIU/L|ng/mL|pg/mL|uIU/mL|cells/[a-zA-Z]+|lakhs/cumm|/cumm)?)",
+                rf"([<>]?\s*[0-9]+(?:\.[0-9]+)?\s*(?:mg/dl|mg/dL|mmol/L|%|g/dL|g/dl|u/L|U/L|IU/L|mIU/L|ng/mL|pg/mL|uIU/mL|cells/[a-zA-Z]+|lakhs/cumm|/cumm)?)\s+{escaped}",
             ]
             for pattern in patterns:
                 match = re.search(pattern, line, flags=re.IGNORECASE)
@@ -304,7 +340,7 @@ def _extract_lab_value(text: str, aliases: list[str]) -> str | None:
     compact = re.sub(r"\s+", " ", text)
     for alias in aliases:
         match = re.search(
-            rf"{re.escape(alias)}\s*(?:[:=\-]|\s)\s*([0-9]+(?:\.[0-9]+)?\s*(?:mg/dl|mg/dL|mmol/L|%|g/dL|g/dl|u/L|IU/L|mIU/L|ng/mL|cells/[a-zA-Z]+)?)",
+            rf"{re.escape(alias)}\s*(?:[:=\-]|\s)\s*([<>]?\s*[0-9]+(?:\.[0-9]+)?\s*(?:mg/dl|mg/dL|mmol/L|%|g/dL|g/dl|u/L|U/L|IU/L|mIU/L|ng/mL|pg/mL|uIU/mL|cells/[a-zA-Z]+|lakhs/cumm|/cumm)?)",
             compact,
             flags=re.IGNORECASE,
         )

@@ -13,7 +13,7 @@ class ClinicalCacheService:
 
     def __init__(self) -> None:
         self.redis = Redis.from_url(settings.redis_url)
-        self.prefix = "medrag:cache:ask:v2"
+        self.prefix = "medrag:cache:ask:v3"
 
     def get_cached_answer(self, question: str, role: str, patient_id: str | None) -> dict | None:
         try:
