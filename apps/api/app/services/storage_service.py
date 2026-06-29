@@ -30,13 +30,17 @@ class ObjectStorageService:
 
     async def put_upload(self, *, file: UploadFile, key: str) -> StoredObject:
         content = await file.read()
+        content_type = file.content_type or "application/octet-stream"
+        return self.put_bytes(content=content, key=key, content_type=content_type)
+
+    def put_bytes(self, *, content: bytes, key: str, content_type: str = "application/octet-stream") -> StoredObject:
         digest = hashlib.sha256(content).hexdigest()
         self.ensure_bucket()
         self.client.put_object(
             Bucket=settings.s3_bucket,
             Key=key,
             Body=content,
-            ContentType=file.content_type or "application/octet-stream",
+            ContentType=content_type,
             Metadata={"sha256": digest},
         )
         return StoredObject(

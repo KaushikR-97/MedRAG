@@ -680,7 +680,7 @@ function App() {
           </div>
         </header>
 
-        {currentTab === "home" && <PatientDashboard session={session} onNavigate={setCurrentTab} />}
+        {currentTab === "home" && <PatientDashboard token={token} session={session} onNavigate={setCurrentTab} />}
         {currentTab === "clinical" && <ClinicalAIModule token={token} patientId={session.user_id} userRole={session.role} />}
         {currentTab === "documents" && <DocumentManager token={token} activePatientId={session.user_id} userRole={session.role} />}
         {currentTab === "care" && <CareRemindersModule token={token} sessionRole={session.role} activePatientId={session.user_id} />}

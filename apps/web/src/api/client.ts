@@ -167,6 +167,22 @@ export type AppointmentRecord = {
   server_now?: string;
 };
 
+export type PrescriptionRecord = {
+  id: string;
+  patient_id: string;
+  doctor_id: string;
+  diagnosis: string;
+  medications: string;
+  dosage: string;
+  duration: string;
+  instructions: string;
+  follow_up_date: string;
+  pmjay_covered: boolean;
+  created_at: string;
+  document_id?: string;
+  ingested_to_rag?: boolean;
+};
+
 export type ConsultationRoomRecord = {
   id: string;
   appointment_id: string;
@@ -618,11 +634,11 @@ export const api = {
     );
   },
   createPrescription(token: string, payload: { patient_id: string; diagnosis: string; medications: string; dosage?: string; duration?: string; instructions?: string; follow_up_date?: string; pmjay_covered?: boolean }) {
-    return request<any>("/doctor/prescriptions", { method: "POST", body: JSON.stringify(payload) }, token);
+    return request<PrescriptionRecord & { interaction_warnings: Array<Record<string, unknown>> }>("/doctor/prescriptions", { method: "POST", body: JSON.stringify(payload) }, token);
   },
   listPrescriptions(token: string, patientId?: string | null) {
     const query = patientId ? `?patient_id=${encodeURIComponent(patientId)}` : "";
-    return request<any[]>(`/doctor/prescriptions${query}`, { method: "GET" }, token);
+    return request<PrescriptionRecord[]>(`/doctor/prescriptions${query}`, { method: "GET" }, token);
   },
   getAiPrescriptionDraft(token: string, payload: { patient_id: string; notes?: string }) {
     return request<any>("/doctor/ai-prescription", { method: "POST", body: JSON.stringify(payload) }, token);

@@ -146,7 +146,7 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
       return;
     }
     try {
-      await api.createPrescription(token, {
+      const result = await api.createPrescription(token, {
         patient_id: searchPatientId,
         diagnosis: prescriptionDraft.diagnosis,
         medications: prescriptionDraft.medications,
@@ -155,7 +155,11 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
         instructions: prescriptionDraft.instructions,
         pmjay_covered: prescriptionDraft.pmjay_covered,
       });
-      setSuccess("Prescription written and finalized!");
+      setSuccess(
+        result.ingested_to_rag
+          ? "Prescription signed, visible on patient dashboard, saved to Medical Vault, and indexed into RAG."
+          : "Prescription signed and visible on patient dashboard. Medical Vault/RAG indexing is pending or needs retry.",
+      );
       // Reset
       setPrescriptionDraft({
         diagnosis: "Type 2 Diabetes Mellitus",

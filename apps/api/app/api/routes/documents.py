@@ -224,7 +224,10 @@ def download_document(
     if doc is None:
         raise HTTPException(404, "Document not found")
     PrivacyService().assert_no_download(actor=user, patient_id=doc.patient_id, resource="medical_document")
-    content = ObjectStorageService().get_bytes(bucket=doc.storage_bucket, key=doc.storage_key)
+    if not doc.storage_key and doc.verified_text:
+        content = doc.verified_text.encode("utf-8")
+    else:
+        content = ObjectStorageService().get_bytes(bucket=doc.storage_bucket, key=doc.storage_key)
     disposition = "inline" if inline else "attachment"
     return Response(
         content=content,

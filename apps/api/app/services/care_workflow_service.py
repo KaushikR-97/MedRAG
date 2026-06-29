@@ -1,8 +1,11 @@
 import uuid
+import hashlib
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
+from app.models.document import MedicalDocument
 from app.models.feature_modules import (
     Appointment,
     FamilyMember,
@@ -15,8 +18,11 @@ from app.models.feature_modules import (
     SymptomEntry,
     VaccinationRecord,
 )
+from app.models.jobs import IngestionJob
 from app.models.user import User
+from app.rag.indexer import MedicalVectorIndexer
 from app.services.clinical_tools_service import ClinicalToolsService
+from app.services.storage_service import ObjectStorageService
 
 
 class CareWorkflowService:
@@ -29,7 +35,119 @@ class CareWorkflowService:
         self.db.add(rx)
         self.db.commit()
         self.db.refresh(rx)
+        self._mirror_prescription_to_vault_and_rag(rx=rx, doctor=doctor)
         return rx
+
+    def _mirror_prescription_to_vault_and_rag(self, *, rx: Prescription, doctor: User) -> None:
+        text = self._prescription_text(rx=rx, doctor=doctor)
+        filename = f"Prescription-{rx.created_at.date().isoformat() if rx.created_at else datetime.now(UTC).date().isoformat()}-{rx.id[:8]}.txt"
+        storage_bucket = ""
+        storage_key = ""
+        storage_uri = ""
+        sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        size_bytes = len(text.encode("utf-8"))
+        try:
+            stored = ObjectStorageService().put_bytes(
+                content=text.encode("utf-8"),
+                key=f"patients/{rx.patient_id}/documents/prescriptions/{rx.id}.txt",
+                content_type="text/plain; charset=utf-8",
+            )
+            storage_bucket = stored.bucket
+            storage_key = stored.key
+            storage_uri = stored.uri
+            sha256 = stored.sha256
+            size_bytes = stored.size_bytes
+        except Exception:
+            if not settings.is_non_prod:
+                raise
+
+        existing = (
+            self.db.query(MedicalDocument)
+            .filter(
+                MedicalDocument.patient_id == rx.patient_id,
+                MedicalDocument.document_type == "prescription",
+                MedicalDocument.storage_key == storage_key,
+            )
+            .first()
+            if storage_key
+            else None
+        )
+        doc = existing or MedicalDocument(
+            id=str(uuid.uuid4()),
+            patient_id=rx.patient_id,
+            original_filename=filename,
+            storage_uri=storage_uri,
+            storage_bucket=storage_bucket,
+            storage_key=storage_key,
+            sha256=sha256,
+            document_type="prescription",
+            mime_type="text/plain",
+            file_size_bytes=size_bytes,
+            malware_status="clean",
+            ocr_text=text,
+            ocr_engine="doctor_signed_prescription",
+            ocr_confidence="1.000",
+            ocr_review_status="doctor_signed",
+            verified_text=text,
+            verified_by_patient=True,
+            status="verified",
+        )
+        doc.original_filename = filename
+        doc.storage_uri = storage_uri
+        doc.storage_bucket = storage_bucket
+        doc.storage_key = storage_key
+        doc.sha256 = sha256
+        doc.file_size_bytes = size_bytes
+        doc.ocr_text = text
+        doc.verified_text = text
+        doc.verified_by_patient = True
+        doc.malware_status = "clean"
+        doc.status = "verified"
+        self.db.add(doc)
+        self.db.flush()
+
+        indexing_error = ""
+        try:
+            indexed = MedicalVectorIndexer().index_verified_document(
+                document_id=doc.id,
+                patient_id=doc.patient_id,
+                title=doc.original_filename,
+                text=text,
+            )
+        except Exception as exc:
+            indexed = 0
+            indexing_error = str(exc)
+        doc.ingested_to_rag = indexed > 0
+        doc.status = "rag_ingested" if indexed > 0 else "ingestion_failed"
+        job = IngestionJob(
+            id=str(uuid.uuid4()),
+            document_id=doc.id,
+            patient_id=doc.patient_id,
+            job_type="prescription_rag_ingest",
+            status="completed" if indexed > 0 else "failed",
+            error="" if indexed > 0 else indexing_error or "No prescription chunks were indexed into RAG",
+            attempts=1,
+        )
+        self.db.add(job)
+        self.db.commit()
+
+    @staticmethod
+    def _prescription_text(*, rx: Prescription, doctor: User) -> str:
+        created_at = rx.created_at.isoformat() if rx.created_at else datetime.now(UTC).isoformat()
+        return (
+            "Signed Prescription\n"
+            f"Prescription ID: {rx.id}\n"
+            f"Date: {created_at}\n"
+            f"Doctor: {doctor.full_name} ({doctor.id})\n"
+            f"Patient ID: {rx.patient_id}\n"
+            f"Diagnosis: {rx.diagnosis}\n"
+            f"Medications: {rx.medications}\n"
+            f"Dosage: {rx.dosage or 'As directed'}\n"
+            f"Duration: {rx.duration or 'As directed'}\n"
+            f"Instructions: {rx.instructions or 'Follow clinician instructions.'}\n"
+            f"Follow-up Date: {rx.follow_up_date or 'Not specified'}\n"
+            f"PM-JAY Covered: {'Yes' if rx.pmjay_covered else 'No'}\n"
+        )
 
     def book_appointment(self, *, patient_id: str, payload: dict) -> Appointment:
         appt = Appointment(id=str(uuid.uuid4()), patient_id=patient_id, **payload)

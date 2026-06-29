@@ -6,6 +6,7 @@ from datetime import datetime, UTC
 
 from app.core.security import require_role, get_current_user
 from app.db.session import get_db
+from app.models.document import MedicalDocument
 from app.models.feature_modules import Appointment, Prescription, SecondOpinionRequest
 from app.models.user import User
 from app.schemas.features import (
@@ -46,8 +47,23 @@ def create_prescription(
     if not ComplianceService(db).can_access_patient(actor=doctor, patient_id=payload.patient_id, scope="clinical.ask"):
         raise HTTPException(403, "Missing patient consent or care-team access")
     rx = CareWorkflowService(db).create_prescription(doctor=doctor, payload=payload.model_dump())
+    prescription_doc = (
+        db.query(MedicalDocument)
+        .filter(
+            MedicalDocument.patient_id == rx.patient_id,
+            MedicalDocument.document_type == "prescription",
+            MedicalDocument.verified_text.contains(rx.id),
+        )
+        .order_by(MedicalDocument.created_at.desc())
+        .first()
+    )
     interactions = ClinicalToolsService().check_interactions(payload.medications.splitlines())
-    return {"id": rx.id, "interaction_warnings": [item.__dict__ for item in interactions]}
+    return {
+        "id": rx.id,
+        "document_id": prescription_doc.id if prescription_doc else "",
+        "ingested_to_rag": bool(prescription_doc.ingested_to_rag) if prescription_doc else False,
+        "interaction_warnings": [item.__dict__ for item in interactions],
+    }
 
 
 @router.get("/prescriptions/renewal-alerts")
@@ -242,8 +258,21 @@ def list_prescriptions(
             records = db.query(Prescription).filter(Prescription.doctor_id == user.id).all()
         else:
             records = db.query(Prescription).filter(Prescription.patient_id == user.id).all()
-    return [
-        {
+    response = []
+    for r in records:
+        prescription_doc = (
+            db.query(MedicalDocument)
+            .filter(
+                MedicalDocument.patient_id == r.patient_id,
+                MedicalDocument.document_type == "prescription",
+                MedicalDocument.verified_text.contains(r.id),
+                MedicalDocument.status != "deleted_by_patient",
+            )
+            .order_by(MedicalDocument.created_at.desc())
+            .first()
+        )
+        response.append(
+            {
             "id": r.id,
             "patient_id": r.patient_id,
             "doctor_id": r.doctor_id,
@@ -255,9 +284,11 @@ def list_prescriptions(
             "follow_up_date": r.follow_up_date,
             "pmjay_covered": r.pmjay_covered,
             "created_at": r.created_at.isoformat() if r.created_at else "",
+            "document_id": prescription_doc.id if prescription_doc else "",
+            "ingested_to_rag": bool(prescription_doc.ingested_to_rag) if prescription_doc else False,
         }
-        for r in records
-    ]
+        )
+    return response
 
 
 @router.post("/ai-prescription")

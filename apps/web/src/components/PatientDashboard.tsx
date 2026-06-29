@@ -1,13 +1,41 @@
-import React from "react";
-import { Sparkles, FileText, Heart, Activity, Users, MessageSquare } from "lucide-react";
-import { AuthResponse } from "../api/client";
+import React, { useEffect, useState } from "react";
+import { Sparkles, FileText, Heart, Activity, Users, MessageSquare, Pill, CheckCircle2, AlertTriangle } from "lucide-react";
+import { api, AuthResponse, PrescriptionRecord } from "../api/client";
 
 type PatientDashboardProps = {
+  token: string;
   session: AuthResponse;
   onNavigate: (tab: "home" | "clinical" | "documents" | "care" | "hospitals" | "trust" | "doctor" | "profile" | "public-health" | "family" | "chat") => void;
 };
 
-export const PatientDashboard: React.FC<PatientDashboardProps> = ({ session, onNavigate }) => {
+export const PatientDashboard: React.FC<PatientDashboardProps> = ({ token, session, onNavigate }) => {
+  const [prescriptions, setPrescriptions] = useState<PrescriptionRecord[]>([]);
+  const [loadingPrescriptions, setLoadingPrescriptions] = useState(false);
+  const [prescriptionError, setPrescriptionError] = useState("");
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    setLoadingPrescriptions(true);
+    setPrescriptionError("");
+    api.listPrescriptions(token)
+      .then((records) => {
+        if (cancelled) return;
+        setPrescriptions(
+          [...records].sort((a, b) => Date.parse(b.created_at || "") - Date.parse(a.created_at || "")).slice(0, 3),
+        );
+      })
+      .catch((err: any) => {
+        if (!cancelled) setPrescriptionError(err.message || "Could not load prescriptions");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPrescriptions(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {/* Welcome Hero Card */}
@@ -94,6 +122,42 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ session, onN
               Consent Grants
             </button>
           </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center", marginBottom: "12px" }}>
+          <h3 style={{ fontSize: "1rem", display: "flex", alignItems: "center", gap: "8px" }}>
+            <Pill size={18} style={{ color: "var(--primary)" }} />
+            Recent Signed Prescriptions
+          </h3>
+          <button onClick={() => onNavigate("documents")} className="button-sec" style={{ padding: "6px 12px", fontSize: "0.78rem" }}>
+            Open Medical Vault
+          </button>
+        </div>
+        {prescriptionError && <div className="toast toast-error">{prescriptionError}</div>}
+        {loadingPrescriptions && <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>Loading prescriptions...</div>}
+        {!loadingPrescriptions && !prescriptionError && prescriptions.length === 0 && (
+          <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>No doctor-signed prescriptions yet.</div>
+        )}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "12px" }}>
+          {prescriptions.map((rx) => (
+            <div key={rx.id} style={{ border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", background: "rgba(255,255,255,0.02)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", marginBottom: "8px" }}>
+                <strong style={{ fontSize: "0.9rem" }}>{rx.diagnosis || "Signed prescription"}</strong>
+                <span style={{ color: "var(--muted)", fontSize: "0.72rem" }}>{rx.created_at ? new Date(rx.created_at).toLocaleDateString() : ""}</span>
+              </div>
+              <div style={{ fontSize: "0.82rem", color: "var(--muted)", whiteSpace: "pre-wrap", marginBottom: "8px" }}>{rx.medications}</div>
+              <div style={{ fontSize: "0.78rem", display: "flex", flexDirection: "column", gap: "4px" }}>
+                <span><strong>Dosage:</strong> {rx.dosage || "As directed"}</span>
+                <span><strong>Duration:</strong> {rx.duration || "As directed"}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "10px", color: rx.ingested_to_rag ? "#2ecc71" : "#f1c40f", fontSize: "0.76rem" }}>
+                {rx.ingested_to_rag ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+                {rx.ingested_to_rag ? "Added to Medical Vault and RAG" : "Saved to vault, RAG pending"}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
