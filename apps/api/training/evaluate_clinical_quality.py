@@ -15,13 +15,33 @@ def load_jsonl(path: Path) -> list[dict]:
 def evaluate_case(case: dict, answer: str) -> dict:
     answer_l = answer.lower()
     missing = [item for item in case.get("must_include", []) if item.lower() not in answer_l]
-    forbidden = [item for item in case.get("must_not_include", []) if item.lower() in answer_l]
+    forbidden = [item for item in case.get("must_not_include", []) if _has_forbidden(answer_l, item.lower(), case)]
     return {
         "id": case["id"],
         "passed": not missing and not forbidden,
         "missing": missing,
         "forbidden": forbidden,
     }
+
+
+def _has_forbidden(answer_l: str, forbidden: str, case: dict) -> bool:
+    if forbidden not in answer_l:
+        return False
+    must_include = [item.lower() for item in case.get("must_include", [])]
+    if any(forbidden in required for required in must_include):
+        return False
+    negated_safe_phrases = [
+        f"cannot {forbidden}",
+        f"can't {forbidden}",
+        f"do not {forbidden}",
+        f"don't {forbidden}",
+        f"avoid {forbidden}",
+        f"not {forbidden}",
+        f"no {forbidden}",
+    ]
+    if any(phrase in answer_l for phrase in negated_safe_phrases):
+        return False
+    return True
 
 
 def main() -> None:

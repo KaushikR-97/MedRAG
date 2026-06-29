@@ -4,6 +4,8 @@ import re
 import sys
 from pathlib import Path
 
+from quality_contract import enforce_quality_contract
+
 
 def format_prompt(prompt: str) -> str:
     return (
@@ -119,7 +121,7 @@ def generate_answer(
             eos_token_id=tokenizer.eos_token_id,
         )
     decoded = tokenizer.decode(output[0], skip_special_tokens=False)
-    return clean_completion(decoded, prompt)
+    return enforce_quality_contract(prompt=prompt, answer=clean_completion(decoded, prompt))
 
 
 def main() -> None:

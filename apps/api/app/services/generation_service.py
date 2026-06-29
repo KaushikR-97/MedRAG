@@ -1,3 +1,5 @@
+import re
+
 from app.rag.retriever import RetrievedChunk
 from app.core.config import settings
 from app.services.local_model_service import get_local_huggingface_model
@@ -46,7 +48,12 @@ class ClinicalGenerationService:
                 policy_mode=policy_mode,
             )
             try:
-                cleaned = self._clean_model_answer(get_local_huggingface_model().generate(prompt))
+                cleaned = self._apply_runtime_quality_contract(
+                    question=question,
+                    user_role=user_role,
+                    answer=self._clean_model_answer(get_local_huggingface_model().generate(prompt)),
+                    source_text=source_text,
+                )
                 if cleaned:
                     return cleaned
                 return self._fallback_generation(
@@ -123,7 +130,12 @@ class ClinicalGenerationService:
                         "policy_instruction": policy_instruction,
                     }
                 )
-                cleaned = self._clean_model_answer(str(response.content))
+                cleaned = self._apply_runtime_quality_contract(
+                    question=question,
+                    user_role=user_role,
+                    answer=self._clean_model_answer(str(response.content)),
+                    source_text=source_text,
+                )
                 if cleaned:
                     return cleaned
                 return self._fallback_generation(
@@ -201,6 +213,7 @@ class ClinicalGenerationService:
     def _clean_model_answer(answer: str) -> str:
         cleaned = answer.strip()
         cleaned = ClinicalGenerationService._strip_prompt_echo(cleaned)
+        cleaned = ClinicalGenerationService._remove_repetition(cleaned)
         cut_markers = [
             "[/inst]",
             "[inst]",
@@ -227,6 +240,41 @@ class ClinicalGenerationService:
         for marker in blocked_markers:
             if marker in lower:
                 return ""
+        return cleaned
+
+    @staticmethod
+    def _remove_repetition(answer: str) -> str:
+        cleaned = re.sub(r"(.{3,24}?)\1{4,}", r"\1", answer)
+        cleaned = re.sub(r"\b(\w{3,})\b(?:\s+\1\b){3,}", r"\1", cleaned, flags=re.I)
+        if any(token in cleaned for token in ["ACHEACHE", "iktikt", "exc exc"]):
+            return ""
+        return cleaned.strip()
+
+    @staticmethod
+    def _apply_runtime_quality_contract(*, question: str, user_role: str, answer: str, source_text: str) -> str:
+        cleaned = answer.strip()
+        lowered = cleaned.lower()
+        if not cleaned:
+            return ""
+        if user_role == "doctor" and any(
+            phrase in lowered
+            for phrase in [
+                "i cannot prescribe",
+                "cannot provide medical advice",
+                "consult a qualified clinician",
+                "doctor mode must be enabled",
+                "patient-facing answers",
+            ]
+        ):
+            return ClinicalGenerationService._doctor_framework_fallback(question=question, source_text=source_text)
+        if user_role != "doctor" and re.search(r"\b\d+\s*(?:mg|mcg|g|ml)\b", lowered):
+            return (
+                "In plain language, I can explain what your symptoms or report may mean, what lifestyle steps may help, "
+                "what follow-up to discuss with your doctor, and what red flags need urgent care. "
+                "I cannot prescribe medicines or doses from a patient account."
+            )
+        if len(cleaned) < 24:
+            return ""
         return cleaned
 
     @staticmethod
