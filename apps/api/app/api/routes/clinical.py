@@ -45,7 +45,8 @@ def ask_clinical_question(
     timer = TraceTimer()
 
     cache_service = ClinicalCacheService()
-    cached = cache_service.get_cached_answer(payload.question, user.role, patient_id)
+    direct_value_query = _is_patient_record_value_query(payload.question)
+    cached = None if direct_value_query else cache_service.get_cached_answer(payload.question, user.role, patient_id)
     if cached and _is_gibberish_answer(cached.get("answer", "")):
         cached = None
     if cached:
@@ -140,7 +141,9 @@ def ask_clinical_question(
             "retrieval_source_types": [],
             "rewritten_queries": [],
         }
-    answer = PrivacyService().minimum_necessary_text(actor=user, patient_id=patient_id, text=state["answer"], db=db)
+    direct_value_answer = _direct_lab_value_answer(payload.question, state.get("sources", []))
+    raw_answer = direct_value_answer or state["answer"]
+    answer = PrivacyService().minimum_necessary_text(actor=user, patient_id=patient_id, text=raw_answer, db=db)
     if _is_gibberish_answer(answer):
         answer = _fallback_clinical_answer(payload.question, user.role, sources=state.get("sources", []))
         state["safety_label"] = "fallback_answer"
@@ -192,7 +195,8 @@ def ask_clinical_question(
         "retrieval_source_types": state.get("retrieval_source_types", []),
         "rewritten_queries": state.get("rewritten_queries", []),
     }
-    cache_service.set_cached_answer(payload.question, user.role, patient_id, cache_payload)
+    if not direct_value_query:
+        cache_service.set_cached_answer(payload.question, user.role, patient_id, cache_payload)
     return ClinicalAnswer(
         answer=answer,
         conversation_id=conversation_id,
@@ -235,6 +239,83 @@ def _is_gibberish_answer(text: str) -> bool:
     unique_ratio = len(set(words)) / len(words)
     most_common_count = max(words.count(word) for word in set(words))
     return unique_ratio < 0.18 or most_common_count >= 18
+
+
+LAB_VALUE_ALIASES: dict[str, list[str]] = {
+    "uric acid": ["uric acid", "serum uric acid", "s uric acid"],
+    "hba1c": ["hba1c", "hb a1c", "glycated hemoglobin", "glycated haemoglobin"],
+    "creatinine": ["creatinine", "serum creatinine"],
+    "glucose": ["glucose", "fasting glucose", "fasting blood sugar", "fbs", "rbs", "ppbs"],
+    "tsh": ["tsh", "thyroid stimulating hormone"],
+    "cholesterol": ["cholesterol", "total cholesterol"],
+    "triglyceride": ["triglyceride", "triglycerides"],
+    "hemoglobin": ["hemoglobin", "haemoglobin", "hb"],
+    "platelet": ["platelet", "platelets", "platelet count"],
+}
+
+
+def _is_patient_record_value_query(question: str) -> bool:
+    lowered = question.lower()
+    record_cues = {"my ", "report", "lab", "blood test", "value", "level", "result", "reading"}
+    return any(cue in lowered for cue in record_cues) and any(
+        alias in lowered
+        for aliases in LAB_VALUE_ALIASES.values()
+        for alias in aliases
+    )
+
+
+def _direct_lab_value_answer(question: str, sources: list[RetrievedChunk]) -> str | None:
+    lowered = question.lower()
+    requested_aliases = [
+        (label, aliases)
+        for label, aliases in LAB_VALUE_ALIASES.items()
+        if any(alias in lowered for alias in aliases)
+    ]
+    if not requested_aliases:
+        return None
+    for label, aliases in requested_aliases:
+        for source in sources:
+            value = _extract_lab_value(source.text, aliases)
+            if value:
+                report_date = _extract_metadata_line(source.text, "Clinical/report date") or _extract_metadata_line(source.text, "Record date")
+                date_text = f" dated {report_date}" if report_date else ""
+                return (
+                    f"Your latest {label} value found in your uploaded report{date_text} is {value}. "
+                    "This is from your medical record context, not a generic answer. Please discuss the result with your clinician for interpretation with symptoms, medicines, kidney function, and other reports."
+                )
+    return None
+
+
+def _extract_lab_value(text: str, aliases: list[str]) -> str | None:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    for line in lines:
+        for alias in aliases:
+            if alias.lower() not in line.lower():
+                continue
+            escaped = re.escape(alias)
+            patterns = [
+                rf"{escaped}\s*(?:[:=\-]|\s)\s*([0-9]+(?:\.[0-9]+)?\s*(?:mg/dl|mg/dL|mmol/L|%|g/dL|g/dl|u/L|IU/L|mIU/L|ng/mL|cells/[a-zA-Z]+)?)",
+                rf"([0-9]+(?:\.[0-9]+)?\s*(?:mg/dl|mg/dL|mmol/L|%|g/dL|g/dl|u/L|IU/L|mIU/L|ng/mL|cells/[a-zA-Z]+)?)\s+{escaped}",
+            ]
+            for pattern in patterns:
+                match = re.search(pattern, line, flags=re.IGNORECASE)
+                if match:
+                    return match.group(1).strip()
+    compact = re.sub(r"\s+", " ", text)
+    for alias in aliases:
+        match = re.search(
+            rf"{re.escape(alias)}\s*(?:[:=\-]|\s)\s*([0-9]+(?:\.[0-9]+)?\s*(?:mg/dl|mg/dL|mmol/L|%|g/dL|g/dl|u/L|IU/L|mIU/L|ng/mL|cells/[a-zA-Z]+)?)",
+            compact,
+            flags=re.IGNORECASE,
+        )
+        if match:
+            return match.group(1).strip()
+    return None
+
+
+def _extract_metadata_line(text: str, label: str) -> str:
+    match = re.search(rf"^{re.escape(label)}:\s*(.+)$", text, flags=re.IGNORECASE | re.MULTILINE)
+    return match.group(1).strip() if match else ""
 
 
 @router.get("/history", response_model=list[ClinicalHistoryItem])

@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.core.security import get_current_user, generate_12_digit_id
 from app.db.session import get_db
@@ -65,51 +66,58 @@ def register_family_member(
 ) -> dict:
     if user.role != "patient":
         raise HTTPException(403, "Only patients can register family members")
+    if not payload.full_name.strip():
+        raise HTTPException(400, "Family member name is required")
+    try:
+        child_id = generate_12_digit_id(db, User)
+        child_email = f"family_{child_id}@medrag.in"
+        from app.core.security import hash_password
+        child_user = User(
+            id=child_id,
+            email=child_email,
+            hashed_password=hash_password(str(uuid.uuid4())),
+            full_name=payload.full_name.strip(),
+            role="patient",
+            phone=user.phone or "",
+            age=payload.age or None,
+            city=user.city or "",
+        )
+        db.add(child_user)
+        db.flush()
 
-    # 1. Create a dummy User for the child
-    child_id = generate_12_digit_id(db, User)
-    child_email = f"family_{child_id}@medrag.in"
-    from app.core.security import hash_password
-    child_user = User(
-        id=child_id,
-        email=child_email,
-        hashed_password=hash_password(str(uuid.uuid4())),  # Random secure password
-        full_name=payload.full_name,
-        role="patient",
-        phone=user.phone,  # Link to parent's phone by default
-    )
-    db.add(child_user)
+        child_profile = PatientProfile(id=str(uuid.uuid4()), user_id=child_id)
+        db.add(child_profile)
 
-    # 2. Create PatientProfile for the child
-    child_profile = PatientProfile(id=str(uuid.uuid4()), user_id=child_id)
-    db.add(child_profile)
+        member = FamilyMember(
+            id=str(uuid.uuid4()),
+            owner_id=user.id,
+            full_name=payload.full_name.strip(),
+            relation=payload.relation,
+            age=payload.age or 0,
+            notes=payload.notes,
+            member_user_id=child_id,
+        )
+        db.add(member)
 
-    # 3. Create FamilyMember linking mapping
-    member = FamilyMember(
-        id=str(uuid.uuid4()),
-        owner_id=user.id,
-        full_name=payload.full_name,
-        relation=payload.relation,
-        age=payload.age,
-        notes=payload.notes,
-        member_user_id=child_id,
-    )
-    db.add(member)
+        consent = ConsentGrant(
+            id=str(uuid.uuid4()),
+            patient_id=child_id,
+            grantee_id=user.id,
+            scope=payload.scope,
+            purpose=f"Family/caregiver access by {user.full_name}",
+            starts_at=datetime.now(UTC),
+            expires_at=None,
+        )
+        db.add(consent)
 
-    # 4. Create automatic ConsentGrant for the parent
-    consent = ConsentGrant(
-        id=str(uuid.uuid4()),
-        patient_id=child_id,
-        grantee_id=user.id,
-        scope=payload.scope,
-        purpose=f"Parental guardianship by {user.full_name}",
-        starts_at=datetime.now(UTC),
-        expires_at=None,
-    )
-    db.add(consent)
-
-    db.commit()
-    return {"id": member.id, "member_user_id": child_id}
+        db.commit()
+        return {"id": member.id, "member_user_id": child_id}
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(409, "Family member could not be linked because a related account already exists. Please retry.") from exc
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(500, f"Family member linking failed at database layer: {type(exc).__name__}. Ensure migrations are applied with alembic upgrade head.") from exc
 
 
 @router.get("/family", response_model=list[FamilyMemberResponse])

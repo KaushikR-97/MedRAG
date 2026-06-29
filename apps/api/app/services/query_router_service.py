@@ -71,6 +71,9 @@ class QueryRouterService:
         self.confidence_threshold = confidence_threshold or settings.query_router_confidence_threshold
 
     def route(self, *, question: str, user_role: str) -> QueryRoutingDecision:
+        deterministic = self._deterministic_patient_record_route(question=question)
+        if deterministic is not None:
+            return deterministic
         raw = self._invoke_router_llm(question=question, user_role=user_role)
         if raw is None:
             return self._fallback("Router LLM unavailable; defaulting to broad medical retrieval.", user_role=user_role)
@@ -209,6 +212,52 @@ class QueryRouterService:
             reason=reason,
             used_fallback=True,
         )
+
+    def _deterministic_patient_record_route(self, *, question: str) -> QueryRoutingDecision | None:
+        lowered = question.lower()
+        record_cues = {
+            "my ",
+            "mine",
+            "report",
+            "lab",
+            "blood test",
+            "value",
+            "level",
+            "result",
+            "reading",
+        }
+        lab_cues = {
+            "uric acid",
+            "hba1c",
+            "hb a1c",
+            "glucose",
+            "creatinine",
+            "tsh",
+            "t3",
+            "t4",
+            "cholesterol",
+            "triglyceride",
+            "hdl",
+            "ldl",
+            "hemoglobin",
+            "haemoglobin",
+            "platelet",
+            "wbc",
+            "rbc",
+            "bilirubin",
+            "sgpt",
+            "sgot",
+            "alt",
+            "ast",
+        }
+        if any(cue in lowered for cue in record_cues) and any(cue in lowered for cue in lab_cues):
+            return self._decision(
+                route="patient_record_needed",
+                confidence=1.0,
+                reason="Deterministic lab/report value query; patient records are required.",
+                used_fallback=False,
+            )
+        return None
 
 
 @lru_cache
