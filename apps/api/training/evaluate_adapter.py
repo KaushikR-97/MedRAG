@@ -1,6 +1,7 @@
 import argparse
 import re
 import sys
+from pathlib import Path
 
 import torch
 from peft import PeftModel
@@ -52,6 +53,11 @@ def main() -> None:
     parser.add_argument("--max-input-tokens", type=int, default=0)
     args = parser.parse_args()
 
+    adapter_path = Path(args.adapter_path).expanduser()
+    if not adapter_path.exists():
+        print(f"Adapter path not found: {adapter_path.resolve()}", file=sys.stderr)
+        raise SystemExit(2)
+
     tokenizer = AutoTokenizer.from_pretrained(args.base_model, use_fast=True, trust_remote_code=True)
     tokenizer.pad_token = tokenizer.pad_token or tokenizer.eos_token
     quantization = BitsAndBytesConfig(
@@ -60,13 +66,21 @@ def main() -> None:
         bnb_4bit_quant_type="nf4",
         bnb_4bit_use_double_quant=True,
     )
-    base = AutoModelForCausalLM.from_pretrained(
-        args.base_model,
-        quantization_config=quantization,
-        device_map="auto",
-        trust_remote_code=True,
-    )
-    model = PeftModel.from_pretrained(base, args.adapter_path)
+    try:
+        base = AutoModelForCausalLM.from_pretrained(
+            args.base_model,
+            quantization_config=quantization,
+            device_map="auto",
+            trust_remote_code=True,
+        )
+        model = PeftModel.from_pretrained(base, str(adapter_path))
+    except Exception as exc:
+        print(
+            "Failed to load base model or adapter. Check GPU memory, adapter path, HF access/rate limits, "
+            f"and bitsandbytes CUDA support. Details: {exc}",
+            file=sys.stderr,
+        )
+        raise
     model.eval()
     formatted_prompt = format_prompt(args.prompt)
     model_limit = getattr(model.config, "max_position_embeddings", 4096) or 4096
