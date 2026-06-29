@@ -1,3 +1,5 @@
+import gc
+import json
 from functools import lru_cache
 
 from app.core.config import settings
@@ -42,11 +44,19 @@ class LocalHuggingFaceModel:
                 bnb_4bit_use_double_quant=True,
             )
 
+        model_kwargs = {
+            "device_map": settings.local_model_device,
+            "quantization_config": quantization_config,
+            "torch_dtype": torch.float16,
+            "low_cpu_mem_usage": True,
+        }
+        max_memory = self._parse_max_memory(settings.local_model_max_memory_json)
+        if max_memory:
+            model_kwargs["max_memory"] = max_memory
+
         model = AutoModelForCausalLM.from_pretrained(
             settings.base_model_name,
-            device_map=settings.local_model_device,
-            quantization_config=quantization_config,
-            torch_dtype=torch.float16,
+            **model_kwargs,
         )
         self.adapter_path = settings.finetuned_adapter_path.strip()
         if self.adapter_path:
@@ -88,9 +98,22 @@ class LocalHuggingFaceModel:
                 pad_token_id=self.tokenizer.eos_token_id,
                 eos_token_id=self.tokenizer.eos_token_id,
             )
+        if settings.local_model_cleanup_cuda and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            gc.collect()
         generated_tokens = output[0][input_len:]
         decoded = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
         return decoded.strip()
+
+    @staticmethod
+    def _parse_max_memory(value: str) -> dict | None:
+        if not value.strip():
+            return None
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return None
+        return {int(key) if str(key).isdigit() else key: item for key, item in parsed.items()}
 
 
 @lru_cache

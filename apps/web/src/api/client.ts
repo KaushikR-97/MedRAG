@@ -224,6 +224,31 @@ export type PreConsultationRecord = {
   doctor_name: string;
 };
 
+export type PatientCareBrief = {
+  generated_at: string;
+  active_diseases: Array<{ diagnosis: string; medications: string; started_at: string }>;
+  active_reminders: Array<{ medicine_name: string; dosage: string; schedule: string }>;
+  upcoming_appointments: Array<{ id: string; date: string; time_slot: string; status: string; consultation_mode: string; reason: string }>;
+  records_needing_attention: Array<{ id: string; filename: string; status: string; ocr_review_status: string; ingested_to_rag: boolean }>;
+  suggested_actions: Array<{ type: string; priority: string; title: string; detail: string }>;
+};
+
+export type DoctorConsultPrep = {
+  appointment: Record<string, unknown>;
+  patient: Record<string, unknown>;
+  preconsult_agent: {
+    status: string;
+    symptoms: string;
+    reason_for_call: string;
+    draft_summary: string;
+    reward_score: number;
+  };
+  active_prescriptions: Array<Record<string, string>>;
+  records: Array<Record<string, unknown>>;
+  missing_questions: string[];
+  red_flags: string[];
+};
+
 export type ConsultationSignalRecord = {
   id: string;
   room_id: string;
@@ -1142,6 +1167,13 @@ export const api = {
       active: boolean;
       created_at: string;
     }>>(`/patient/medication-reminders${query}`, {}, token);
+  },
+  getPatientCareBrief(token: string, patientId?: string) {
+    const query = patientId ? `?patient_id=${encodeURIComponent(patientId)}` : "";
+    return request<PatientCareBrief>(`/shared/patient-brief${query}`, {}, token);
+  },
+  getDoctorConsultPrep(token: string, appointmentId: string) {
+    return request<DoctorConsultPrep>(`/doctor/consult-prep/${encodeURIComponent(appointmentId)}`, {}, token);
   },
   joinConsultationRoom(token: string, appointmentId: string) {
     return request<ConsultationRoomRecord>(

@@ -7,7 +7,8 @@ from datetime import datetime, UTC
 from app.core.security import require_role, get_current_user
 from app.db.session import get_db
 from app.models.document import MedicalDocument
-from app.models.feature_modules import Appointment, Prescription, SecondOpinionRequest
+from app.models.feature_modules import Appointment, Prescription, PreConsultationIntake, SecondOpinionRequest
+from app.models.patient import PatientProfile
 from app.models.user import User
 from app.schemas.features import (
     DrugInteractionRequest,
@@ -75,6 +76,118 @@ def rx_renewal_alerts(doctor: User = Depends(require_role("doctor", "hospital_ad
 @router.post("/drug-interactions")
 def drug_interactions(payload: DrugInteractionRequest, _doctor: User = Depends(require_role("doctor", "hospital_admin"))) -> dict:
     return {"interactions": [item.__dict__ for item in ClinicalToolsService().check_interactions(payload.medicines)]}
+
+
+@router.get("/consult-prep/{appointment_id}")
+def consult_prep(
+    appointment_id: str,
+    doctor: User = Depends(require_role("doctor", "hospital_admin")),
+    db: Session = Depends(get_db),
+) -> dict:
+    appointment = db.get(Appointment, appointment_id)
+    if appointment is None:
+        raise HTTPException(404, "Appointment not found")
+    if doctor.role == "doctor" and appointment.doctor_id != doctor.id:
+        raise HTTPException(403, "Doctor can only prepare own appointments")
+    if not ComplianceService(db).can_access_patient(actor=doctor, patient_id=appointment.patient_id, scope="clinical.ask"):
+        raise HTTPException(403, "Missing patient consent or care-team access")
+
+    patient = db.get(User, appointment.patient_id)
+    profile = db.query(PatientProfile).filter(PatientProfile.user_id == appointment.patient_id).first()
+    intake = (
+        db.query(PreConsultationIntake)
+        .filter(PreConsultationIntake.appointment_id == appointment.id)
+        .first()
+    )
+    prescriptions = (
+        db.query(Prescription)
+        .filter(Prescription.patient_id == appointment.patient_id)
+        .order_by(Prescription.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    documents = (
+        db.query(MedicalDocument)
+        .filter(
+            MedicalDocument.patient_id == appointment.patient_id,
+            MedicalDocument.status != "deleted_by_patient",
+        )
+        .order_by(MedicalDocument.created_at.desc())
+        .limit(8)
+        .all()
+    )
+
+    missing_questions = []
+    if not profile or not profile.allergies:
+        missing_questions.append("Confirm drug allergies and prior severe reactions.")
+    if not profile or not profile.current_medications:
+        missing_questions.append("Confirm all current medicines, OTC drugs, and supplements.")
+    if not intake or not intake.symptoms:
+        missing_questions.append("Ask patient to describe symptoms, onset, duration, severity, and progression.")
+    if not any(doc.ingested_to_rag for doc in documents):
+        missing_questions.append("Ask whether recent reports are missing or still pending RAG ingestion.")
+
+    red_flags = [
+        "Breathing difficulty, chest pain, syncope, confusion, seizures, severe dehydration, uncontrolled bleeding, or rapidly worsening symptoms require urgent escalation.",
+        "Check pregnancy status where relevant before prescribing.",
+        "Check renal/hepatic function, age, weight, allergies, interactions, and comorbidities before final treatment.",
+    ]
+
+    return {
+        "appointment": {
+            "id": appointment.id,
+            "date": appointment.date,
+            "time_slot": appointment.time_slot,
+            "timezone": appointment.timezone,
+            "status": appointment.status,
+            "mode": appointment.consultation_mode,
+            "reason": appointment.reason,
+            "notes": appointment.notes,
+        },
+        "patient": {
+            "id": patient.id if patient else appointment.patient_id,
+            "name": patient.full_name if patient else "",
+            "age": patient.age if patient else None,
+            "city": patient.city if patient else "",
+            "gender": profile.gender if profile else "",
+            "blood_group": profile.blood_group if profile else "",
+            "allergies": profile.allergies if profile else "",
+            "chronic_conditions": profile.chronic_conditions if profile else "",
+            "current_medications": profile.current_medications if profile else "",
+        },
+        "preconsult_agent": {
+            "status": intake.status if intake else "not_started",
+            "symptoms": intake.symptoms if intake else "",
+            "reason_for_call": intake.reason_for_call if intake else "",
+            "draft_summary": intake.draft_summary if intake else "",
+            "reward_score": intake.reward_score if intake else 0,
+        },
+        "active_prescriptions": [
+            {
+                "id": rx.id,
+                "diagnosis": rx.diagnosis,
+                "medications": rx.medications,
+                "dosage": rx.dosage,
+                "duration": rx.duration,
+                "created_at": rx.created_at.isoformat() if rx.created_at else "",
+            }
+            for rx in prescriptions
+        ],
+        "records": [
+            {
+                "id": doc.id,
+                "filename": doc.original_filename,
+                "document_type": doc.document_type,
+                "status": doc.status,
+                "verified": doc.verified_by_patient,
+                "ingested_to_rag": doc.ingested_to_rag,
+                "preview": (doc.verified_text or doc.ocr_text or doc.clinician_verified_findings or "")[:500],
+            }
+            for doc in documents
+        ],
+        "missing_questions": missing_questions,
+        "red_flags": red_flags,
+    }
 
 
 @router.post("/soap-note", response_model=SoapResponse)

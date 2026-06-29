@@ -17,6 +17,7 @@ from app.models.feature_modules import (
     Prescription,
     SymptomEntry,
 )
+from app.models.document import MedicalDocument
 from app.models.user import User
 from app.services.clinical_tools_service import ClinicalToolsService
 from app.services.voice_service import VoiceService
@@ -51,6 +52,133 @@ def health_timeline(
     for symptom in db.query(SymptomEntry).filter(SymptomEntry.patient_id == target_id).all():
         events.append({"type": "symptom", "id": symptom.id, "date": symptom.created_at.isoformat(), "title": symptom.symptoms[:80]})
     return {"events": sorted(events, key=lambda item: item["date"], reverse=True)}
+
+
+@router.get("/patient-brief")
+def patient_daily_brief(
+    patient_id: str | None = None,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    target_id = patient_id or user.id
+    from app.services.compliance_service import ComplianceService
+    if not ComplianceService(db).can_access_patient(actor=user, patient_id=target_id, scope="profile.read"):
+        raise HTTPException(403, "Missing patient consent or care-team access")
+
+    now = datetime.now(UTC)
+    prescriptions = (
+        db.query(Prescription)
+        .filter(Prescription.patient_id == target_id)
+        .order_by(Prescription.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    reminders = (
+        db.query(MedicationReminder)
+        .filter(MedicationReminder.patient_id == target_id, MedicationReminder.active.is_(True))
+        .all()
+    )
+    appointments = (
+        db.query(Appointment)
+        .filter(Appointment.patient_id == target_id, Appointment.status.in_(["requested", "confirmed", "checked_in"]))
+        .order_by(Appointment.date.asc(), Appointment.time_slot.asc())
+        .limit(5)
+        .all()
+    )
+    pending_docs = (
+        db.query(MedicalDocument)
+        .filter(
+            MedicalDocument.patient_id == target_id,
+            MedicalDocument.status != "deleted_by_patient",
+            MedicalDocument.ingested_to_rag.is_(False),
+        )
+        .order_by(MedicalDocument.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    active_diseases = []
+    seen = set()
+    for rx in prescriptions:
+        diagnosis = (rx.diagnosis or "").strip()
+        if diagnosis and diagnosis.lower() not in seen:
+            seen.add(diagnosis.lower())
+            active_diseases.append(
+                {
+                    "diagnosis": diagnosis,
+                    "medications": rx.medications,
+                    "started_at": rx.created_at.isoformat() if rx.created_at else "",
+                }
+            )
+
+    actions: list[dict] = []
+    if reminders:
+        actions.append(
+            {
+                "type": "medication",
+                "priority": "high",
+                "title": "Review today's medicines",
+                "detail": f"{len(reminders)} active medication reminder(s) are scheduled.",
+            }
+        )
+    if appointments:
+        next_appt = appointments[0]
+        actions.append(
+            {
+                "type": "appointment",
+                "priority": "high" if next_appt.status == "confirmed" else "medium",
+                "title": "Prepare for upcoming consultation",
+                "detail": f"{next_appt.date} {next_appt.time_slot} | {next_appt.status}",
+            }
+        )
+    if pending_docs:
+        actions.append(
+            {
+                "type": "records",
+                "priority": "medium",
+                "title": "Verify or retry document ingestion",
+                "detail": f"{len(pending_docs)} medical record(s) are not yet available to RAG.",
+            }
+        )
+    if not actions:
+        actions.append(
+            {
+                "type": "wellness",
+                "priority": "low",
+                "title": "Keep your medical profile updated",
+                "detail": "Add allergies, current medicines, and recent reports before your next visit.",
+            }
+        )
+
+    return {
+        "generated_at": now.isoformat(),
+        "active_diseases": active_diseases,
+        "active_reminders": [
+            {"medicine_name": item.medicine_name, "dosage": item.dosage, "schedule": item.schedule}
+            for item in reminders
+        ],
+        "upcoming_appointments": [
+            {
+                "id": item.id,
+                "date": item.date,
+                "time_slot": item.time_slot,
+                "status": item.status,
+                "consultation_mode": item.consultation_mode,
+                "reason": item.reason,
+            }
+            for item in appointments
+        ],
+        "records_needing_attention": [
+            {
+                "id": item.id,
+                "filename": item.original_filename,
+                "status": item.status,
+                "ocr_review_status": item.ocr_review_status,
+                "ingested_to_rag": item.ingested_to_rag,
+            }
+            for item in pending_docs
+        ],
+        "suggested_actions": actions,
+    }
 
 
 @router.get("/pre-consult-summary")

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Sparkles, FileText, Heart, Activity, Users, MessageSquare, Pill, CheckCircle2, AlertTriangle } from "lucide-react";
-import { api, AuthResponse, PrescriptionRecord } from "../api/client";
+import { api, AuthResponse, PatientCareBrief, PrescriptionRecord } from "../api/client";
 
 type PatientDashboardProps = {
   token: string;
@@ -12,6 +12,8 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ token, sessi
   const [prescriptions, setPrescriptions] = useState<PrescriptionRecord[]>([]);
   const [loadingPrescriptions, setLoadingPrescriptions] = useState(false);
   const [prescriptionError, setPrescriptionError] = useState("");
+  const [careBrief, setCareBrief] = useState<PatientCareBrief | null>(null);
+  const [briefError, setBriefError] = useState("");
 
   useEffect(() => {
     if (!token) return;
@@ -36,6 +38,22 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ token, sessi
     };
   }, [token]);
 
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    setBriefError("");
+    api.getPatientCareBrief(token)
+      .then((brief) => {
+        if (!cancelled) setCareBrief(brief);
+      })
+      .catch((err: any) => {
+        if (!cancelled) setBriefError(err.message || "Could not load care brief");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {/* Welcome Hero Card */}
@@ -44,6 +62,40 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ token, sessi
         <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: 0 }}>
           Your Patient ID: <span style={{ fontFamily: "monospace", color: "var(--primary)" }}>{session.user_id}</span>
         </p>
+      </div>
+
+      <div className="card">
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center", marginBottom: "12px" }}>
+          <h3 style={{ fontSize: "1rem", display: "flex", alignItems: "center", gap: "8px" }}>
+            <CheckCircle2 size={18} style={{ color: "var(--primary)" }} />
+            Today's Care Brief
+          </h3>
+          <span style={{ color: "var(--muted)", fontSize: "0.74rem" }}>
+            {careBrief?.generated_at ? new Date(careBrief.generated_at).toLocaleTimeString() : ""}
+          </span>
+        </div>
+        {briefError && <div className="toast toast-error">{briefError}</div>}
+        {!briefError && !careBrief && <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>Loading care brief...</div>}
+        {careBrief && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
+            {careBrief.suggested_actions.map((action, index) => (
+              <div key={`${action.type}-${index}`} style={{ border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", background: "rgba(255,255,255,0.02)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", marginBottom: "6px" }}>
+                  <strong style={{ fontSize: "0.86rem" }}>{action.title}</strong>
+                  <span style={{ color: action.priority === "high" ? "#e74c3c" : action.priority === "medium" ? "#f1c40f" : "var(--muted)", fontSize: "0.72rem" }}>
+                    {action.priority.toUpperCase()}
+                  </span>
+                </div>
+                <p style={{ color: "var(--muted)", fontSize: "0.8rem", margin: 0 }}>{action.detail}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        {careBrief && careBrief.active_diseases.length > 0 && (
+          <div style={{ marginTop: "12px", color: "var(--muted)", fontSize: "0.8rem" }}>
+            Active treatment context: {careBrief.active_diseases.map((item) => item.diagnosis).join(", ")}
+          </div>
+        )}
       </div>
 
       {/* Grid of quick vitals & stats */}

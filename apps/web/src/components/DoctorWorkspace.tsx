@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Users, FileText, Send, CheckCircle, AlertTriangle } from "lucide-react";
-import { api, AppointmentRecord, ConsultationMessageRecord, PreConsultationRecord } from "../api/client";
+import { api, AppointmentRecord, ConsultationMessageRecord, DoctorConsultPrep, PreConsultationRecord } from "../api/client";
 import { encryptMessage, decryptMessage } from "../utils/crypto";
 
 type DoctorWorkspaceProps = {
@@ -62,6 +62,7 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
   const [passphrase, setPassphrase] = useState("");
   const [preConsults, setPreConsults] = useState<Record<string, PreConsultationRecord>>({});
   const [preConsultFeedback, setPreConsultFeedback] = useState<Record<string, string>>({});
+  const [consultPreps, setConsultPreps] = useState<Record<string, DoctorConsultPrep>>({});
 
   useEffect(() => {
     async function decryptAll() {
@@ -255,6 +256,18 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
       setSuccess(approved ? "AI draft approved. Reward recorded." : "AI draft rejected. Feedback recorded for improvement.");
     } catch (err: any) {
       setError(err.message || "Could not score pre-consult draft");
+    }
+  };
+
+  const handleLoadConsultPrep = async (appt: AppointmentRecord) => {
+    setError("");
+    setSuccess("");
+    try {
+      const prep = await api.getDoctorConsultPrep(token, appt.id);
+      setConsultPreps((prev) => ({ ...prev, [appt.id]: prep }));
+      setSuccess("Consult prep loaded.");
+    } catch (err: any) {
+      setError(err.message || "Could not load consult prep");
     }
   };
 
@@ -550,6 +563,13 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
                         AI Pre-Consult
                       </button>
                       <button
+                        onClick={() => handleLoadConsultPrep(appt)}
+                        className="button-sec"
+                        style={{ padding: "4px 8px", fontSize: "0.75rem" }}
+                      >
+                        Prep
+                      </button>
+                      <button
                         onClick={() => {
                           setActiveChatRecipient({ id: appt.patient_id, name: appt.patient_name || `Patient ${appt.patient_id.slice(0, 6)}` });
                           setActiveChatAppointment(appt);
@@ -605,6 +625,45 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
                         The agent needs patient intake and approved consent before it can prepare the doctor draft.
                       </p>
                     )}
+                  </div>
+                )}
+                {consultPreps[appt.id] && (
+                  <div style={{ marginTop: "10px", borderTop: "1px solid var(--line)", paddingTop: "10px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                      <div style={{ fontSize: "0.76rem" }}>
+                        <strong>Patient snapshot</strong>
+                        <div style={{ color: "var(--muted)", marginTop: "4px" }}>
+                          Age: {String(consultPreps[appt.id].patient.age || "NA")} | Gender: {String(consultPreps[appt.id].patient.gender || "NA")}
+                        </div>
+                        <div style={{ color: "var(--muted)" }}>Allergies: {String(consultPreps[appt.id].patient.allergies || "None declared")}</div>
+                        <div style={{ color: "var(--muted)" }}>Meds: {String(consultPreps[appt.id].patient.current_medications || "None declared")}</div>
+                      </div>
+                      <div style={{ fontSize: "0.76rem" }}>
+                        <strong>Active prescriptions</strong>
+                        <div style={{ color: "var(--muted)", marginTop: "4px" }}>
+                          {consultPreps[appt.id].active_prescriptions.length
+                            ? consultPreps[appt.id].active_prescriptions.map((rx) => `${rx.diagnosis}: ${rx.medications}`).join(" | ")
+                            : "None found"}
+                        </div>
+                      </div>
+                    </div>
+                    {consultPreps[appt.id].missing_questions.length > 0 && (
+                      <div style={{ marginTop: "8px", fontSize: "0.76rem" }}>
+                        <strong>Ask before prescribing</strong>
+                        <ul style={{ margin: "4px 0 0 16px", color: "var(--muted)" }}>
+                          {consultPreps[appt.id].missing_questions.map((question, index) => <li key={index}>{question}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    <details style={{ marginTop: "8px", fontSize: "0.76rem" }}>
+                      <summary style={{ color: "var(--primary)", cursor: "pointer" }}>Records and red flags</summary>
+                      <div style={{ color: "var(--muted)", marginTop: "6px" }}>
+                        Records: {consultPreps[appt.id].records.length}
+                      </div>
+                      <ul style={{ margin: "4px 0 0 16px", color: "var(--muted)" }}>
+                        {consultPreps[appt.id].red_flags.map((flag, index) => <li key={index}>{flag}</li>)}
+                      </ul>
+                    </details>
                   </div>
                 )}
               </div>

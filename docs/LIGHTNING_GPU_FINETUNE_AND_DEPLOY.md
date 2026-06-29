@@ -30,13 +30,16 @@ BASE_MODEL_NAME=BioMistral/BioMistral-7B
 FINETUNED_ADAPTER_PATH=./models/biomistral-medical
 LOCAL_MODEL_DEVICE=auto
 LOCAL_MODEL_LOAD_IN_4BIT=true
+LOCAL_MODEL_MAX_MEMORY_JSON='{"0":"13GiB","cpu":"24GiB"}'
 LOCAL_MODEL_MAX_NEW_TOKENS=1536
 LOCAL_MODEL_MAX_INPUT_TOKENS=0
+LOCAL_MODEL_CLEANUP_CUDA=true
 EMBEDDING_DEVICE=cpu
 EMBEDDING_BATCH_SIZE=4
 RERANKER_DEVICE=cpu
 IMAGE_EMBEDDING_DEVICE=cpu
 QUERY_ROUTER_DEVICE=cpu
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 ALLOWED_ORIGIN_REGEX=https://.*\.cloudspaces\.litng\.ai
 ```
 
@@ -56,6 +59,15 @@ into RAG and ask against the indexed context.
 Keep embeddings, reranking, and image embeddings on CPU for a single 14-16 GB
 Lightning GPU. The local 7B model needs the GPU memory; background jobs such as
 `prescription_rag_ingest` can otherwise fail with CUDA out-of-memory.
+
+For a T4, treat the GPU as the LLM-only device:
+
+- `MODEL_PROVIDER=local_finetuned` may use GPU.
+- `EMBEDDING_DEVICE=cpu`, `RERANKER_DEVICE=cpu`, `IMAGE_EMBEDDING_DEVICE=cpu`, and `QUERY_ROUTER_DEVICE=cpu` should stay CPU.
+- `LOCAL_MODEL_MAX_MEMORY_JSON='{"0":"13GiB","cpu":"24GiB"}'` leaves headroom for CUDA kernels and avoids loading the full model into all VRAM.
+- `LOCAL_MODEL_CLEANUP_CUDA=true` clears transient generation cache after each API answer.
+- Do not run LoRA training and the API server in the same Studio at the same time on a single T4.
+- If RAG ingestion runs while the API is answering, it should still use CPU embeddings; expect slower ingestion but much lower OOM risk.
 
 ## 2. Install API Dependencies
 
