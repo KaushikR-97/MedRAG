@@ -33,7 +33,11 @@ class HybridMedicalRetriever:
     def _build_qdrant(self) -> QdrantClient | None:
         if not settings.qdrant_url:
             return None
-        return QdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key or None)
+        return QdrantClient(
+            url=settings.qdrant_url,
+            api_key=settings.qdrant_api_key or None,
+            timeout=settings.qdrant_timeout_seconds,
+        )
 
     def _build_embedder(self) -> SentenceTransformer | None:
         if not settings.qdrant_url:
@@ -44,7 +48,7 @@ class HybridMedicalRetriever:
         return SentenceTransformer(settings.embedding_model, device=settings.embedding_device)
 
     def _build_reranker(self) -> CrossEncoder | None:
-        if not settings.qdrant_url or not settings.reranker_model:
+        if not settings.rag_use_reranker or not settings.qdrant_url or not settings.reranker_model:
             return None
         try:
             return CrossEncoder(settings.reranker_model, device=settings.reranker_device)
@@ -67,9 +71,9 @@ class HybridMedicalRetriever:
             patient_id=patient_id,
             language=language,
             source_types=source_types or ["guideline", "verified_patient_document"],
-            top_k=top_k * 2,
+            top_k=top_k * max(1, settings.rag_dense_multiplier),
         )
-        sparse = self._bm25_search(query, dense, top_k=top_k * 2)
+        sparse = self._bm25_search(query, dense, top_k=top_k * max(1, settings.rag_dense_multiplier))
         fused = self._rrf([dense, sparse])
         return self._rerank(query, fused)[:top_k]
 
@@ -106,7 +110,11 @@ class HybridMedicalRetriever:
     def _build_qdrant(self) -> QdrantClient | None:
         if not settings.qdrant_url:
             return None
-        return QdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key or None)
+        return QdrantClient(
+            url=settings.qdrant_url,
+            api_key=settings.qdrant_api_key or None,
+            timeout=settings.qdrant_timeout_seconds,
+        )
 
     def _build_embedder(self) -> SentenceTransformer | None:
         if not settings.qdrant_url:
@@ -114,7 +122,7 @@ class HybridMedicalRetriever:
         return SentenceTransformer(settings.embedding_model, device=settings.embedding_device)
 
     def _build_reranker(self) -> CrossEncoder | None:
-        if not settings.qdrant_url or not settings.reranker_model:
+        if not settings.rag_use_reranker or not settings.qdrant_url or not settings.reranker_model:
             return None
         try:
             return CrossEncoder(settings.reranker_model, device=settings.reranker_device)
@@ -137,9 +145,9 @@ class HybridMedicalRetriever:
             patient_id=patient_id,
             language=language,
             source_types=source_types or ["guideline", "verified_patient_document"],
-            top_k=top_k * 2,
+            top_k=top_k * max(1, settings.rag_dense_multiplier),
         )
-        sparse = self._bm25_search(query, dense, top_k=top_k * 2)
+        sparse = self._bm25_search(query, dense, top_k=top_k * max(1, settings.rag_dense_multiplier))
         fused = self._rrf([dense, sparse])
         return self._rerank(query, fused)[:top_k]
 

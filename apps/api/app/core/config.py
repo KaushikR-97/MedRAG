@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     qdrant_url: str = ""
     qdrant_api_key: str = ""
     qdrant_collection: str = "medical_guidelines"
+    qdrant_timeout_seconds: float = 8.0
+    rag_top_k: int = 5
+    rag_dense_multiplier: int = 2
+    rag_use_reranker: bool = False
     embedding_model: str = "BAAI/bge-m3"
     embedding_device: str = "cpu"
     embedding_batch_size: int = 4

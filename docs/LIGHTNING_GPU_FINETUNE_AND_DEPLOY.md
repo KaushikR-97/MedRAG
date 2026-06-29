@@ -23,6 +23,10 @@ Edit `apps/api/.env`:
 DATABASE_URL=postgresql+psycopg://medrag:medrag@localhost:5432/medrag
 REDIS_URL=redis://localhost:6379/0
 QDRANT_URL=http://localhost:6333
+QDRANT_TIMEOUT_SECONDS=8
+RAG_TOP_K=5
+RAG_DENSE_MULTIPLIER=2
+RAG_USE_RERANKER=false
 S3_ENDPOINT_URL=http://localhost:9000
 CLAMD_HOST=localhost
 MODEL_PROVIDER=local_finetuned
@@ -65,6 +69,13 @@ into RAG and ask against the indexed context.
 Keep embeddings, reranking, and image embeddings on CPU for a single 14-16 GB
 Lightning GPU. The local 7B model needs the GPU memory; background jobs such as
 `prescription_rag_ingest` can otherwise fail with CUDA out-of-memory.
+
+For large RAG collections, keep `RAG_TOP_K=5`, `RAG_DENSE_MULTIPLIER=2`, and
+`RAG_USE_RERANKER=false` on a single T4. Qdrant does the first-stage vector and
+payload-filter search; reranking every request is useful later, but it adds
+latency and memory pressure. The app also creates Qdrant payload indexes for
+patient, visibility, source type, document type, timeline, lab group, and
+clinical date filters when the collection is initialized.
 
 For a T4, treat the GPU as the LLM-only device:
 
@@ -251,7 +262,27 @@ python apps/api/training/generate_quality_predictions.py \
   --base-model BioMistral/BioMistral-7B \
   --adapter-path apps/api/models/biomistral-medical \
   --max-input-tokens 2500 \
-  --max-new-tokens 1024
+  --max-new-tokens 512 \
+  --max-memory-json '{"0":"13GiB","cpu":"24GiB"}'
+```
+
+This script loads the base model and LoRA adapter once, then loops through all
+cases. Do not call `evaluate_adapter.py` manually for each case; that reloads the
+7B model every time and can turn a small 38-case evaluation into a very long
+run.
+
+For a quick smoke test before the full run:
+
+```bash
+python apps/api/training/generate_quality_predictions.py \
+  --cases apps/api/training/clinical_quality_cases.jsonl \
+  --output apps/api/training/predictions_smoke.jsonl \
+  --base-model BioMistral/BioMistral-7B \
+  --adapter-path apps/api/models/biomistral-medical \
+  --limit 5 \
+  --max-input-tokens 2500 \
+  --max-new-tokens 512 \
+  --max-memory-json '{"0":"13GiB","cpu":"24GiB"}'
 ```
 
 Then evaluate the generated JSONL:

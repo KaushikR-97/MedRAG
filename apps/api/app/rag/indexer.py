@@ -50,6 +50,22 @@ SECTION_RE = re.compile(
 )
 
 
+PAYLOAD_INDEX_FIELDS = (
+    "patient_id",
+    "visibility",
+    "source_type",
+    "language",
+    "document_id",
+    "document_type",
+    "timeline_state",
+    "clinical_record_role",
+    "lab_group",
+    "prescription_state",
+    "clinical_date",
+    "source_created_at",
+)
+
+
 @dataclass(frozen=True)
 class MedicalChunk:
     text: str
@@ -63,7 +79,11 @@ class MedicalChunk:
 class MedicalVectorIndexer:
     def __init__(self) -> None:
         self.client = (
-            QdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key or None)
+            QdrantClient(
+                url=settings.qdrant_url,
+                api_key=settings.qdrant_api_key or None,
+                timeout=settings.qdrant_timeout_seconds,
+            )
             if settings.qdrant_url
             else None
         )
@@ -72,6 +92,7 @@ class MedicalVectorIndexer:
             if settings.qdrant_url
             else None
         )
+        self._payload_indexes_checked = False
 
     def ensure_collection(self, vector_size: int) -> None:
         if self.client is None:
@@ -82,6 +103,22 @@ class MedicalVectorIndexer:
                 collection_name=settings.qdrant_collection,
                 vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
             )
+        if not self._payload_indexes_checked:
+            self._ensure_payload_indexes()
+            self._payload_indexes_checked = True
+
+    def _ensure_payload_indexes(self) -> None:
+        if self.client is None:
+            return
+        for field_name in PAYLOAD_INDEX_FIELDS:
+            try:
+                self.client.create_payload_index(
+                    collection_name=settings.qdrant_collection,
+                    field_name=field_name,
+                    field_schema="keyword",
+                )
+            except Exception:
+                continue
 
     def index_verified_document(
         self,

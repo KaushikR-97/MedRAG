@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 from langgraph.graph import END, StateGraph
 
+from app.core.config import settings
 from app.rag.retriever import HybridMedicalRetriever, RetrievedChunk
 from app.services.evidence_service import CitationValidationService, EvidenceCompressionService
 from app.services.generation_service import ClinicalGenerationService
@@ -162,7 +163,7 @@ class ClinicalRagGraph:
         sources = self.retriever.retrieve_many(
             state.get("rewritten_queries") or [state["question"]],
             patient_id=patient_id,
-            top_k=5,
+            top_k=settings.rag_top_k,
             source_types=state.get("retrieval_source_types") or None,
         )
         if patient_id:
