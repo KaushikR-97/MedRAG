@@ -81,13 +81,19 @@ def retry_document_ingestion(
     if doc.status == "deleted_by_patient":
         raise HTTPException(404, "Document not found")
 
-    doc.status = "uploaded"
-    doc.malware_status = "pending"
-    doc.ocr_warning = ""
-    doc.ingested_to_rag = False
-    db.add(doc)
-    db.flush()
-    IngestionService(db).enqueue_document_pipeline(doc=doc, user=user)
+    if (doc.verified_by_patient or doc.image_review_status == "clinician_verified") and doc.verified_text:
+        doc.ingested_to_rag = False
+        db.add(doc)
+        db.flush()
+        IngestionService(db).enqueue_verified_document_ingestion(doc=doc, user=user)
+    else:
+        doc.status = "uploaded"
+        doc.malware_status = "pending"
+        doc.ocr_warning = ""
+        doc.ingested_to_rag = False
+        db.add(doc)
+        db.flush()
+        IngestionService(db).enqueue_document_pipeline(doc=doc, user=user)
     db.refresh(doc)
     return DocumentRecord.model_validate(doc, from_attributes=True)
 

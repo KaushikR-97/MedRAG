@@ -122,7 +122,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activeP
     setSuccess("");
     try {
       await api.retryDocumentIngestion(token, doc.id);
-      setSuccess("Document ingestion restarted. Watch the job status below for progress.");
+      setSuccess(doc.verified_by_patient && !doc.ingested_to_rag ? "RAG ingestion queued. Watch the job status below for progress." : "Document ingestion restarted. Watch the job status below for progress.");
       loadDocuments();
     } catch (err: any) {
       setError(err.message || "Could not retry ingestion");
@@ -234,6 +234,16 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activeP
                         title="Find Similar Clinical Cases"
                       >
                         Find Similar
+                      </button>
+                    )}
+                    {(doc.verified_by_patient && !doc.ingested_to_rag && Boolean(doc.ocr_text || doc.status === "ocr_ready_for_verification")) && (
+                      <button
+                        onClick={() => handleRetryIngestion(doc)}
+                        className="button-sec"
+                        style={{ padding: "4px 8px", fontSize: "0.7rem", borderColor: "rgba(0,176,255,0.45)", color: "var(--primary)" }}
+                        title="Queue verified OCR text into clinical RAG"
+                      >
+                        Ingest to RAG
                       </button>
                     )}
                     {(doc.status === "blocked" || doc.status === "ocr_failed" || doc.status === "ingestion_failed" || doc.malware_status === "error") && (

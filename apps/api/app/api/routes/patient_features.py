@@ -1,4 +1,5 @@
 import uuid
+import json
 from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -196,7 +197,7 @@ def create_reminder(
         starts_at=datetime.now(UTC),
         status="active",
         source="medication_reminder",
-        metadata_json=f'{{"reminder_id":"{record.id}","schedule":"{record.schedule}"}}',
+        metadata_json=json.dumps({"reminder_id": record.id, "schedule": record.schedule}),
         created_at=datetime.now(UTC),
     )
     db.add(event)
@@ -208,7 +209,7 @@ def create_reminder(
         "dosage": record.dosage,
         "schedule": record.schedule,
         "active": record.active,
-        "created_at": record.created_at.isoformat() if record.created_at else None,
+        "created_at": "",
     }
 
 
@@ -324,7 +325,7 @@ def pillbox_ping(
             starts_at=datetime.now(UTC),
             status="active",
             source="iot_pillbox",
-            metadata_json=f'{{"medication": "{reminder.medicine_name}", "reminder_id": "{reminder.id}"}}',
+            metadata_json=json.dumps({"medication": reminder.medicine_name, "reminder_id": reminder.id}),
             created_at=datetime.now(UTC),
         )
         db.add(event)
@@ -548,7 +549,7 @@ def list_reminders(
             "dosage": r.dosage,
             "schedule": r.schedule,
             "active": r.active,
-            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "created_at": "",
         }
         for r in reminders
     ]

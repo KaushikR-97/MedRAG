@@ -208,7 +208,19 @@ curl https://YOUR-8000-CLOUDSPACE-URL/ready
 
 ## 11. Clinical Quality Evaluation
 
-After creating model predictions as JSONL with `id` and `answer`:
+First generate model predictions. Run this from repo root:
+
+```bash
+python apps/api/training/generate_quality_predictions.py \
+  --cases apps/api/training/clinical_quality_cases.jsonl \
+  --output apps/api/training/predictions.jsonl \
+  --base-model BioMistral/BioMistral-7B \
+  --adapter-path apps/api/models/biomistral-medical \
+  --max-input-tokens 2500 \
+  --max-new-tokens 1024
+```
+
+Then evaluate the generated JSONL:
 
 ```bash
 python apps/api/training/evaluate_clinical_quality.py \

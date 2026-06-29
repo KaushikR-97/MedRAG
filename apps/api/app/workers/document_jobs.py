@@ -34,6 +34,7 @@ def process_document_pipeline(job_id: str) -> None:
             if not verified_for_rag or not doc.verified_text:
                 job.status = "failed"
                 job.error = "Document is not verified for RAG ingestion"
+                doc.status = "rag_verification_required"
                 db.commit()
                 return
             indexed = MedicalVectorIndexer().index_verified_document(
@@ -43,7 +44,10 @@ def process_document_pipeline(job_id: str) -> None:
                 text=doc.verified_text,
             )
             doc.ingested_to_rag = indexed > 0
-            job.status = "completed"
+            doc.status = "rag_ingested" if indexed > 0 else "ingestion_failed"
+            job.status = "completed" if indexed > 0 else "failed"
+            if indexed <= 0:
+                job.error = "No chunks were indexed into RAG"
             db.commit()
             return
 
@@ -132,7 +136,11 @@ def process_document_pipeline(job_id: str) -> None:
             try:
                 doc = db.get(MedicalDocument, job.document_id)
                 if doc is not None:
-                    doc.status = "ocr_failed"
+                    if job.job_type == "document_rag_ingest":
+                        doc.status = "ingestion_failed"
+                        doc.ingested_to_rag = False
+                    else:
+                        doc.status = "ocr_failed"
                     doc.ocr_warning = f"Ingestion error: {str(exc)}"
             except Exception:
                 pass
