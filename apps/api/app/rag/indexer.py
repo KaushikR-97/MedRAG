@@ -131,7 +131,8 @@ class MedicalVectorIndexer:
                         "lab_group": clinical_context.get("lab_group", ""),
                         "disease_names": clinical_context.get("disease_names", ""),
                         "prescription_state": clinical_context.get("prescription_state", ""),
-                        "source_created_at": source_created_at,
+                        "clinical_date": clinical_context.get("clinical_date", ""),
+                        "source_created_at": clinical_context.get("clinical_date", "") or source_created_at,
                     },
                 )
             )
@@ -430,6 +431,7 @@ class MedicalVectorIndexer:
             "lab_group": "Lab/report group",
             "disease_names": "Disease/diagnosis names",
             "prescription_state": "Prescription state",
+            "clinical_date": "Clinical/report date",
         }.items():
             value = clinical_context.get(key, "")
             if value:

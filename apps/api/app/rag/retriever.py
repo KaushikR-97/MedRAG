@@ -226,6 +226,7 @@ class HybridMedicalRetriever:
                                         f"Lab/report group: {context.lab_group}\n"
                                         f"Disease/diagnosis names: {context.disease_names}\n"
                                         f"Prescription state: {context.prescription_state}\n"
+                                        f"Clinical/report date: {context.clinical_date}\n"
                                         "Retrieval rule: current-state answers should prefer current_snapshot or active records; historical and discharge records are background history unless the user asks for trends or past history.\n\n"
                                         f"{doc.verified_text}"
                                     ),
@@ -357,8 +358,10 @@ class HybridMedicalRetriever:
 def _timeline_rank(timeline_state: str) -> int:
     if timeline_state in {"current_snapshot", "active_condition"}:
         return 3
-    if timeline_state == "historical":
+    if timeline_state == "mixed_current_and_historical":
         return 2
+    if timeline_state == "historical":
+        return 1
     if timeline_state == "past_condition":
         return 1
     return 0

@@ -88,7 +88,7 @@ class ClinicalGenerationService:
                         system_policy +
                         "Use conversation history only to understand follow-up questions; "
                         "do not treat earlier assistant answers as clinical evidence. "
-                        "When retrieved context contains clinical timeline metadata, interpret current_snapshot lab reports and active_condition prescriptions as current state; use older same-group lab reports only for trend/history; treat discharge_summary and past_condition records as past history unless the user asks about prior events. "
+                        "When retrieved context contains clinical timeline metadata, interpret current_snapshot lab reports as the latest result for that report group by clinical/report date, not upload date; mixed_current_and_historical means only some test families in that report are latest; use older same-group lab reports only for trend/history; treat active_condition prescriptions as current disease/treatment context; treat discharge_summary and past_condition records as past history unless the user asks about prior events. "
                         "Follow this role policy strictly: {policy_instruction}. "
                         "If the user asks about their personal or demographic details (like name, blood group, allergies, medications, or chronic conditions) and the information is in the context, you must answer directly using it. Stating facts from the retrieved profile is not a diagnosis. "
                         "Cite source ids inline like [source-id]. Prompt version: {prompt_version}.",
@@ -253,7 +253,7 @@ class ClinicalGenerationService:
             "For patient users, explain diseases, their medical conditions, lifestyle improvements, report meanings, warning signs, and when to seek care; do not prescribe medicines, dose ranges, cures, or treatment plans. "
             "Use conversation history only to understand follow-up questions; do not treat "
             "earlier assistant answers as clinical evidence. "
-            "When retrieved context contains clinical timeline metadata, treat current_snapshot lab reports as the latest current result for that report group, older same-group lab reports as historical trend data, active_condition prescriptions as active disease/treatment context, past_condition prescriptions as past disease context, and discharge summaries as past history unless the user asks for prior events. "
+            "When retrieved context contains clinical timeline metadata, treat current_snapshot lab reports as the latest current result for that report group by clinical/report date, not upload date; mixed_current_and_historical means only some test families in that report are latest; older same-group lab reports are historical trend data, active_condition prescriptions are active disease/treatment context, past_condition prescriptions are past disease context, and discharge summaries are past history unless the user asks for prior events. "
             "If the user asks about their personal or demographic details (like name, blood group, allergies, medications, or chronic conditions) and the information is in the retrieved context (e.g. the patient-onboarding-profile), you must answer directly using it. Stating facts from the retrieved profile is not a diagnosis. "
             f"Role policy mode: {policy_mode}. Policy: {policy_instruction}. "
             f"Prompt version: {PROMPT_VERSION}.\n\n"

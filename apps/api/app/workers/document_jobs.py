@@ -1,7 +1,7 @@
 from app.db.session import SessionLocal
 from app.models.document import MedicalDocument
 from app.models.jobs import IngestionJob
-from app.rag.clinical_timeline import build_document_timeline_context
+from app.rag.clinical_timeline import build_document_timeline_context, extract_document_clinical_datetime, infer_lab_group
 from app.rag.indexer import MedicalVectorIndexer
 from app.services.image_embedding_service import BioMedClipImageIndexer
 from app.services.malware_service import MalwareScanner
@@ -38,13 +38,14 @@ def process_document_pipeline(job_id: str) -> None:
                 doc.status = "rag_verification_required"
                 db.commit()
                 return
-            indexed = MedicalVectorIndexer().index_verified_document(
+            indexer = MedicalVectorIndexer()
+            indexed = indexer.index_verified_document(
                 document_id=doc.id,
                 patient_id=doc.patient_id,
                 title=doc.original_filename,
                 text=doc.verified_text,
                 document_type=doc.document_type,
-                source_created_at=doc.created_at.isoformat() if doc.created_at else "",
+                source_created_at=extract_document_clinical_datetime(doc).isoformat(),
                 clinical_context=build_document_timeline_context(db, doc).as_payload(),
             )
             doc.ingested_to_rag = indexed > 0
@@ -53,6 +54,8 @@ def process_document_pipeline(job_id: str) -> None:
             if indexed <= 0:
                 job.error = "No chunks were indexed into RAG"
             db.commit()
+            if doc.document_type == "lab_report" and indexed > 0:
+                _refresh_related_lab_report_timelines(db=db, changed_doc=doc, indexer=indexer)
             return
 
         content = ObjectStorageService().get_bytes(bucket=doc.storage_bucket, key=doc.storage_key)
@@ -152,3 +155,45 @@ def process_document_pipeline(job_id: str) -> None:
         raise
     finally:
         db.close()
+
+
+def _refresh_related_lab_report_timelines(
+    *,
+    db,
+    changed_doc: MedicalDocument,
+    indexer: MedicalVectorIndexer,
+) -> None:
+    changed_groups = _lab_groups(changed_doc)
+    if not changed_groups:
+        return
+    related_docs = (
+        db.query(MedicalDocument)
+        .filter(
+            MedicalDocument.patient_id == changed_doc.patient_id,
+            MedicalDocument.document_type == "lab_report",
+            MedicalDocument.id != changed_doc.id,
+            MedicalDocument.status != "deleted_by_patient",
+            MedicalDocument.verified_text != "",
+        )
+        .all()
+    )
+    for related in related_docs:
+        if not (changed_groups & _lab_groups(related)):
+            continue
+        indexed = indexer.index_verified_document(
+            document_id=related.id,
+            patient_id=related.patient_id,
+            title=related.original_filename,
+            text=related.verified_text,
+            document_type=related.document_type,
+            source_created_at=extract_document_clinical_datetime(related).isoformat(),
+            clinical_context=build_document_timeline_context(db, related).as_payload(),
+        )
+        related.ingested_to_rag = indexed > 0
+        related.status = "rag_ingested" if indexed > 0 else "ingestion_failed"
+    db.commit()
+
+
+def _lab_groups(doc: MedicalDocument) -> set[str]:
+    groups = infer_lab_group(f"{doc.original_filename}\n{doc.verified_text or doc.ocr_text}".lower())
+    return {group for group in groups.split("+") if group}
