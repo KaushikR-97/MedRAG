@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { MessageSquare, Send, Video } from "lucide-react";
-import { api, AppointmentRecord, ConsultationMessageRecord } from "../api/client";
+import { api, AppointmentRecord, ConsultationMessageRecord, PreConsultationRecord } from "../api/client";
 import { encryptMessage, decryptMessage } from "../utils/crypto";
 
 type PatientDoctorChatModuleProps = {
@@ -49,6 +49,10 @@ export const PatientDoctorChatModule: React.FC<PatientDoctorChatModuleProps> = (
   const [decryptedText, setDecryptedText] = useState<Record<string, string>>({});
   const [serverMessages, setServerMessages] = useState<ConsultationMessageRecord[]>([]);
   const [error, setError] = useState("");
+  const [preConsult, setPreConsult] = useState<PreConsultationRecord | null>(null);
+  const [symptoms, setSymptoms] = useState("");
+  const [reasonForCall, setReasonForCall] = useState("");
+  const [intakeStatus, setIntakeStatus] = useState("");
 
   useEffect(() => {
     if (!activeDoctor && doctorConversations.length > 0) {
@@ -104,6 +108,30 @@ export const PatientDoctorChatModule: React.FC<PatientDoctorChatModuleProps> = (
     };
   }, [activeDoctor?.appointment?.id, token]);
 
+  useEffect(() => {
+    if (!activeDoctor?.appointment || activeDoctor.appointment.status !== "confirmed") {
+      setPreConsult(null);
+      return;
+    }
+    let cancelled = false;
+    async function loadPreConsult() {
+      try {
+        const record = await api.getPreConsultation(token, activeDoctor!.appointment!.id);
+        if (!cancelled) {
+          setPreConsult(record);
+          setSymptoms(record.symptoms || "");
+          setReasonForCall(record.reason_for_call || activeDoctor!.appointment!.reason || "");
+        }
+      } catch {
+        if (!cancelled) setPreConsult(null);
+      }
+    }
+    loadPreConsult();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeDoctor?.appointment?.id, token]);
+
   const visibleMessages = activeDoctor
     ? chatMessages.filter(
         (message) =>
@@ -144,6 +172,26 @@ export const PatientDoctorChatModule: React.FC<PatientDoctorChatModuleProps> = (
       },
     ]);
     setMessageText("");
+  };
+
+  const handleSubmitIntake = async () => {
+    if (!activeDoctor?.appointment || !symptoms.trim()) return;
+    try {
+      setError("");
+      setIntakeStatus("");
+      const record = await api.submitPreConsultationIntake(token, activeDoctor.appointment.id, {
+        symptoms: symptoms.trim(),
+        reason_for_call: reasonForCall.trim(),
+      });
+      setPreConsult(record);
+      setIntakeStatus(
+        record.status === "awaiting_patient_consent"
+          ? "Symptoms saved. Please approve the doctor's consent request from Family / Consent so the doctor can review your records."
+          : "Symptoms saved for the doctor."
+      );
+    } catch (err: any) {
+      setError(err.message || "Could not save pre-consult intake");
+    }
   };
 
   const isVideoJoinLive = (appointment?: AppointmentRecord) => {
@@ -212,6 +260,38 @@ export const PatientDoctorChatModule: React.FC<PatientDoctorChatModuleProps> = (
           )}
         </div>
         {error && <div className="toast toast-error" style={{ marginBottom: "12px" }}>{error}</div>}
+        {activeDoctor?.appointment && (
+          <div style={{ marginBottom: "12px", padding: "12px", border: "1px solid var(--line)", borderRadius: "8px", background: "rgba(255,255,255,0.02)" }}>
+            <h4 style={{ fontSize: "0.92rem", marginBottom: "8px" }}>Pre-Consult Symptoms</h4>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "8px", alignItems: "end" }}>
+              <div>
+                <label className="label">Symptoms</label>
+                <input
+                  className="input"
+                  value={symptoms}
+                  onChange={(event) => setSymptoms(event.target.value)}
+                  placeholder="Fever, cough, pain, duration..."
+                />
+              </div>
+              <div>
+                <label className="label">Reason for call</label>
+                <input
+                  className="input"
+                  value={reasonForCall}
+                  onChange={(event) => setReasonForCall(event.target.value)}
+                  placeholder="What should the doctor focus on?"
+                />
+              </div>
+              <button className="button" onClick={handleSubmitIntake} disabled={!symptoms.trim()}>
+                Save
+              </button>
+            </div>
+            <p style={{ color: "var(--muted)", fontSize: "0.76rem", marginTop: "8px" }}>
+              Status: {(preConsult?.status || "pending").replace(/_/g, " ")}
+            </p>
+            {intakeStatus && <div className="toast toast-success" style={{ marginTop: "8px" }}>{intakeStatus}</div>}
+          </div>
+        )}
 
         <div style={{ flex: 1, border: "1px solid var(--line)", borderRadius: "10px", padding: "14px", background: "rgba(0,0,0,0.28)", overflowY: "auto" }}>
           {!activeDoctor ? (

@@ -151,6 +151,27 @@ def approve_access_request(
     db.commit()
     db.refresh(access_request)
     requester = db.get(User, access_request.requester_id)
+    try:
+        from app.models.feature_modules import PreConsultationIntake
+        from app.services.preconsult_agent_service import PreConsultAgentService
+
+        linked_intake = (
+            db.query(PreConsultationIntake)
+            .filter(PreConsultationIntake.consent_request_id == access_request.id)
+            .first()
+        )
+        if linked_intake is not None and requester is not None:
+            linked_intake.consent_grant_id = grant.id
+            linked_intake.status = "ready_to_generate"
+            if linked_intake.symptoms.strip() or linked_intake.reason_for_call.strip():
+                PreConsultAgentService(db).generate_doctor_draft(
+                    appointment_id=linked_intake.appointment_id,
+                    doctor=requester,
+                )
+            else:
+                db.commit()
+    except Exception:
+        db.rollback()
     return _access_request_record(access_request, requester)
 
 

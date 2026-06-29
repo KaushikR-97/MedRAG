@@ -205,6 +205,25 @@ export type ConsultationMessageRecord = {
   read_at: string | null;
 };
 
+export type PreConsultationRecord = {
+  id: string;
+  appointment_id: string;
+  patient_id: string;
+  doctor_id: string;
+  status: string;
+  symptoms: string;
+  reason_for_call: string;
+  consent_request_id: string | null;
+  consent_grant_id: string | null;
+  draft_summary: string;
+  doctor_feedback: string;
+  reward_score: number;
+  created_at: string;
+  updated_at: string;
+  patient_name: string;
+  doctor_name: string;
+};
+
 export type ConsultationSignalRecord = {
   id: string;
   room_id: string;
@@ -1153,6 +1172,30 @@ export const api = {
   ) {
     return request<ConsultationMessageRecord>(
       `/consultations/${encodeURIComponent(appointmentId)}/messages`,
+      { method: "POST", body: JSON.stringify(payload) },
+      token,
+    );
+  },
+  getPreConsultation(token: string, appointmentId: string) {
+    return request<PreConsultationRecord>(`/preconsult/appointments/${encodeURIComponent(appointmentId)}`, {}, token);
+  },
+  submitPreConsultationIntake(token: string, appointmentId: string, payload: { symptoms: string; reason_for_call?: string }) {
+    return request<PreConsultationRecord>(
+      `/preconsult/appointments/${encodeURIComponent(appointmentId)}/intake`,
+      { method: "POST", body: JSON.stringify(payload) },
+      token,
+    );
+  },
+  generatePreConsultationDraft(token: string, appointmentId: string) {
+    return request<PreConsultationRecord>(
+      `/preconsult/appointments/${encodeURIComponent(appointmentId)}/generate`,
+      { method: "POST" },
+      token,
+    );
+  },
+  scorePreConsultationDraft(token: string, appointmentId: string, payload: { approved: boolean; feedback?: string }) {
+    return request<PreConsultationRecord>(
+      `/preconsult/appointments/${encodeURIComponent(appointmentId)}/feedback`,
       { method: "POST", body: JSON.stringify(payload) },
       token,
     );

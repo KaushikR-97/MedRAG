@@ -7,6 +7,7 @@ __pycache__/
 *.sqlite
 *.egg-info/
 node_modules/
+.pnpm-store/
 dist/
 apps/web/layout-previews/
 .DS_Store

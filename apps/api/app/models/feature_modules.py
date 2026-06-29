@@ -422,3 +422,26 @@ class ConsultationSignal(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class PreConsultationIntake(Base):
+    __tablename__ = "pre_consultation_intakes"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    appointment_id: Mapped[str] = mapped_column(ForeignKey("appointments.id"), unique=True, index=True)
+    patient_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    doctor_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    status: Mapped[str] = mapped_column(String(40), default="awaiting_patient_intake", index=True)
+    symptoms: Mapped[str] = mapped_column(Text, default="")
+    reason_for_call: Mapped[str] = mapped_column(Text, default="")
+    consent_request_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    consent_grant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    draft_summary: Mapped[str] = mapped_column(Text, default="")
+    doctor_feedback: Mapped[str] = mapped_column(Text, default="")
+    reward_score: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )

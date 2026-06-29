@@ -23,6 +23,7 @@ from app.schemas.features import (
 )
 from app.services.hospital_service import HospitalService
 from app.services.compliance_service import ComplianceService
+from app.services.preconsult_agent_service import PreConsultAgentService
 
 router = APIRouter()
 
@@ -379,6 +380,11 @@ def update_appointment_status(
             status=payload.status,
             cancellation_reason=payload.cancellation_reason,
         )
+        if appointment.status == "confirmed" and appointment.doctor_id:
+            try:
+                PreConsultAgentService(db).ensure_for_confirmed_appointment(appointment=appointment, doctor=user)
+            except Exception:
+                db.rollback()
         return _record(appointment)
     except PermissionError as exc:
         raise HTTPException(403, str(exc)) from exc

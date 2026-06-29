@@ -14,6 +14,7 @@ from app.api.routes import (
     health,
     hospitals,
     patient_features,
+    preconsult,
     public_health,
     shared_features,
 )
@@ -70,6 +71,7 @@ def create_app() -> FastAPI:
     app.include_router(patient_features.router, prefix="/patient", tags=["patient-features"])
     app.include_router(doctor_features.router, prefix="/doctor", tags=["doctor-features"])
     app.include_router(hospitals.router, prefix="/hospitals", tags=["hospital-management"])
+    app.include_router(preconsult.router, prefix="/preconsult", tags=["preconsult-agent"])
     app.include_router(public_health.router, prefix="/public-health", tags=["public-health"])
     app.include_router(shared_features.router, prefix="/shared", tags=["shared-features"])
 

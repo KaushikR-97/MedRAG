@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Users, FileText, Send, CheckCircle, AlertTriangle } from "lucide-react";
-import { api, AppointmentRecord, ConsultationMessageRecord } from "../api/client";
+import { api, AppointmentRecord, ConsultationMessageRecord, PreConsultationRecord } from "../api/client";
 import { encryptMessage, decryptMessage } from "../utils/crypto";
 
 type DoctorWorkspaceProps = {
@@ -60,6 +60,8 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
   const [serverMessages, setServerMessages] = useState<ConsultationMessageRecord[]>([]);
   const [decryptedText, setDecryptedText] = useState<{ [msgId: string]: string }>({});
   const [passphrase, setPassphrase] = useState("");
+  const [preConsults, setPreConsults] = useState<Record<string, PreConsultationRecord>>({});
+  const [preConsultFeedback, setPreConsultFeedback] = useState<Record<string, string>>({});
 
   useEffect(() => {
     async function decryptAll() {
@@ -222,6 +224,37 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
       onAppointmentsChanged();
     } catch (err: any) {
       setError(err.message || "Could not confirm booking");
+    }
+  };
+
+  const handleGeneratePreConsult = async (appt: AppointmentRecord) => {
+    setError("");
+    setSuccess("");
+    try {
+      const record = await api.generatePreConsultationDraft(token, appt.id);
+      setPreConsults((prev) => ({ ...prev, [appt.id]: record }));
+      if (record.status === "awaiting_patient_intake") {
+        setSuccess("Pre-consult agent is waiting for the patient to submit symptoms and reason for call.");
+      } else if (record.status === "awaiting_patient_consent") {
+        setSuccess("Pre-consult agent is waiting for the patient to approve record access consent.");
+      } else {
+        setSuccess("Pre-consult draft is ready for doctor review.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Could not generate pre-consult draft");
+    }
+  };
+
+  const handleScorePreConsult = async (appt: AppointmentRecord, approved: boolean) => {
+    try {
+      const record = await api.scorePreConsultationDraft(token, appt.id, {
+        approved,
+        feedback: preConsultFeedback[appt.id] || "",
+      });
+      setPreConsults((prev) => ({ ...prev, [appt.id]: record }));
+      setSuccess(approved ? "AI draft approved. Reward recorded." : "AI draft rejected. Feedback recorded for improvement.");
+    } catch (err: any) {
+      setError(err.message || "Could not score pre-consult draft");
     }
   };
 
@@ -489,41 +522,91 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
           <h4 style={{ fontSize: "0.95rem", marginBottom: "12px" }}>Today's Telehealth Appointments</h4>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "200px", overflowY: "auto" }}>
             {myAppointments.map(appt => (
-              <div key={appt.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px", background: "rgba(255,255,255,0.02)", borderRadius: "8px", border: "1px solid var(--line)" }}>
-                <div>
-                  <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>Patient: {appt.patient_name || `${appt.patient_id.slice(0, 8)}...`}</span>
-                  <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "2px" }}>
-                    Slot: {appt.time_slot} | Status: {appt.status.toUpperCase()}
+              <div key={appt.id} style={{ padding: "10px", background: "rgba(255,255,255,0.02)", borderRadius: "8px", border: "1px solid var(--line)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>Patient: {appt.patient_name || `${appt.patient_id.slice(0, 8)}...`}</span>
+                    <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "2px" }}>
+                      Slot: {appt.time_slot} | Status: {appt.status.toUpperCase()}
+                    </div>
                   </div>
-                </div>
-                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                {appt.status === "requested" && (
-                  <button
-                    onClick={() => handleConfirmAppointment(appt)}
-                    className="button"
-                    style={{ padding: "4px 8px", fontSize: "0.75rem" }}
-                  >
-                    Confirm
-                  </button>
-                )}
-                {appt.status === "confirmed" && appt.consultation_mode === "video" && (
-                  <div style={{ display: "flex", gap: "6px" }}>
+                  <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                  {appt.status === "requested" && (
                     <button
-                      onClick={() => {
-                        setActiveChatRecipient({ id: appt.patient_id, name: appt.patient_name || `Patient ${appt.patient_id.slice(0, 6)}` });
-                        setActiveChatAppointment(appt);
-                      }}
-                      className="button-sec"
+                      onClick={() => handleConfirmAppointment(appt)}
+                      className="button"
                       style={{ padding: "4px 8px", fontSize: "0.75rem" }}
                     >
-                      Chat
+                      Confirm
                     </button>
-                    <button disabled={!isVideoJoinLive(appt)} onClick={() => onStartVideoCall(appt)} className="button" style={{ background: "#2ecc71", padding: "4px 8px", fontSize: "0.75rem" }}>
-                      Start Call
-                    </button>
+                  )}
+                  {appt.status === "confirmed" && (
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                      <button
+                        onClick={() => handleGeneratePreConsult(appt)}
+                        className="button-sec"
+                        style={{ padding: "4px 8px", fontSize: "0.75rem" }}
+                      >
+                        AI Pre-Consult
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveChatRecipient({ id: appt.patient_id, name: appt.patient_name || `Patient ${appt.patient_id.slice(0, 6)}` });
+                          setActiveChatAppointment(appt);
+                        }}
+                        className="button-sec"
+                        style={{ padding: "4px 8px", fontSize: "0.75rem" }}
+                      >
+                        Chat
+                      </button>
+                      {appt.consultation_mode === "video" && (
+                        <button disabled={!isVideoJoinLive(appt)} onClick={() => onStartVideoCall(appt)} className="button" style={{ background: "#2ecc71", padding: "4px 8px", fontSize: "0.75rem" }}>
+                          Start Call
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  </div>
+                </div>
+                {preConsults[appt.id] && (
+                  <div style={{ marginTop: "10px", borderTop: "1px solid var(--line)", paddingTop: "10px" }}>
+                    <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginBottom: "6px" }}>
+                      Agent status: {preConsults[appt.id].status.replace(/_/g, " ")} | Reward: {preConsults[appt.id].reward_score}
+                    </div>
+                    {preConsults[appt.id].symptoms && (
+                      <div style={{ fontSize: "0.78rem", marginBottom: "6px" }}>
+                        <strong>Patient intake:</strong> {preConsults[appt.id].symptoms}
+                      </div>
+                    )}
+                    {preConsults[appt.id].draft_summary ? (
+                      <>
+                        <pre style={{ whiteSpace: "pre-wrap", maxHeight: "180px", overflowY: "auto", background: "rgba(0,0,0,0.35)", border: "1px solid var(--line)", borderRadius: "8px", padding: "8px", fontSize: "0.74rem" }}>
+                          {preConsults[appt.id].draft_summary}
+                        </pre>
+                        <textarea
+                          className="input"
+                          rows={2}
+                          value={preConsultFeedback[appt.id] || ""}
+                          onChange={(event) => setPreConsultFeedback((prev) => ({ ...prev, [appt.id]: event.target.value }))}
+                          placeholder="Doctor feedback for the AI draft..."
+                          style={{ marginTop: "8px", resize: "vertical", fontSize: "0.75rem" }}
+                        />
+                        <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "8px" }}>
+                          <button className="button-sec" style={{ padding: "4px 8px", fontSize: "0.75rem" }} onClick={() => handleScorePreConsult(appt, false)}>
+                            Reject Draft
+                          </button>
+                          <button className="button" style={{ padding: "4px 8px", fontSize: "0.75rem" }} onClick={() => handleScorePreConsult(appt, true)}>
+                            Approve Draft
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <p style={{ color: "var(--muted)", fontSize: "0.76rem", margin: 0 }}>
+                        The agent needs patient intake and approved consent before it can prepare the doctor draft.
+                      </p>
+                    )}
                   </div>
                 )}
-                </div>
               </div>
             ))}
           </div>

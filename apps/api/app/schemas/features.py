@@ -136,6 +136,35 @@ class AppointmentStatusUpdate(BaseModel):
     cancellation_reason: str = ""
 
 
+class PreConsultationIntakeSubmit(BaseModel):
+    symptoms: str = Field(min_length=3, max_length=4000)
+    reason_for_call: str = Field(default="", max_length=2000)
+
+
+class PreConsultationFeedback(BaseModel):
+    approved: bool
+    feedback: str = Field(default="", max_length=2000)
+
+
+class PreConsultationRecord(BaseModel):
+    id: str
+    appointment_id: str
+    patient_id: str
+    doctor_id: str
+    status: str
+    symptoms: str
+    reason_for_call: str
+    consent_request_id: str | None
+    consent_grant_id: str | None
+    draft_summary: str
+    doctor_feedback: str
+    reward_score: int
+    created_at: str
+    updated_at: str
+    patient_name: str = ""
+    doctor_name: str = ""
+
+
 
 class FamilyMemberCreate(BaseModel):
     full_name: str
