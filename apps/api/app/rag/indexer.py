@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import re
 import uuid
 from dataclasses import dataclass
@@ -9,6 +10,11 @@ from qdrant_client.models import Distance, FieldCondition, Filter, FilterSelecto
 from sentence_transformers import SentenceTransformer
 
 from app.core.config import settings
+
+try:
+    import torch
+except Exception:  # pragma: no cover - optional runtime cleanup
+    torch = None
 
 
 SECTION_ALIASES = {
@@ -61,7 +67,11 @@ class MedicalVectorIndexer:
             if settings.qdrant_url
             else None
         )
-        self.embedder = SentenceTransformer(settings.embedding_model) if settings.qdrant_url else None
+        self.embedder = (
+            SentenceTransformer(settings.embedding_model, device=settings.embedding_device)
+            if settings.qdrant_url
+            else None
+        )
 
     def ensure_collection(self, vector_size: int) -> None:
         if self.client is None:
@@ -97,7 +107,7 @@ class MedicalVectorIndexer:
         if self.embedder is None or self.client is None:
             return 0
         chunk_texts = [chunk.text for chunk in chunks]
-        vectors = self.embedder.encode(chunk_texts).tolist()
+        vectors = self._encode_texts(chunk_texts)
         vector_size = len(vectors[0]) if vectors else 0
         if vector_size == 0:
             return 0
@@ -179,7 +189,7 @@ class MedicalVectorIndexer:
         if self.embedder is None or self.client is None:
             return 0
         chunk_texts = [chunk.text for chunk in chunks]
-        vectors = self.embedder.encode(chunk_texts).tolist()
+        vectors = self._encode_texts(chunk_texts)
         vector_size = len(vectors[0]) if vectors else 0
         if vector_size == 0:
             return 0
@@ -215,6 +225,22 @@ class MedicalVectorIndexer:
             )
         self.client.upsert(collection_name=settings.qdrant_collection, points=points)
         return len(points)
+
+    def _encode_texts(self, texts: list[str]) -> list[list[float]]:
+        if self.embedder is None or not texts:
+            return []
+        try:
+            encoded = self.embedder.encode(
+                texts,
+                batch_size=settings.embedding_batch_size,
+                convert_to_numpy=True,
+                show_progress_bar=False,
+            )
+            return encoded.tolist()
+        finally:
+            if torch is not None and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            gc.collect()
 
     def _chunk(
         self,

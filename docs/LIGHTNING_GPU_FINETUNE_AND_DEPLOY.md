@@ -32,6 +32,11 @@ LOCAL_MODEL_DEVICE=auto
 LOCAL_MODEL_LOAD_IN_4BIT=true
 LOCAL_MODEL_MAX_NEW_TOKENS=1536
 LOCAL_MODEL_MAX_INPUT_TOKENS=0
+EMBEDDING_DEVICE=cpu
+EMBEDDING_BATCH_SIZE=4
+RERANKER_DEVICE=cpu
+IMAGE_EMBEDDING_DEVICE=cpu
+QUERY_ROUTER_DEVICE=cpu
 ALLOWED_ORIGIN_REGEX=https://.*\.cloudspaces\.litng\.ai
 ```
 
@@ -47,6 +52,10 @@ size from the model context window. If the prompt is too long for the model, the
 latest tokens are kept so the request does not crash. No local 7B model can
 accept unlimited text in a single request; for very long PDFs or chats, ingest
 into RAG and ask against the indexed context.
+
+Keep embeddings, reranking, and image embeddings on CPU for a single 14-16 GB
+Lightning GPU. The local 7B model needs the GPU memory; background jobs such as
+`prescription_rag_ingest` can otherwise fail with CUDA out-of-memory.
 
 ## 2. Install API Dependencies
 

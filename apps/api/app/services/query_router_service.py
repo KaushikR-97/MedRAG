@@ -216,7 +216,12 @@ def get_zero_shot_router():
     if pipeline is None:
         return None
     try:
-        device = 0 if torch is not None and torch.cuda.is_available() else -1
+        if settings.query_router_device == "auto":
+            device = 0 if torch is not None and torch.cuda.is_available() else -1
+        elif settings.query_router_device == "cuda":
+            device = 0
+        else:
+            device = -1
         return pipeline(
             "zero-shot-classification",
             model=settings.query_router_model,

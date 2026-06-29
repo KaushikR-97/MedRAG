@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     model_name: str = "gpt-4.1-mini"
     query_router_provider: str = "local_zero_shot"
     query_router_model: str = "MoritzLaurer/deberta-v3-base-zeroshot-v2.0"
+    query_router_device: str = "cpu"
     query_router_confidence_threshold: float = 0.92
     query_rewrite_model: str = ""
     query_rewrite_max_queries: int = 3
@@ -44,9 +45,13 @@ class Settings(BaseSettings):
     qdrant_api_key: str = ""
     qdrant_collection: str = "medical_guidelines"
     embedding_model: str = "BAAI/bge-m3"
+    embedding_device: str = "cpu"
+    embedding_batch_size: int = 4
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
+    reranker_device: str = "cpu"
     image_embedding_enabled: bool = True
     image_embedding_model: str = "microsoft/BiomedCLIP-PubMedBERT_256-vit_base_patch16_224"
+    image_embedding_device: str = "cpu"
     qdrant_image_collection: str = "medical_image_embeddings"
     ocr_engine: str = "paddleocr"
     ocr_languages: str = "en"

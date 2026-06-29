@@ -120,10 +120,15 @@ LOCAL_MODEL_DEVICE="auto"
 LOCAL_MODEL_LOAD_IN_4BIT="true"
 
 EMBEDDING_MODEL="BAAI/bge-m3"
+EMBEDDING_DEVICE="cpu"
+EMBEDDING_BATCH_SIZE="4"
+RERANKER_DEVICE="cpu"
 IMAGE_EMBEDDING_MODEL="microsoft/BiomedCLIP-PubMedBERT_256-vit_base_patch16_224"
+IMAGE_EMBEDDING_DEVICE="cpu"
 
 QUERY_ROUTER_PROVIDER="local_zero_shot"
 QUERY_ROUTER_MODEL="MoritzLaurer/deberta-v3-base-zeroshot-v2.0"
+QUERY_ROUTER_DEVICE="cpu"
 QUERY_ROUTER_CONFIDENCE_THRESHOLD="0.92"
 
 JWT_SECRET="replace-with-a-long-random-secret"
@@ -280,4 +285,3 @@ Before using this beyond a demo:
 - Pin dependency versions once the Studio environment is working.
 - Run database backups and Qdrant backups/snapshots.
 - Store `.env` as a secret, not in git.
-

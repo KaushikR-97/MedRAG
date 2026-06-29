@@ -40,7 +40,7 @@ class BioMedClipImageIndexer:
             if settings.qdrant_url
             else None
         )
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = settings.image_embedding_device
         self._model = None
         self._preprocess = None
 

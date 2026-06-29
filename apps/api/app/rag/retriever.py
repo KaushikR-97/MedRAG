@@ -41,13 +41,13 @@ class HybridMedicalRetriever:
         # BGE-M3 is the default text embedding model. It gives the RAG layer a
         # stronger multilingual baseline for Indian medical records while the
         # existing BM25 path preserves exact-match recall for drugs and labs.
-        return SentenceTransformer(settings.embedding_model)
+        return SentenceTransformer(settings.embedding_model, device=settings.embedding_device)
 
     def _build_reranker(self) -> CrossEncoder | None:
         if not settings.qdrant_url or not settings.reranker_model:
             return None
         try:
-            return CrossEncoder(settings.reranker_model)
+            return CrossEncoder(settings.reranker_model, device=settings.reranker_device)
         except Exception:
             return None
 
@@ -111,13 +111,13 @@ class HybridMedicalRetriever:
     def _build_embedder(self) -> SentenceTransformer | None:
         if not settings.qdrant_url:
             return None
-        return SentenceTransformer(settings.embedding_model)
+        return SentenceTransformer(settings.embedding_model, device=settings.embedding_device)
 
     def _build_reranker(self) -> CrossEncoder | None:
         if not settings.qdrant_url or not settings.reranker_model:
             return None
         try:
-            return CrossEncoder(settings.reranker_model)
+            return CrossEncoder(settings.reranker_model, device=settings.reranker_device)
         except Exception:
             return None
 
@@ -236,7 +236,12 @@ class HybridMedicalRetriever:
                     pass
             return self._fallback_chunks(query) + db_chunks
 
-        query_vector = self.embedder.encode(query).tolist()
+        query_vector = self.embedder.encode(
+            query,
+            batch_size=settings.embedding_batch_size,
+            convert_to_numpy=True,
+            show_progress_bar=False,
+        ).tolist()
         must = [
             FieldCondition(key="language", match=MatchValue(value=language)),
             FieldCondition(key="source_type", match=MatchAny(any=source_types)),

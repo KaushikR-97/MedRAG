@@ -112,6 +112,11 @@ Keep database service URLs as `localhost` when running directly in Lightning:
 DATABASE_URL=postgresql+psycopg://medrag:medrag@localhost:5432/medrag
 REDIS_URL=redis://localhost:6379/0
 QDRANT_URL=http://localhost:6333
+EMBEDDING_DEVICE=cpu
+EMBEDDING_BATCH_SIZE=4
+RERANKER_DEVICE=cpu
+IMAGE_EMBEDDING_DEVICE=cpu
+QUERY_ROUTER_DEVICE=cpu
 S3_ENDPOINT_URL=http://localhost:9000
 CLAMAV_HOST=localhost
 ```
