@@ -109,20 +109,27 @@ def process_document_pipeline(job_id: str) -> None:
             doc.image_vector_id = embedding.vector_id
             doc.image_review_status = "clinician_review_required"
             doc.status = "image_ready_for_clinician_review"
+            indexed_text_parts = [
+                f"AI scan observations for {doc.image_modality or 'medical image'}:",
+                doc.image_ai_observations or "",
+                doc.ocr_text or "",
+                "Note: Image observations are automatically indexed after scanning and remain flagged for clinician review before final interpretation.",
+            ]
+            doc.verified_text = "\n".join(part for part in indexed_text_parts if part.strip())
+            doc.verified_by_patient = True
         else:
-            if ocr_result.review_status == "handwriting_human_transcription_required":
-                doc.status = "handwriting_review_required"
-            elif ocr_result.review_status == "ocr_dependency_missing":
+            if ocr_result.review_status == "ocr_dependency_missing":
                 doc.status = "ocr_dependency_missing"
             elif ocr_result.review_status in {
-                "low_confidence_human_verification_required",
                 "ocr_failed",
             }:
                 doc.status = "ocr_human_verification_required"
-            else:
-                doc.status = "ocr_ready_for_verification"
+            elif ocr_result.text.strip():
+                doc.status = "ocr_scanned"
                 doc.verified_text = ocr_result.text
                 doc.verified_by_patient = True
+            else:
+                doc.status = "ocr_human_verification_required"
         job.status = "completed"
         db.commit()
         if doc.verified_by_patient and doc.verified_text and not doc.ingested_to_rag:

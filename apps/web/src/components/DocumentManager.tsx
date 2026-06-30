@@ -67,7 +67,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activeP
     setSuccess("");
     try {
       await api.uploadDocument(token, selectedFile, documentType, activePatientId || undefined);
-      setSuccess("Document uploaded successfully. Processing ingestion in background...");
+      setSuccess("Document uploaded. Scanning and clinical indexing will run automatically.");
       setSelectedFile(null);
       loadDocuments();
     } catch (err: any) {
@@ -153,10 +153,10 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activeP
       <div className="card" style={{ height: "fit-content" }}>
         <h3 style={{ fontSize: "1.1rem", display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
           <UploadCloud size={18} style={{ color: "var(--primary)" }} />
-          Ingest & Process Documents
+          Scan & Index Documents
         </h3>
         <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginBottom: "20px" }}>
-          Upload PDFs, clinical reports, or imagery. paddleocr will automatically extract and index content.
+          Upload PDFs, clinical reports, or imagery. Scanning runs automatically and clean extracted text is indexed for clinical AI.
         </p>
 
         {error && <div className="toast toast-error" style={{ marginBottom: "12px" }}>{error}</div>}
@@ -183,7 +183,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activeP
             </select>
           </div>
           <button type="submit" className="button" disabled={uploading || !selectedFile}>
-            {uploading ? "Processing..." : "Start Ingestion"}
+            {uploading ? "Processing..." : "Upload & Scan"}
           </button>
         </form>
       </div>
@@ -234,16 +234,6 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activeP
                         title="Find Similar Clinical Cases"
                       >
                         Find Similar
-                      </button>
-                    )}
-                    {(doc.verified_by_patient && !doc.ingested_to_rag && Boolean(doc.ocr_text || doc.status === "ocr_ready_for_verification")) && (
-                      <button
-                        onClick={() => handleRetryIngestion(doc)}
-                        className="button-sec"
-                        style={{ padding: "4px 8px", fontSize: "0.7rem", borderColor: "rgba(0,176,255,0.45)", color: "var(--primary)" }}
-                        title="Queue verified OCR text into clinical RAG"
-                      >
-                        Ingest to RAG
                       </button>
                     )}
                     {(doc.status === "blocked" || doc.status === "ocr_failed" || doc.status === "ingestion_failed" || doc.malware_status === "error") && (

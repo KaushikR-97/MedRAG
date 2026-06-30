@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -14,6 +14,8 @@ class PatientProfile(Base):
     blood_group: Mapped[str] = mapped_column(String(12), default="")
     date_of_birth: Mapped[str] = mapped_column(String(16), default="")
     gender: Mapped[str] = mapped_column(String(32), default="")
+    height_cm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    weight_kg: Mapped[float | None] = mapped_column(Float, nullable=True)
     allergies: Mapped[str] = mapped_column(Text, default="")
     chronic_conditions: Mapped[str] = mapped_column(Text, default="")
     current_medications: Mapped[str] = mapped_column(Text, default="")
@@ -25,4 +27,3 @@ class PatientProfile(Base):
     )
 
     user = relationship("User", back_populates="profile")
-

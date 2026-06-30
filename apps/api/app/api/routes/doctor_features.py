@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 import re
 import uuid
 from datetime import datetime, UTC
+from calendar import monthrange
 
 from app.core.security import require_role, get_current_user
 from app.db.session import get_db
@@ -356,6 +357,49 @@ def analytics(_doctor: User = Depends(require_role("doctor", "hospital_admin")),
     }
 
 
+@router.get("/business-report")
+def business_report(
+    month: str = "",
+    expenses: float = 0.0,
+    doctor: User = Depends(require_role("doctor", "hospital_admin")),
+    db: Session = Depends(get_db),
+) -> dict:
+    if not month:
+        month = datetime.now(UTC).strftime("%Y-%m")
+    try:
+        year, month_num = [int(part) for part in month.split("-", 1)]
+        start = f"{year:04d}-{month_num:02d}-01"
+        end = f"{year:04d}-{month_num:02d}-{monthrange(year, month_num)[1]:02d}"
+    except Exception as exc:
+        raise HTTPException(400, "month must use YYYY-MM format") from exc
+
+    query = db.query(Appointment).filter(Appointment.date >= start, Appointment.date <= end)
+    if doctor.role == "doctor":
+        query = query.filter(Appointment.doctor_id == doctor.id)
+    appointments = query.all()
+    confirmed_or_done = [item for item in appointments if item.status in {"confirmed", "checked_in", "completed"}]
+    completed = [item for item in appointments if item.status == "completed"]
+    offline = [item for item in appointments if item.consultation_mode == "in_person"]
+    video = [item for item in appointments if item.consultation_mode == "video"]
+    total_fees = sum(float(item.consultation_fee or 0) for item in confirmed_or_done)
+    estimated_taxable_income = max(0.0, total_fees - float(expenses or 0))
+    return {
+        "month": month,
+        "appointments_total": len(appointments),
+        "appointments_completed": len(completed),
+        "offline_consultations": len(offline),
+        "video_consultations": len(video),
+        "total_fee_collection": total_fees,
+        "expenses": float(expenses or 0),
+        "estimated_taxable_income": estimated_taxable_income,
+        "budget_sheet": [
+            {"line_item": "Consultation fee collection", "amount": total_fees},
+            {"line_item": "Entered clinic expenses", "amount": -float(expenses or 0)},
+            {"line_item": "Estimated pre-tax professional income", "amount": estimated_taxable_income},
+        ],
+    }
+
+
 @router.get("/prescriptions")
 def list_prescriptions(
     patient_id: str | None = None,
@@ -439,13 +483,34 @@ def suggest_ai_prescription(
         f"Current Medications: {meds}\n"
         f"Active clinical visit notes: {notes}"
     )
+    docs = (
+        db.query(MedicalDocument)
+        .filter(MedicalDocument.patient_id == patient_id, MedicalDocument.status != "deleted_by_patient")
+        .order_by(MedicalDocument.created_at.desc())
+        .limit(12)
+        .all()
+    )
+    history_text = "\n\n".join(
+        f"{doc.document_type} - {doc.original_filename}:\n{(doc.verified_text or doc.ocr_text or doc.clinician_verified_findings or '')[:1200]}"
+        for doc in docs
+        if (doc.verified_text or doc.ocr_text or doc.clinician_verified_findings or "").strip()
+    )
     
-    source = RetrievedChunk(
+    sources = [RetrievedChunk(
         id="patient-profile",
         title="Patient Profile Summary",
         score=1.0,
         text=profile_summary
-    )
+    )]
+    if history_text:
+        sources.append(
+            RetrievedChunk(
+                id="complete-patient-history",
+                title="Complete scanned patient history for clinical AI",
+                score=0.95,
+                text=history_text,
+            )
+        )
     
     prompt = (
         "Generate a structured drug prescription draft. "
@@ -460,7 +525,7 @@ def suggest_ai_prescription(
         question=prompt,
         user_role="doctor",
         conversation_history=[],
-        sources=[source],
+        sources=sources,
         disclaimer=None
     )
     

@@ -7,6 +7,7 @@ class ConsentGrantCreate(BaseModel):
     patient_id: str
     grantee_id: str
     scope: str = Field(pattern="^(all|clinical.ask|documents.read|profile.read)$")
+    document_ids: str = ""
     purpose: str = Field(min_length=3, max_length=160)
     expires_at: datetime | None = None
 
@@ -16,6 +17,7 @@ class ConsentGrantRecord(BaseModel):
     patient_id: str
     grantee_id: str
     scope: str
+    document_ids: str = ""
     purpose: str
     expires_at: datetime | None
     revoked_at: datetime | None
@@ -33,4 +35,3 @@ class CareTeamRecord(BaseModel):
     clinician_id: str
     role: str
     active: bool
-

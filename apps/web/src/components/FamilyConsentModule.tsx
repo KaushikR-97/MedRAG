@@ -8,6 +8,8 @@ type FamilyConsentModuleProps = {
 
 export const FamilyConsentModule: React.FC<FamilyConsentModuleProps> = ({ token }) => {
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [selectedDocsByRequest, setSelectedDocsByRequest] = useState<Record<string, string[]>>({});
   const [whatsappLogs, setWhatsappLogs] = useState<any[]>([]);
   const [accessRequests, setAccessRequests] = useState<any[]>([]);
   const [fullName, setFullName] = useState("");
@@ -21,13 +23,15 @@ export const FamilyConsentModule: React.FC<FamilyConsentModuleProps> = ({ token 
 
   const refreshData = async () => {
     try {
-      const [members, logs] = await Promise.all([
+      const [members, logs, docs] = await Promise.all([
         api.listFamilyMembers(token),
         api.whatsappLogs(token),
+        api.listDocuments(token),
       ]);
       const requests = await api.listPatientAccessRequests(token, "pending");
       setFamilyMembers(members);
       setWhatsappLogs(logs);
+      setDocuments(docs);
       setAccessRequests(requests);
     } catch (err: any) {
       setError(err.message || "Could not load family and consent records");
@@ -87,16 +91,29 @@ export const FamilyConsentModule: React.FC<FamilyConsentModuleProps> = ({ token 
     }
   };
 
-  const handleApproveAccess = async (requestId: string) => {
+  const handleApproveAccess = async (request: any) => {
     setError("");
     setSuccess("");
     try {
-      await api.approvePatientAccessRequest(token, requestId);
-      setSuccess("Doctor access approved for 30 days.");
+      const selectedIds = request.scope === "documents.read" ? (selectedDocsByRequest[request.id] || []) : [];
+      await api.approvePatientAccessRequestWithDocuments(token, request.id, selectedIds);
+      setSuccess(request.scope === "documents.read" ? "Selected report access approved for 30 days." : "Clinical AI access approved for 30 days.");
       await refreshData();
     } catch (err: any) {
       setError(err.message || "Could not approve access request");
     }
+  };
+
+  const toggleRequestDocument = (requestId: string, docId: string) => {
+    setSelectedDocsByRequest((prev) => {
+      const current = prev[requestId] || [];
+      return {
+        ...prev,
+        [requestId]: current.includes(docId)
+          ? current.filter((id) => id !== docId)
+          : [...current, docId],
+      };
+    });
   };
 
   return (
@@ -175,8 +192,22 @@ export const FamilyConsentModule: React.FC<FamilyConsentModuleProps> = ({ token 
                       <div style={{ color: "var(--muted)", fontSize: "0.78rem", marginTop: "3px" }}>
                         Scope: {request.scope} | Purpose: {request.purpose}
                       </div>
+                      {request.scope === "documents.read" && (
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginTop: "10px" }}>
+                          {documents.map((doc) => (
+                            <label key={doc.id} style={{ display: "flex", gap: "6px", alignItems: "center", fontSize: "0.76rem", color: "var(--muted)" }}>
+                              <input
+                                type="checkbox"
+                                checked={(selectedDocsByRequest[request.id] || []).includes(doc.id)}
+                                onChange={() => toggleRequestDocument(request.id, doc.id)}
+                              />
+                              {doc.original_filename}
+                            </label>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <button className="button" onClick={() => handleApproveAccess(request.id)}>Approve</button>
+                    <button className="button" onClick={() => handleApproveAccess(request)}>Approve</button>
                   </div>
                 </div>
               ))}

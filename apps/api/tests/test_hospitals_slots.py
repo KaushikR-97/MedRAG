@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 import uuid
 
 from app.main import app
@@ -10,8 +11,12 @@ from app.core.security import get_current_user
 from app.models.user import User
 from app.models.feature_modules import Hospital, HospitalDepartment
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test_hospitals_slots.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+SQLALCHEMY_DATABASE_URL = "sqlite://"
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 MOCK_ADMIN = User(
@@ -28,6 +33,22 @@ MOCK_DOCTOR = User(
     hashed_password="mockhashedpassword",
     full_name="Dr. Aditi",
     role="doctor"
+)
+
+MOCK_STAFF = User(
+    id="test-staff-id",
+    email="staff@medrag.in",
+    hashed_password="mockhashedpassword",
+    full_name="Clinic Staff",
+    role="doctor"
+)
+
+MOCK_OTHER_ADMIN = User(
+    id="test-other-admin-id",
+    email="other-admin@medrag.in",
+    hashed_password="mockhashedpassword",
+    full_name="Other Hospital Admin",
+    role="hospital_admin"
 )
 
 current_mock_user = MOCK_ADMIN
@@ -47,6 +68,9 @@ def setup_db():
     Base.metadata.create_all(bind=engine)
     db = TestingSessionLocal()
     db.merge(MOCK_ADMIN)
+    db.merge(MOCK_DOCTOR)
+    db.merge(MOCK_STAFF)
+    db.merge(MOCK_OTHER_ADMIN)
     db.commit()
     db.close()
     yield
@@ -119,3 +143,73 @@ def test_hospital_admin_flow() -> None:
     print("CREATE SLOT STATUS:", slot_res.status_code)
     print("CREATE SLOT BODY:", slot_res.text)
     assert slot_res.status_code == 200
+
+
+def test_doctor_can_create_clinic_org_and_delegate_staff() -> None:
+    global current_mock_user
+    current_mock_user = MOCK_DOCTOR
+
+    org_res = client.post("/organizations", json={"name": "Aditi Clinic", "organization_type": "clinic"})
+    assert org_res.status_code == 200
+    org = org_res.json()
+    assert org["organization_type"] == "clinic"
+    assert org["owner_user_id"] == MOCK_DOCTOR.id
+    assert org["members_count"] == 1
+
+    member_res = client.post(
+        f"/organizations/{org['id']}/members",
+        json={"user_id": MOCK_STAFF.id, "member_role": "front_desk", "task_scope": "appointments,billing"},
+    )
+    assert member_res.status_code == 200
+    member = member_res.json()
+    assert member["user_id"] == MOCK_STAFF.id
+    assert member["member_role"] == "front_desk"
+    assert member["task_scope"] == "appointments,billing"
+
+
+def test_doctor_cannot_create_hospital_org() -> None:
+    global current_mock_user
+    current_mock_user = MOCK_DOCTOR
+
+    response = client.post("/organizations", json={"name": "Not A Hospital", "organization_type": "hospital"})
+    assert response.status_code == 403
+    assert "Doctors can create clinic organizations" in response.text
+
+
+def test_hospital_admin_creates_only_linked_hospital_org() -> None:
+    global current_mock_user
+    current_mock_user = MOCK_ADMIN
+
+    hospital_res = client.post("/hospitals", json={"name": "Admin General Hospital", "city": "Bengaluru"})
+    assert hospital_res.status_code == 200
+    hospital = hospital_res.json()
+
+    clinic_res = client.post("/organizations", json={"name": "Admin Clinic", "organization_type": "clinic"})
+    assert clinic_res.status_code == 403
+
+    missing_link_res = client.post("/organizations", json={"name": "Unlinked Hospital Org", "organization_type": "hospital"})
+    assert missing_link_res.status_code == 400
+
+    org_res = client.post(
+        "/organizations",
+        json={"name": "Admin General Org", "organization_type": "hospital", "linked_hospital_id": hospital["id"]},
+    )
+    assert org_res.status_code == 200
+    org = org_res.json()
+    assert org["organization_type"] == "hospital"
+    assert org["linked_hospital_id"] == hospital["id"]
+
+
+def test_hospital_admin_has_no_global_org_management_power() -> None:
+    global current_mock_user
+    current_mock_user = MOCK_DOCTOR
+    org_res = client.post("/organizations", json={"name": "Doctor-Owned Clinic", "organization_type": "clinic"})
+    assert org_res.status_code == 200
+    org = org_res.json()
+
+    current_mock_user = MOCK_OTHER_ADMIN
+    member_res = client.post(
+        f"/organizations/{org['id']}/members",
+        json={"user_id": MOCK_STAFF.id, "member_role": "admin", "task_scope": "staff"},
+    )
+    assert member_res.status_code == 403

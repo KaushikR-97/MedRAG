@@ -34,6 +34,9 @@ class PreConsultAgentService:
         )
         self._sync_consent_grant(intake)
         intake.status = self._next_status(intake)
+        if intake.status == "ready_to_generate":
+            self.generate_doctor_draft(appointment_id=appointment.id, doctor=doctor)
+            intake = self._get_or_create_intake(appointment)
         self.db.commit()
         self.db.refresh(intake)
         return intake
@@ -65,6 +68,11 @@ class PreConsultAgentService:
         intake.reason_for_call = reason_for_call.strip()
         self._sync_consent_grant(intake)
         intake.status = self._next_status(intake)
+        if intake.status == "ready_to_generate":
+            doctor = self.db.get(User, appointment.doctor_id)
+            if doctor is not None:
+                self.generate_doctor_draft(appointment_id=appointment.id, doctor=doctor)
+                intake = self._get_or_create_intake(appointment)
         intake.updated_at = datetime.now(UTC)
         self.db.commit()
         self.db.refresh(intake)
@@ -193,7 +201,7 @@ class PreConsultAgentService:
             .filter(
                 PatientAccessRequest.patient_id == patient_id,
                 PatientAccessRequest.requester_id == doctor_id,
-                PatientAccessRequest.scope == "all",
+                PatientAccessRequest.scope == "clinical.ask",
                 PatientAccessRequest.status == "pending",
             )
             .order_by(PatientAccessRequest.created_at.desc())
@@ -206,7 +214,7 @@ class PreConsultAgentService:
             .filter(
                 PatientAccessRequest.patient_id == patient_id,
                 PatientAccessRequest.requester_id == doctor_id,
-                PatientAccessRequest.scope == "all",
+                PatientAccessRequest.scope == "clinical.ask",
                 PatientAccessRequest.status == "approved",
             )
             .order_by(PatientAccessRequest.decided_at.desc())
@@ -218,7 +226,7 @@ class PreConsultAgentService:
             id=str(uuid.uuid4()),
             patient_id=patient_id,
             requester_id=doctor_id,
-            scope="all",
+            scope="clinical.ask",
             purpose=purpose[:160],
             status="pending",
             created_at=datetime.now(UTC),
@@ -255,7 +263,6 @@ class PreConsultAgentService:
             return False
         return (
             ComplianceService(self.db).can_access_patient(actor=doctor, patient_id=patient_id, scope="clinical.ask")
-            and ComplianceService(self.db).can_access_patient(actor=doctor, patient_id=patient_id, scope="documents.read")
         )
 
     @staticmethod
@@ -323,7 +330,7 @@ class PreConsultAgentService:
             self.db.query(MedicalDocument)
             .filter(
                 MedicalDocument.patient_id == appointment.patient_id,
-                MedicalDocument.verified_by_patient.is_(True),
+                MedicalDocument.status != "deleted_by_patient",
             )
             .order_by(MedicalDocument.created_at.desc())
             .limit(8)

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Users, FileText, Send, CheckCircle, AlertTriangle } from "lucide-react";
+import { Users, FileText, Send, AlertTriangle, Building2, Plus } from "lucide-react";
 import { api, AppointmentRecord, ConsultationMessageRecord, DoctorConsultPrep, PreConsultationRecord } from "../api/client";
 import { encryptMessage, decryptMessage } from "../utils/crypto";
 
@@ -53,6 +53,8 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
   const [slotDurationMinutes, setSlotDurationMinutes] = useState("30");
   const [slotTimezone, setSlotTimezone] = useState("Asia/Kolkata");
   const [slotFee, setSlotFee] = useState("500.0");
+  const [releaseVideoSlots, setReleaseVideoSlots] = useState(true);
+  const [releaseInPersonSlots, setReleaseInPersonSlots] = useState(true);
   
   const [chatInput, setChatInput] = useState("");
   const [activeChatRecipient, setActiveChatRecipient] = useState<{ id: string; name: string } | null>(null);
@@ -63,6 +65,16 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
   const [preConsults, setPreConsults] = useState<Record<string, PreConsultationRecord>>({});
   const [preConsultFeedback, setPreConsultFeedback] = useState<Record<string, string>>({});
   const [consultPreps, setConsultPreps] = useState<Record<string, DoctorConsultPrep>>({});
+  const [organizations, setOrganizations] = useState<any[]>([]);
+  const [organizationId, setOrganizationId] = useState("");
+  const [organizationName, setOrganizationName] = useState("My Clinic");
+  const [organizationType, setOrganizationType] = useState("clinic");
+  const [clinicStaffUserId, setClinicStaffUserId] = useState("");
+  const [clinicStaffRole, setClinicStaffRole] = useState("front_desk");
+  const [clinicStaffScope, setClinicStaffScope] = useState("appointments,records");
+  const [reportMonth, setReportMonth] = useState("2026-07");
+  const [monthlyExpenses, setMonthlyExpenses] = useState("0");
+  const [businessReport, setBusinessReport] = useState<any | null>(null);
 
   useEffect(() => {
     async function decryptAll() {
@@ -102,6 +114,56 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
     };
   }, [activeChatAppointment?.id, token]);
 
+  useEffect(() => {
+    refreshOrganizations();
+  }, [token]);
+
+  const refreshOrganizations = async () => {
+    try {
+      const result = await api.listOrganizations(token);
+      setOrganizations(result);
+      if (!organizationId && result.length) setOrganizationId(result[0].id);
+    } catch (err: any) {
+      setError(err.message || "Could not load clinic organizations");
+    }
+  };
+
+  const handleCreateOrganization = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError("");
+    setSuccess("");
+    try {
+      const org = await api.createOrganization(token, {
+        name: organizationName,
+        organization_type: organizationType,
+      });
+      setOrganizationId(org.id);
+      setSuccess(`${org.name} created. You can now delegate clinic management tasks.`);
+      await refreshOrganizations();
+    } catch (err: any) {
+      setError(err.message || "Could not create clinic organization");
+    }
+  };
+
+  const handleAddClinicStaff = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!organizationId || !clinicStaffUserId.trim()) return;
+    setError("");
+    setSuccess("");
+    try {
+      await api.addOrganizationMember(token, organizationId, {
+        user_id: clinicStaffUserId.trim(),
+        member_role: clinicStaffRole,
+        task_scope: clinicStaffScope,
+      });
+      setClinicStaffUserId("");
+      setSuccess("Clinic member added with delegated task scope.");
+      await refreshOrganizations();
+    } catch (err: any) {
+      setError(err.message || "Could not add clinic member");
+    }
+  };
+
   // Load patient record
   const handleLoadPatientRecord = async () => {
     setConsentError("");
@@ -127,12 +189,17 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
     try {
       const request = await api.requestPatientAccess(token, {
         patient_id: searchPatientId.trim(),
-        scope: "all",
-        purpose: "Doctor requested access to patient profile and medical reports",
+        scope: "clinical.ask",
+        purpose: "Doctor requested clinical AI access for consultation and prescribing",
+      });
+      await api.requestPatientAccess(token, {
+        patient_id: searchPatientId.trim(),
+        scope: "documents.read",
+        purpose: "Doctor requested selected medical report access",
       });
       setAccessRequestStatus(
         request.status === "pending"
-          ? "Access request sent to the patient. Ask the patient to approve it from Family / Consent."
+          ? "Clinical AI access and selected-document access requests sent to the patient."
           : `Access request ${request.status}.`,
       );
     } catch (err: any) {
@@ -182,23 +249,45 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
     setError("");
     setSuccess("");
     try {
-      await api.createConsultationSlot(token, {
-        date: slotDate,
-        start_time: slotStartTime,
-        end_time: slotEndTime,
-        timezone: slotTimezone,
-        slot_duration_minutes: Number(slotDurationMinutes),
-        consultation_mode: "video",
-        capacity: 1,
-        consultation_fee: parseFloat(slotFee),
-        accept_insurance: true,
-        hospital_id: "personal",
-        department_id: "personal"
-      });
-      setSuccess("Availability released. Patients can pick from the generated open slots.");
+      const modes = [
+        ...(releaseVideoSlots ? ["video"] : []),
+        ...(releaseInPersonSlots ? ["in_person"] : []),
+      ];
+      if (modes.length === 0) {
+        setError("Select at least one consultation mode.");
+        return;
+      }
+      for (const mode of modes) {
+        await api.createConsultationSlot(token, {
+          date: slotDate,
+          start_time: slotStartTime,
+          end_time: slotEndTime,
+          timezone: slotTimezone,
+          slot_duration_minutes: Number(slotDurationMinutes),
+          consultation_mode: mode,
+          capacity: mode === "in_person" ? 4 : 1,
+          consultation_fee: parseFloat(slotFee),
+          accept_insurance: true,
+          hospital_id: "personal",
+          department_id: "personal"
+        });
+      }
+      setSuccess("Availability released for selected video/offline modes. Offline bookings receive consultation tokens.");
       onAppointmentsChanged();
     } catch (err: any) {
       setError(err.message || "Slot creation failed");
+    }
+  };
+
+  const handleLoadBusinessReport = async () => {
+    setError("");
+    setSuccess("");
+    try {
+      const report = await api.doctorBusinessReport(token, reportMonth, Number(monthlyExpenses) || 0);
+      setBusinessReport(report);
+      setSuccess("Monthly business report prepared.");
+    } catch (err: any) {
+      setError(err.message || "Could not prepare business report");
     }
   };
 
@@ -225,6 +314,18 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
       onAppointmentsChanged();
     } catch (err: any) {
       setError(err.message || "Could not confirm booking");
+    }
+  };
+
+  const handleAppointmentStatus = async (appt: AppointmentRecord, status: string) => {
+    setError("");
+    setSuccess("");
+    try {
+      await api.updateAppointmentStatus(token, appt.id, { status });
+      setSuccess(`Appointment marked ${status.replace("_", " ")}.`);
+      onAppointmentsChanged();
+    } catch (err: any) {
+      setError(err.message || "Could not update appointment");
     }
   };
 
@@ -329,6 +430,59 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
+      <div className="card" style={{ gridColumn: "1 / -1" }}>
+        <h3 style={{ fontSize: "1.1rem", display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+          <Building2 size={18} style={{ color: "var(--primary)" }} />
+          Clinic Organizations
+        </h3>
+        <form onSubmit={handleCreateOrganization} style={{ display: "grid", gridTemplateColumns: "1fr 180px auto", gap: "10px", alignItems: "end", marginBottom: "14px" }}>
+          <div>
+            <label className="label">Clinic Name</label>
+            <input className="input" value={organizationName} onChange={(event) => setOrganizationName(event.target.value)} />
+          </div>
+          <div>
+            <label className="label">Structure</label>
+            <select className="input" value={organizationType} onChange={(event) => setOrganizationType(event.target.value)}>
+              <option value="clinic">Clinic</option>
+              <option value="solo_clinic">Solo Clinic</option>
+              <option value="diagnostic_center">Diagnostic Center</option>
+              <option value="pharmacy">Pharmacy</option>
+            </select>
+          </div>
+          <button className="button" type="submit"><Plus size={16} />Create</button>
+        </form>
+        <label className="label">Active Clinic Organization</label>
+        <select className="input" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} style={{ marginBottom: "14px" }}>
+          <option value="">Select clinic organization</option>
+          {organizations.map((org) => (
+            <option key={org.id} value={org.id}>{org.name} ({org.organization_type.replace("_", " ")})</option>
+          ))}
+        </select>
+        <form onSubmit={handleAddClinicStaff} style={{ display: "grid", gridTemplateColumns: "1fr 160px 1fr auto", gap: "10px", alignItems: "end" }}>
+          <div>
+            <label className="label">Staff User ID</label>
+            <input className="input" value={clinicStaffUserId} onChange={(event) => setClinicStaffUserId(event.target.value)} placeholder="Doctor/admin/staff user ID" />
+          </div>
+          <div>
+            <label className="label">Role</label>
+            <select className="input" value={clinicStaffRole} onChange={(event) => setClinicStaffRole(event.target.value)}>
+              <option value="admin">Admin</option>
+              <option value="doctor">Doctor</option>
+              <option value="nurse">Nurse</option>
+              <option value="front_desk">Front Desk</option>
+              <option value="billing">Billing</option>
+              <option value="lab_staff">Lab Staff</option>
+              <option value="pharmacist">Pharmacist</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Task Scope</label>
+            <input className="input" value={clinicStaffScope} onChange={(event) => setClinicStaffScope(event.target.value)} />
+          </div>
+          <button className="button-sec" type="submit" disabled={!organizationId}>Delegate</button>
+        </form>
+      </div>
+
       {/* Loading patient profiles & EMR access */}
       <div className="card">
         <h3 style={{ fontSize: "1.1rem", display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
@@ -522,11 +676,52 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
               </select>
             </div>
           </div>
+          <div style={{ display: "flex", gap: "14px", alignItems: "center" }}>
+            <label style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "0.8rem", color: "var(--muted)" }}>
+              <input type="checkbox" checked={releaseVideoSlots} onChange={e => setReleaseVideoSlots(e.target.checked)} />
+              Video slots
+            </label>
+            <label style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "0.8rem", color: "var(--muted)" }}>
+              <input type="checkbox" checked={releaseInPersonSlots} onChange={e => setReleaseInPersonSlots(e.target.checked)} />
+              In-person slots
+            </label>
+          </div>
           <p style={{ color: "var(--muted)", fontSize: "0.78rem" }}>
             This will create {previewSlotCount()} patient-selectable slots from {slotStartTime} to {slotEndTime}.
           </p>
           <button type="submit" className="button" style={{ alignSelf: "flex-end", marginTop: "10px" }}>Release Slots</button>
         </form>
+      </div>
+
+      <div className="card">
+        <h3 style={{ fontSize: "1rem", marginBottom: "12px" }}>Business Report & Monthly Budget</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "10px", alignItems: "end" }}>
+          <div>
+            <label className="label">Month</label>
+            <input className="input" type="month" value={reportMonth} onChange={e => setReportMonth(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Expenses (INR)</label>
+            <input className="input" type="number" value={monthlyExpenses} onChange={e => setMonthlyExpenses(e.target.value)} />
+          </div>
+          <button className="button" type="button" onClick={handleLoadBusinessReport}>Prepare</button>
+        </div>
+        {businessReport && (
+          <div style={{ marginTop: "14px", display: "flex", flexDirection: "column", gap: "8px", fontSize: "0.8rem" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" }}>
+              <div>Total: <strong>{businessReport.appointments_total}</strong></div>
+              <div>Done: <strong>{businessReport.appointments_completed}</strong></div>
+              <div>Fees: <strong>INR {businessReport.total_fee_collection}</strong></div>
+              <div>Taxable est.: <strong>INR {businessReport.estimated_taxable_income}</strong></div>
+            </div>
+            {businessReport.budget_sheet.map((row: any) => (
+              <div key={row.line_item} style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--line)", paddingTop: "6px" }}>
+                <span>{row.line_item}</span>
+                <strong>INR {row.amount}</strong>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Live Appointments & Local consult Chat */}
@@ -540,7 +735,7 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
                   <div>
                     <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>Patient: {appt.patient_name || `${appt.patient_id.slice(0, 8)}...`}</span>
                     <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "2px" }}>
-                      Slot: {appt.time_slot} | Status: {appt.status.toUpperCase()}
+                      Slot: {appt.time_slot} | Mode: {appt.consultation_mode} | Token: {appt.booking_reference || "pending"} | Status: {appt.status.toUpperCase()}
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
@@ -560,7 +755,7 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
                         className="button-sec"
                         style={{ padding: "4px 8px", fontSize: "0.75rem" }}
                       >
-                        AI Pre-Consult
+                        Pre-Consult
                       </button>
                       <button
                         onClick={() => handleLoadConsultPrep(appt)}
@@ -585,6 +780,24 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
                         </button>
                       )}
                     </div>
+                  )}
+                  {appt.consultation_mode === "in_person" && appt.status === "confirmed" && (
+                    <button
+                      onClick={() => handleAppointmentStatus(appt, "checked_in")}
+                      className="button-sec"
+                      style={{ padding: "4px 8px", fontSize: "0.75rem" }}
+                    >
+                      Check In
+                    </button>
+                  )}
+                  {appt.status === "checked_in" && (
+                    <button
+                      onClick={() => handleAppointmentStatus(appt, "completed")}
+                      className="button"
+                      style={{ padding: "4px 8px", fontSize: "0.75rem" }}
+                    >
+                      Complete
+                    </button>
                   )}
                   </div>
                 </div>

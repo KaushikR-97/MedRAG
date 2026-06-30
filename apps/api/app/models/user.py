@@ -17,10 +17,10 @@ class User(Base):
     phone: Mapped[str] = mapped_column(String(32), default="")
     registration_number: Mapped[str] = mapped_column(String(64), default="")
     age: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    gender: Mapped[str | None] = mapped_column(String(32), default="", nullable=True)
     city: Mapped[str | None] = mapped_column(String(120), default="", nullable=True)
     speciality: Mapped[str | None] = mapped_column(String(160), default="", nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     profile = relationship("PatientProfile", back_populates="user", uselist=False)
-
 

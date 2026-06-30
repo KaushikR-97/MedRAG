@@ -9,6 +9,7 @@ from app.models.document import MedicalDocument
 from app.models.feature_modules import Hospital, HospitalResourceBooking
 from app.models.jobs import IngestionJob
 from app.models.user import User
+from app.rag.indexer import MedicalVectorIndexer
 from app.schemas.documents import DocumentRecord, IngestionJobRecord, VerifyImageFindingsRequest, VerifyOcrRequest
 from app.services.document_service import DocumentService
 from app.services.ingestion_service import IngestionService
@@ -58,9 +59,11 @@ def delete_document(
         raise HTTPException(404, "Document not found")
     if doc.patient_id != user.id:
         raise HTTPException(403, "Only the patient can delete this record")
+    MedicalVectorIndexer().delete_document(document_id=doc.id)
     doc.status = "deleted_by_patient"
+    doc.ingested_to_rag = False
     db.commit()
-    return {"status": "deleted"}
+    return {"status": "deleted", "rag_chunks_deleted": True}
 
 
 @router.post("/{doc_id}/retry-ingestion", response_model=DocumentRecord)
@@ -107,10 +110,33 @@ def list_documents(
     target_id = patient_id or user.id
     if not ComplianceService(db).can_access_patient(actor=user, patient_id=target_id, scope="documents.read"):
         raise HTTPException(403, "Access denied")
-    docs = db.query(MedicalDocument).filter(
+    query = db.query(MedicalDocument).filter(
         MedicalDocument.patient_id == target_id,
         MedicalDocument.status != "deleted_by_patient",
-    ).all()
+    )
+    if user.role in {"doctor", "hospital_admin"} and user.id != target_id:
+        from app.models.compliance import ConsentGrant
+
+        grants = (
+            db.query(ConsentGrant)
+            .filter(
+                ConsentGrant.patient_id == target_id,
+                ConsentGrant.grantee_id == user.id,
+                ConsentGrant.scope.in_(["documents.read", "all"]),
+                ConsentGrant.revoked_at.is_(None),
+            )
+            .all()
+        )
+        approved_ids = {
+            doc_id
+            for grant in grants
+            for doc_id in (grant.document_ids or "").split(",")
+            if doc_id
+        }
+        document_grants = [grant for grant in grants if grant.scope == "documents.read"]
+        if document_grants:
+            query = query.filter(MedicalDocument.id.in_(approved_ids or [""]))
+    docs = query.all()
     return [DocumentRecord.model_validate(d, from_attributes=True) for d in docs]
 
 

@@ -343,6 +343,20 @@ export const api = {
     role: string;
     phone?: string;
     registration_number?: string;
+    age?: number;
+    gender?: string;
+    city?: string;
+    blood_group?: string;
+    height_cm?: number;
+    weight_kg?: number;
+    allergies?: string;
+    chronic_conditions?: string;
+    current_medications?: string;
+    clinic_name?: string;
+    clinic_address?: string;
+    hospital_name?: string;
+    hospital_address?: string;
+    hospital_departments?: string;
   }) {
     const hashedPassword = await sha256(payload.password);
     return request<AuthResponse>("/auth/register", {
@@ -355,9 +369,13 @@ export const api = {
     password: string;
     full_name: string;
     phone?: string;
+    age?: number;
+    city?: string;
     blood_group?: string;
     date_of_birth?: string;
     gender?: string;
+    height_cm?: number;
+    weight_kg?: number;
     allergies?: string;
     chronic_conditions?: string;
     current_medications?: string;
@@ -367,8 +385,8 @@ export const api = {
     const form = new FormData();
     const hashedPassword = await sha256(payload.password);
     for (const [key, value] of Object.entries(payload)) {
-      if (key !== "documents" && typeof value === "string") {
-        form.append(key, key === "password" ? hashedPassword : value);
+      if (key !== "documents" && value !== undefined && value !== null) {
+        form.append(key, key === "password" ? hashedPassword : String(value));
       }
     }
     for (const doc of payload.documents) {
@@ -722,7 +740,7 @@ export const api = {
   ) {
     return request("/compliance/consents", { method: "POST", body: JSON.stringify(payload) }, token);
   },
-  requestPatientAccess(token: string, payload: { patient_id: string; scope?: string; purpose?: string }) {
+  requestPatientAccess(token: string, payload: { patient_id: string; scope?: string; purpose?: string; document_ids?: string[] }) {
     return request<{
       id: string;
       patient_id: string;
@@ -758,6 +776,17 @@ export const api = {
       status: string;
       consent_grant_id: string | null;
     }>(`/compliance/access-requests/${encodeURIComponent(requestId)}/approve`, { method: "POST" }, token);
+  },
+  approvePatientAccessRequestWithDocuments(token: string, requestId: string, documentIds: string[]) {
+    return request<{
+      id: string;
+      status: string;
+      consent_grant_id: string | null;
+    }>(
+      `/compliance/access-requests/${encodeURIComponent(requestId)}/approve`,
+      { method: "POST", body: JSON.stringify({ document_ids: documentIds }) },
+      token,
+    );
   },
   listDoctors(params: { city?: string; speciality?: string } = {}) {
     const query = new URLSearchParams();
@@ -896,6 +925,12 @@ export const api = {
     },
   ) {
     return request<ConsultationSlotRecord>("/hospitals/slots", { method: "POST", body: JSON.stringify(payload) }, token);
+  },
+  doctorBusinessReport(token: string, month: string, expenses: number) {
+    const query = new URLSearchParams();
+    if (month) query.set("month", month);
+    query.set("expenses", String(expenses || 0));
+    return request<any>(`/doctor/business-report?${query.toString()}`, {}, token);
   },
   transcribeVoice(token: string, file: File, language: string) {
     const form = new FormData();

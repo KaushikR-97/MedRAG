@@ -10,6 +10,20 @@ class RegisterRequest(BaseModel):
     role: str = Field(pattern="^(patient|doctor|hospital_admin)$")
     phone: str = ""
     registration_number: str = ""
+    age: int | None = None
+    gender: str = ""
+    city: str = ""
+    blood_group: str = ""
+    height_cm: float | None = None
+    weight_kg: float | None = None
+    allergies: str = ""
+    chronic_conditions: str = ""
+    current_medications: str = ""
+    clinic_name: str = ""
+    clinic_address: str = ""
+    hospital_name: str = ""
+    hospital_address: str = ""
+    hospital_departments: str = ""
 
 
 class LoginRequest(BaseModel):
@@ -59,6 +73,8 @@ class ProfileUpdateRequest(BaseModel):
     age: int | None = None
     city: str | None = None
     gender: str | None = None
+    height_cm: float | None = None
+    weight_kg: float | None = None
     speciality: str | None = None
 
 

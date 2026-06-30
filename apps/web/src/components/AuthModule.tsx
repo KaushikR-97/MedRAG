@@ -15,9 +15,21 @@ export const AuthModule: React.FC<AuthModuleProps> = ({ onLoginSuccess }) => {
   const [fullName, setFullName] = useState("Demo Patient");
   const [role, setRole] = useState("patient");
   const [bloodGroup, setBloodGroup] = useState("B+");
+  const [age, setAge] = useState("35");
+  const [gender, setGender] = useState("female");
+  const [location, setLocation] = useState("Bengaluru");
+  const [heightCm, setHeightCm] = useState("165");
+  const [weightKg, setWeightKg] = useState("68");
   const [allergies, setAllergies] = useState("No known drug allergy");
   const [chronicConditions, setChronicConditions] = useState("Diabetes follow-up");
   const [currentMedications, setCurrentMedications] = useState("Metformin as prescribed");
+  const [onboardingDocs, setOnboardingDocs] = useState<File[]>([]);
+  const [onboardingDocType, setOnboardingDocType] = useState("past_record");
+  const [clinicName, setClinicName] = useState("My Clinic");
+  const [clinicAddress, setClinicAddress] = useState("Clinic address");
+  const [hospitalName, setHospitalName] = useState("City Hospital");
+  const [hospitalAddress, setHospitalAddress] = useState("Hospital address");
+  const [hospitalDepartments, setHospitalDepartments] = useState("General Medicine, Cardiology");
   const [phone, setPhone] = useState("+919999988888");
   const [regNo, setRegNo] = useState("");
   
@@ -73,14 +85,36 @@ export const AuthModule: React.FC<AuthModuleProps> = ({ onLoginSuccess }) => {
     setLoading(true);
     setError("");
     try {
-      const res = await api.register({
+      const common = {
         email,
         password,
         full_name: fullName,
         role,
         phone,
         registration_number: role !== "patient" ? regNo : "",
-      });
+        age: age ? Number(age) : undefined,
+        gender,
+        city: location,
+      };
+      const res = role === "patient"
+        ? await api.registerPatientIntake({
+            ...common,
+            blood_group: bloodGroup,
+            height_cm: heightCm ? Number(heightCm) : undefined,
+            weight_kg: weightKg ? Number(weightKg) : undefined,
+            allergies,
+            chronic_conditions: chronicConditions,
+            current_medications: currentMedications,
+            documents: onboardingDocs.map((file) => ({ file, document_type: onboardingDocType })),
+          })
+        : await api.register({
+            ...common,
+            clinic_name: role === "doctor" ? clinicName : "",
+            clinic_address: role === "doctor" ? clinicAddress : "",
+            hospital_name: role === "hospital_admin" ? hospitalName : "",
+            hospital_address: role === "hospital_admin" ? hospitalAddress : "",
+            hospital_departments: role === "hospital_admin" ? hospitalDepartments : "",
+          });
       onLoginSuccess(res, res.access_token);
     } catch (err: any) {
       setError(err.message || "Failed to register");
@@ -181,6 +215,26 @@ export const AuthModule: React.FC<AuthModuleProps> = ({ onLoginSuccess }) => {
             <label className="label">Phone Number</label>
             <input type="text" value={phone} onChange={e => setPhone(e.target.value)} className="input" required />
           </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
+            <div>
+              <label className="label">Age</label>
+              <input type="number" value={age} onChange={e => setAge(e.target.value)} className="input" />
+            </div>
+            <div>
+              <label className="label">Gender</label>
+              <select value={gender} onChange={e => setGender(e.target.value)} className="input">
+                <option value="">Select</option>
+                <option value="female">Female</option>
+                <option value="male">Male</option>
+                <option value="non_binary">Non-binary</option>
+                <option value="prefer_not_to_say">Prefer not to say</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Location</label>
+              <input type="text" value={location} onChange={e => setLocation(e.target.value)} className="input" />
+            </div>
+          </div>
           <div>
             <label className="label">User Role</label>
             <select value={role} onChange={e => setRole(e.target.value)} className="input">
@@ -194,6 +248,75 @@ export const AuthModule: React.FC<AuthModuleProps> = ({ onLoginSuccess }) => {
               <label className="label">Medical Council Registration Number</label>
               <input type="text" value={regNo} onChange={e => setRegNo(e.target.value)} className="input" required />
             </div>
+          )}
+          {role === "patient" && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
+                <div>
+                  <label className="label">Blood Group</label>
+                  <input type="text" value={bloodGroup} onChange={e => setBloodGroup(e.target.value)} className="input" />
+                </div>
+                <div>
+                  <label className="label">Height (cm)</label>
+                  <input type="number" value={heightCm} onChange={e => setHeightCm(e.target.value)} className="input" />
+                </div>
+                <div>
+                  <label className="label">Weight (kg)</label>
+                  <input type="number" value={weightKg} onChange={e => setWeightKg(e.target.value)} className="input" />
+                </div>
+              </div>
+              <div>
+                <label className="label">Chronic Diseases List</label>
+                <textarea value={chronicConditions} onChange={e => setChronicConditions(e.target.value)} className="input" rows={2} />
+              </div>
+              <div>
+                <label className="label">Allergies</label>
+                <input type="text" value={allergies} onChange={e => setAllergies(e.target.value)} className="input" />
+              </div>
+              <div>
+                <label className="label">Current Medications</label>
+                <input type="text" value={currentMedications} onChange={e => setCurrentMedications(e.target.value)} className="input" />
+              </div>
+              <div>
+                <label className="label">Add Medical Docs to Vault</label>
+                <select value={onboardingDocType} onChange={e => setOnboardingDocType(e.target.value)} className="input" style={{ marginBottom: "8px" }}>
+                  <option value="past_record">Past Patient Record</option>
+                  <option value="lab_report">Lab Report</option>
+                  <option value="discharge_summary">Discharge Summary</option>
+                  <option value="prescription">Prescription</option>
+                  <option value="imaging">Imaging</option>
+                </select>
+                <input type="file" multiple className="input" onChange={e => setOnboardingDocs(Array.from(e.target.files || []))} />
+              </div>
+            </>
+          )}
+          {role === "doctor" && (
+            <>
+              <div>
+                <label className="label">Clinic Name</label>
+                <input type="text" value={clinicName} onChange={e => setClinicName(e.target.value)} className="input" required />
+              </div>
+              <div>
+                <label className="label">Clinic Address</label>
+                <textarea value={clinicAddress} onChange={e => setClinicAddress(e.target.value)} className="input" rows={2} />
+              </div>
+            </>
+          )}
+          {role === "hospital_admin" && (
+            <>
+              <div>
+                <label className="label">Hospital Name</label>
+                <input type="text" value={hospitalName} onChange={e => setHospitalName(e.target.value)} className="input" required />
+              </div>
+              <div>
+                <label className="label">Hospital Address</label>
+                <textarea value={hospitalAddress} onChange={e => setHospitalAddress(e.target.value)} className="input" rows={2} />
+              </div>
+              <div>
+                <label className="label">Departments</label>
+                <input type="text" value={hospitalDepartments} onChange={e => setHospitalDepartments(e.target.value)} className="input" placeholder="General Medicine, Cardiology" />
+              </div>
+            </>
           )}
           <button type="submit" className="button" disabled={loading} style={{ marginTop: "10px" }}>
             {loading ? "Registering..." : "Register"}

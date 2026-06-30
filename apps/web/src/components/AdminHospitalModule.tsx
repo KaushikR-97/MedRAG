@@ -10,8 +10,8 @@ export const AdminHospitalModule: React.FC<AdminHospitalModuleProps> = ({ token 
   const [hospitals, setHospitals] = useState<any[]>([]);
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [organizationId, setOrganizationId] = useState("");
-  const [organizationName, setOrganizationName] = useState("My Clinic");
-  const [organizationType, setOrganizationType] = useState("clinic");
+  const [organizationName, setOrganizationName] = useState("My Hospital Organization");
+  const [organizationType, setOrganizationType] = useState("hospital");
   const [staffUserId, setStaffUserId] = useState("");
   const [staffRole, setStaffRole] = useState("front_desk");
   const [staffScope, setStaffScope] = useState("appointments,records");
@@ -102,7 +102,7 @@ export const AdminHospitalModule: React.FC<AdminHospitalModuleProps> = ({ token 
       const org = await api.createOrganization(token, {
         name: organizationName,
         organization_type: organizationType,
-        linked_hospital_id: organizationType === "hospital" ? hospitalId : null,
+        linked_hospital_id: hospitalId,
       });
       setOrganizationId(org.id);
       setMessage(`${org.organization_type.replace("_", " ")} organization created.`);
@@ -258,7 +258,7 @@ export const AdminHospitalModule: React.FC<AdminHospitalModuleProps> = ({ token 
       <div className="card">
         <h3 style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "1rem", marginBottom: "12px" }}>
           <Building2 size={18} style={{ color: "var(--primary)" }} />
-          Clinic / Hospital Organization
+          Hospital Organization
         </h3>
         <form onSubmit={createOrganization} style={{ display: "grid", gridTemplateColumns: "1fr 180px auto", gap: "10px", marginBottom: "14px", alignItems: "end" }}>
           <div>
@@ -268,14 +268,10 @@ export const AdminHospitalModule: React.FC<AdminHospitalModuleProps> = ({ token 
           <div>
             <label className="label">Structure</label>
             <select className="input" value={organizationType} onChange={(event) => setOrganizationType(event.target.value)}>
-              <option value="solo_clinic">Solo Clinic</option>
-              <option value="clinic">Clinic</option>
               <option value="hospital">Hospital</option>
-              <option value="diagnostic_center">Diagnostic Center</option>
-              <option value="pharmacy">Pharmacy</option>
             </select>
           </div>
-          <button className="button" type="submit">Create Org</button>
+          <button className="button" type="submit" disabled={!hospitalId}>Create Org</button>
         </form>
         <label className="label">Active Organization</label>
         <select className="input" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} style={{ marginBottom: "14px" }}>

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user, require_role
 from app.db.session import get_db
-from app.models.feature_modules import CareOrganization, OrganizationMember
+from app.models.feature_modules import CareOrganization, Hospital, OrganizationMember
 from app.models.user import User
 
 router = APIRouter()
@@ -36,6 +36,7 @@ def create_organization(
     user: User = Depends(require_role("doctor", "hospital_admin")),
     db: Session = Depends(get_db),
 ) -> dict:
+    _validate_organization_creation(db=db, user=user, payload=payload)
     org = CareOrganization(
         id=str(uuid.uuid4()),
         name=payload.name,
@@ -96,7 +97,7 @@ def add_organization_member(
     org = db.get(CareOrganization, organization_id)
     if org is None:
         raise HTTPException(404, "Organization not found")
-    if org.owner_user_id != user.id and user.role != "hospital_admin":
+    if not _can_manage_organization(db, org=org, user=user):
         raise HTTPException(403, "Only organization owner/admin can add members")
     member_user = db.get(User, payload.user_id)
     if member_user is None:
@@ -144,7 +145,7 @@ def list_organization_members(
         )
         .first()
     )
-    if not allowed and user.role != "hospital_admin":
+    if not allowed:
         raise HTTPException(403, "Not an organization member")
     rows = (
         db.query(OrganizationMember)
@@ -153,6 +154,46 @@ def list_organization_members(
         .all()
     )
     return [_member_record(db, row) for row in rows]
+
+
+def _validate_organization_creation(db: Session, user: User, payload: OrganizationCreate) -> None:
+    if user.role == "doctor":
+        if payload.organization_type == "hospital":
+            raise HTTPException(403, "Doctors can create clinic organizations, not hospital organizations")
+        if payload.linked_hospital_id:
+            hospital = db.get(Hospital, payload.linked_hospital_id)
+            if hospital is None or not hospital.active:
+                raise HTTPException(404, "Linked hospital not found")
+        return
+
+    if user.role == "hospital_admin":
+        if payload.organization_type != "hospital":
+            raise HTTPException(403, "Hospital admins create hospital organizations; doctors create clinic organizations")
+        if not payload.linked_hospital_id:
+            raise HTTPException(400, "Hospital organizations must be linked to a managed hospital")
+        hospital = db.get(Hospital, payload.linked_hospital_id)
+        if hospital is None or not hospital.active:
+            raise HTTPException(404, "Linked hospital not found")
+        if hospital.admin_user_id != user.id:
+            raise HTTPException(403, "Hospital organization must be linked to a hospital you administer")
+        return
+
+    raise HTTPException(403, "Only doctors and hospital admins can manage organizations")
+
+
+def _can_manage_organization(db: Session, org: CareOrganization, user: User) -> bool:
+    if org.owner_user_id == user.id:
+        return True
+    return bool(
+        db.query(OrganizationMember)
+        .filter(
+            OrganizationMember.organization_id == org.id,
+            OrganizationMember.user_id == user.id,
+            OrganizationMember.member_role == "admin",
+            OrganizationMember.status == "active",
+        )
+        .first()
+    )
 
 
 def _org_record(db: Session, org: CareOrganization) -> dict:

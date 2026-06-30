@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import create_access_token, create_refresh_token, hash_password, verify_password, get_current_user, generate_12_digit_id
 from app.db.session import get_db
-from app.models.feature_modules import Hospital
+from app.models.feature_modules import CareOrganization, Hospital, HospitalDepartment, OrganizationMember
 from app.models.jobs import IngestionJob
 from app.models.patient import PatientProfile
 from app.models.user import User
@@ -90,13 +90,69 @@ def register(request: Request, payload: RegisterRequest, db: Session = Depends(g
         role=payload.role,
         phone=payload.phone,
         registration_number=payload.registration_number,
+        age=payload.age,
+        gender=payload.gender,
+        city=payload.city,
     )
     db.add(user)
     try:
         db.flush()
         if payload.role == "patient":
-            db.add(PatientProfile(id=str(uuid.uuid4()), user_id=user.id))
+            db.add(
+                PatientProfile(
+                    id=str(uuid.uuid4()),
+                    user_id=user.id,
+                    blood_group=payload.blood_group,
+                    gender=payload.gender,
+                    height_cm=payload.height_cm,
+                    weight_kg=payload.weight_kg,
+                    allergies=payload.allergies,
+                    chronic_conditions=payload.chronic_conditions,
+                    current_medications=payload.current_medications,
+                )
+            )
         _ensure_role_directory_records(db, user)
+        if payload.role == "doctor" and payload.clinic_name:
+            clinic = CareOrganization(
+                id=str(uuid.uuid4()),
+                name=payload.clinic_name,
+                organization_type="clinic",
+                owner_user_id=user.id,
+                address=payload.clinic_address,
+                city=payload.city,
+                phone=payload.phone,
+                email=user.email,
+                active=True,
+            )
+            db.add(clinic)
+            db.flush()
+            db.add(
+                OrganizationMember(
+                    id=str(uuid.uuid4()),
+                    organization_id=clinic.id,
+                    user_id=user.id,
+                    member_role="doctor",
+                    task_scope="owner,appointments,records,billing,staff",
+                    status="active",
+                )
+            )
+        if payload.role == "hospital_admin" and payload.hospital_name:
+            hospital = db.query(Hospital).filter(Hospital.admin_user_id == user.id).first()
+            if hospital is not None:
+                hospital.name = payload.hospital_name
+                hospital.address = payload.hospital_address
+                hospital.city = payload.city or hospital.city
+                for department_name in _split_departments(payload.hospital_departments):
+                    db.add(
+                        HospitalDepartment(
+                            id=str(uuid.uuid4()),
+                            hospital_id=hospital.id,
+                            name=department_name,
+                            speciality=department_name,
+                            description="",
+                            active=True,
+                        )
+                    )
         db.commit()
     except IntegrityError as exc:
         db.rollback()
@@ -123,9 +179,13 @@ async def register_patient_intake(
     password: Annotated[str, Form()],
     full_name: Annotated[str, Form()],
     phone: Annotated[str, Form()] = "",
+    age: Annotated[int | None, Form()] = None,
+    city: Annotated[str, Form()] = "",
     blood_group: Annotated[str, Form()] = "",
     date_of_birth: Annotated[str, Form()] = "",
     gender: Annotated[str, Form()] = "",
+    height_cm: Annotated[float | None, Form()] = None,
+    weight_kg: Annotated[float | None, Form()] = None,
     allergies: Annotated[str, Form()] = "",
     chronic_conditions: Annotated[str, Form()] = "",
     current_medications: Annotated[str, Form()] = "",
@@ -155,6 +215,9 @@ async def register_patient_intake(
         role="patient",
         phone=phone,
         registration_number="",
+        age=age,
+        gender=gender,
+        city=city,
     )
     profile = PatientProfile(
         id=str(uuid.uuid4()),
@@ -163,6 +226,8 @@ async def register_patient_intake(
         blood_group=blood_group,
         date_of_birth=date_of_birth,
         gender=gender,
+        height_cm=height_cm,
+        weight_kg=weight_kg,
         allergies=allergies,
         chronic_conditions=chronic_conditions,
         current_medications=current_medications,
@@ -201,6 +266,8 @@ async def register_patient_intake(
                 "blood_group": bool(blood_group),
                 "date_of_birth": bool(date_of_birth),
                 "gender": bool(gender),
+                "height_cm": height_cm is not None,
+                "weight_kg": weight_kg is not None,
                 "allergies": bool(allergies),
                 "chronic_conditions": bool(chronic_conditions),
                 "current_medications": bool(current_medications),
@@ -332,7 +399,7 @@ def change_password(
 @router.get("/me")
 @router.get("/profile")
 def get_me(current_user: User = Depends(get_current_user)) -> dict:
-    gender = ""
+    gender = current_user.gender or ""
     if current_user.role == "patient" and current_user.profile:
         gender = current_user.profile.gender or ""
     return {
@@ -345,6 +412,8 @@ def get_me(current_user: User = Depends(get_current_user)) -> dict:
         "age": current_user.age,
         "city": current_user.city,
         "gender": gender,
+        "height_cm": current_user.profile.height_cm if current_user.role == "patient" and current_user.profile else None,
+        "weight_kg": current_user.profile.weight_kg if current_user.role == "patient" and current_user.profile else None,
         "speciality": current_user.speciality,
     }
 
@@ -370,6 +439,17 @@ def update_me(
             profile = PatientProfile(id=str(uuid.uuid4()), user_id=current_user.id)
             db.add(profile)
         profile.gender = payload.gender
+    elif payload.gender is not None:
+        current_user.gender = payload.gender
+    if current_user.role == "patient" and (payload.height_cm is not None or payload.weight_kg is not None):
+        profile = current_user.profile or db.query(PatientProfile).filter(PatientProfile.user_id == current_user.id).first()
+        if profile is None:
+            profile = PatientProfile(id=str(uuid.uuid4()), user_id=current_user.id)
+            db.add(profile)
+        if payload.height_cm is not None:
+            profile.height_cm = payload.height_cm
+        if payload.weight_kg is not None:
+            profile.weight_kg = payload.weight_kg
     if payload.speciality is not None:
         current_user.speciality = payload.speciality
     _ensure_role_directory_records(db, current_user)
@@ -384,8 +464,14 @@ def update_me(
         "age": current_user.age,
         "city": current_user.city,
         "gender": current_user.profile.gender if current_user.role == "patient" and current_user.profile else "",
+        "height_cm": current_user.profile.height_cm if current_user.role == "patient" and current_user.profile else None,
+        "weight_kg": current_user.profile.weight_kg if current_user.role == "patient" and current_user.profile else None,
         "speciality": current_user.speciality,
     }
+
+
+def _split_departments(value: str) -> list[str]:
+    return [part.strip() for part in value.replace("\n", ",").split(",") if part.strip()]
 
 
 @router.post("/refresh", response_model=AuthResponse)

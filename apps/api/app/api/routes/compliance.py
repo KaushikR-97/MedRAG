@@ -35,6 +35,11 @@ class AccessRequestCreate(BaseModel):
     patient_id: str
     scope: str = Field(default="all", pattern="^(all|clinical.ask|documents.read|profile.read)$")
     purpose: str = Field(default="Requested EHR review", min_length=3, max_length=160)
+    document_ids: list[str] = Field(default_factory=list)
+
+
+class AccessRequestApprove(BaseModel):
+    document_ids: list[str] = Field(default_factory=list)
 
 
 class AccessRequestRecord(BaseModel):
@@ -49,6 +54,8 @@ class AccessRequestRecord(BaseModel):
     consent_grant_id: str | None
     created_at: str
     decided_at: str | None
+    requested_document_ids: list[str] = Field(default_factory=list)
+    approved_document_ids: list[str] = Field(default_factory=list)
 
 
 @router.post("/consents", response_model=ConsentGrantRecord)
@@ -92,6 +99,7 @@ def request_patient_access(
         patient_id=payload.patient_id,
         requester_id=user.id,
         scope=payload.scope,
+        requested_document_ids=",".join(payload.document_ids),
         purpose=payload.purpose,
         status="pending",
         created_at=datetime.now(UTC),
@@ -125,6 +133,7 @@ def list_access_requests(
 @router.post("/access-requests/{request_id}/approve", response_model=AccessRequestRecord)
 def approve_access_request(
     request_id: str,
+    payload: AccessRequestApprove | None = None,
     user: User = Depends(require_role("patient")),
     db: Session = Depends(get_db),
 ) -> AccessRequestRecord:
@@ -136,11 +145,25 @@ def approve_access_request(
     if access_request.status != "pending":
         requester = db.get(User, access_request.requester_id)
         return _access_request_record(access_request, requester)
+    approved_document_ids = payload.document_ids if payload and payload.document_ids else [
+        doc_id for doc_id in (access_request.requested_document_ids or "").split(",") if doc_id
+    ]
+    if approved_document_ids:
+        from app.models.document import MedicalDocument
+
+        owned_count = (
+            db.query(MedicalDocument)
+            .filter(MedicalDocument.patient_id == user.id, MedicalDocument.id.in_(approved_document_ids))
+            .count()
+        )
+        if owned_count != len(set(approved_document_ids)):
+            raise HTTPException(400, "One or more selected documents do not belong to this patient")
     grant = ConsentGrant(
         id=str(uuid.uuid4()),
         patient_id=user.id,
         grantee_id=access_request.requester_id,
         scope=access_request.scope,
+        document_ids=",".join(dict.fromkeys(approved_document_ids)),
         purpose=access_request.purpose,
         expires_at=datetime.now(UTC) + timedelta(days=30),
     )
@@ -188,6 +211,8 @@ def _access_request_record(access_request: PatientAccessRequest, requester: User
         consent_grant_id=access_request.consent_grant_id,
         created_at=access_request.created_at.isoformat(),
         decided_at=access_request.decided_at.isoformat() if access_request.decided_at else None,
+        requested_document_ids=[doc_id for doc_id in (access_request.requested_document_ids or "").split(",") if doc_id],
+        approved_document_ids=[],
     )
 
 

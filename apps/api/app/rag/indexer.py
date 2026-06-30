@@ -207,6 +207,9 @@ class MedicalVectorIndexer:
         except Exception:
             return
 
+    def delete_document(self, *, document_id: str) -> None:
+        self._delete_existing_document_points(document_id=document_id)
+
     def index_reference_document(
         self,
         *,
