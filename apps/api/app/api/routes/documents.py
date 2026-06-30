@@ -137,7 +137,34 @@ def list_documents(
         if document_grants:
             query = query.filter(MedicalDocument.id.in_(approved_ids or [""]))
     docs = query.all()
+    _enqueue_missing_rag_ingestion(db=db, docs=docs, user=user)
     return [DocumentRecord.model_validate(d, from_attributes=True) for d in docs]
+
+
+def _enqueue_missing_rag_ingestion(*, db: Session, docs: list[MedicalDocument], user: User) -> None:
+    repaired = False
+    for doc in docs:
+        if doc.ingested_to_rag or not doc.verified_text:
+            continue
+        if not (doc.verified_by_patient or doc.image_review_status == "clinician_verified"):
+            continue
+        if doc.status in {"deleted_by_patient", "blocked", "ingestion_failed"}:
+            continue
+        active_job = (
+            db.query(IngestionJob)
+            .filter(
+                IngestionJob.document_id == doc.id,
+                IngestionJob.job_type == "document_rag_ingest",
+                IngestionJob.status.in_(["queued", "running"]),
+            )
+            .first()
+        )
+        if active_job:
+            continue
+        IngestionService(db).enqueue_verified_document_ingestion(doc=doc, user=user)
+        repaired = True
+    if repaired:
+        db.flush()
 
 
 def _hospital_can_upload_for_patient(db: Session, admin: User, patient_id: str) -> bool:

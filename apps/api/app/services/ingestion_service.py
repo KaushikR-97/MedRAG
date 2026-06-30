@@ -28,7 +28,8 @@ class IngestionService:
             status="queued",
         )
         self.db.add(ingestion_job)
-        self.db.flush()
+        self.db.commit()
+        self.db.refresh(ingestion_job)
 
         queue_job_id = QueueService().enqueue(
             process_document_pipeline,

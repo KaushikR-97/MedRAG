@@ -236,14 +236,14 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ token, activeP
                         Find Similar
                       </button>
                     )}
-                    {(doc.status === "blocked" || doc.status === "ocr_failed" || doc.status === "ingestion_failed" || doc.malware_status === "error") && (
+                    {(doc.status === "blocked" || doc.status === "ocr_failed" || doc.status === "ingestion_failed" || doc.malware_status === "error" || (doc.verified_by_patient && !doc.ingested_to_rag)) && (
                       <button
                         onClick={() => handleRetryIngestion(doc)}
                         className="button-sec"
                         style={{ padding: "4px 8px", fontSize: "0.7rem", borderColor: "rgba(0,176,255,0.45)", color: "var(--primary)" }}
-                        title="Restart OCR and RAG ingestion"
+                        title={doc.verified_by_patient && !doc.ingested_to_rag ? "Queue RAG indexing for this verified document" : "Restart OCR and RAG ingestion"}
                       >
-                        Retry Ingestion
+                        {doc.verified_by_patient && !doc.ingested_to_rag ? "Retry RAG" : "Retry Ingestion"}
                       </button>
                     )}
                     {userRole === "patient" && (
