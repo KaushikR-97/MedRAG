@@ -1,0 +1,343 @@
+[
+  {
+    "id": "icmr_standard_treatment_workflows_stws",
+    "name": "ICMR Standard Treatment Workflows (STWs)",
+    "url": "https://www.icmr.gov.in/standard-treatment-workflows-stws",
+    "publisher": "Indian Council of Medical Research / Government of India",
+    "source_family": "clinical_guideline",
+    "priority": "P0",
+    "retrieved_date": "2026-07-01",
+    "last_verified_note": "Official ICMR STW page lists hypertension and multi-specialty workflow PDFs including cardiology, ENT, nephrology, neurology, obstetrics/gynecology, paediatrics, psychiatry, pulmonology, urology, tuberculosis, dermatology, endocrinology, gastroenterology, general surgery, neonatology, ophthalmology, and orthopaedics.",
+    "india_relevance": "high",
+    "clinical_domains": [
+      "hypertension",
+      "fever",
+      "dengue",
+      "diarrhea",
+      "pneumonia",
+      "asthma",
+      "copd",
+      "tuberculosis",
+      "diabetes",
+      "ckd",
+      "uti",
+      "obstetrics",
+      "neonatology",
+      "dermatology",
+      "emergency_care"
+    ],
+    "rag_manifest": {
+      "title": "ICMR Standard Treatment Workflows (STWs)",
+      "source_type": "guideline",
+      "publication_date": "2026-07-01",
+      "license_status": "public_non_phi_verify_document_terms",
+      "language": "en"
+    },
+    "recommended_use": [
+      "rag_corpus",
+      "doctor_decision_support_grounding",
+      "clinical_eval_references",
+      "sft_style_context_after_license_review"
+    ],
+    "fine_tuning_use": "Use only for role/style/citation discipline after license review; keep clinical facts in dated RAG.",
+    "patient_doctor_interaction_use": "Create synthetic doctor-patient dialogues grounded in retrieved STW excerpts; do not represent synthetic examples as real consultations.",
+    "phi_status": "public_non_phi",
+    "commercial_use_status": "verify_document_level_terms",
+    "quality_gate": "Every answer using this source must cite document title/URL and include missing-data, contraindication, monitoring, and escalation language for doctor mode."
+  },
+  {
+    "id": "icmr_guidelines_consensus_documents",
+    "name": "ICMR Guidelines and Consensus Documents",
+    "url": "https://www.icmr.gov.in/guidelines",
+    "publisher": "Indian Council of Medical Research / Government of India",
+    "source_family": "clinical_guideline",
+    "priority": "P0",
+    "retrieved_date": "2026-07-01",
+    "last_verified_note": "Official ICMR guidelines page lists antimicrobial resistance reports/guidelines, antimicrobial-use common-syndrome guidance, AI ethics in biomedical research and healthcare, cancer consensus documents, celiac disease, clinical laboratory practice, ethics, and other specialty references.",
+    "india_relevance": "high",
+    "clinical_domains": [
+      "antimicrobial_stewardship",
+      "infectious_diseases",
+      "diabetes",
+      "cancer",
+      "clinical_laboratory",
+      "ethics_ai_healthcare",
+      "drug_safety"
+    ],
+    "rag_manifest": {
+      "title": "ICMR Guidelines and Consensus Documents",
+      "source_type": "guideline",
+      "publication_date": "2026-07-01",
+      "license_status": "public_non_phi_verify_document_terms",
+      "language": "en"
+    },
+    "recommended_use": [
+      "rag_corpus",
+      "antibiotic_stewardship_guardrails",
+      "doctor_decision_support_grounding",
+      "clinical_eval_references"
+    ],
+    "fine_tuning_use": "Do not fine-tune antimicrobial or dosing facts into the base model; use as RAG and eval references.",
+    "patient_doctor_interaction_use": "Generate safe simulated counselling snippets for antibiotic misuse, diabetes follow-up, lab interpretation, and referral questions.",
+    "phi_status": "public_non_phi",
+    "commercial_use_status": "verify_document_level_terms",
+    "quality_gate": "Doctor answers must explicitly check diagnosis, local resistance/guideline fit, allergies, pregnancy/lactation, renal/hepatic function, interactions, and review timing."
+  },
+  {
+    "id": "nin_icmr_dietary_guidelines_indians",
+    "name": "Dietary Guidelines for Indians",
+    "url": "https://www.nin.res.in/dietaryguidelines/index.html",
+    "publisher": "ICMR - National Institute of Nutrition",
+    "source_family": "nutrition_lifestyle",
+    "priority": "P0",
+    "retrieved_date": "2026-07-01",
+    "last_verified_note": "Official NIN/ICMR dietary-guidelines page serves the guideline PDF viewer. Use for Indian food habits, diet quality, salt/fat/sugar counselling, pregnancy/lactation, children, older adults, food safety, labels, and lifestyle education.",
+    "india_relevance": "high",
+    "clinical_domains": [
+      "nutrition",
+      "diabetes_lifestyle",
+      "hypertension_lifestyle",
+      "pregnancy_nutrition",
+      "child_nutrition",
+      "food_safety",
+      "obesity"
+    ],
+    "rag_manifest": {
+      "title": "ICMR-NIN Dietary Guidelines for Indians",
+      "source_type": "nutrition_guideline",
+      "publication_date": "2024-01-01",
+      "license_status": "public_non_phi_verify_document_terms",
+      "language": "en"
+    },
+    "recommended_use": [
+      "rag_corpus",
+      "patient_education_grounding",
+      "indian_food_habits_context",
+      "sft_style_context_after_license_review"
+    ],
+    "fine_tuning_use": "Useful for Indian diet vocabulary and counselling style after rights review; keep numeric nutrition recommendations cite-backed in RAG.",
+    "patient_doctor_interaction_use": "Generate synthetic Indian meal-pattern counselling examples for diabetes, hypertension, obesity, anaemia risk, pregnancy, and elder care.",
+    "phi_status": "public_non_phi",
+    "commercial_use_status": "verify_document_level_terms",
+    "quality_gate": "Patient answers may discuss diet/lifestyle and red flags, but must not replace clinician-prescribed diet plans for CKD, pregnancy complications, diabetes medication adjustment, or severe illness."
+  },
+  {
+    "id": "ncdc_technical_guidelines_public_health",
+    "name": "NCDC Technical Guidelines and Public Health Resources",
+    "url": "https://ncdc.mohfw.gov.in/",
+    "publisher": "National Centre for Disease Control / Ministry of Health and Family Welfare",
+    "source_family": "public_health",
+    "priority": "P0",
+    "retrieved_date": "2026-07-01",
+    "last_verified_note": "Official NCDC page links Health Information, Seasonal Influenza, Technical Guidelines, outbreak resources, AMR, IDSP, rabies, viral hepatitis, leptospirosis, snakebite, climate/heat, air pollution, and weekly outbreaks.",
+    "india_relevance": "high",
+    "clinical_domains": [
+      "seasonal_influenza",
+      "dengue",
+      "malaria",
+      "rabies",
+      "leptospirosis",
+      "snakebite",
+      "heat_illness",
+      "air_pollution",
+      "outbreaks",
+      "surveillance"
+    ],
+    "rag_manifest": {
+      "title": "NCDC Technical Guidelines and Public Health Resources",
+      "source_type": "public_health_guideline",
+      "publication_date": "2026-06-19",
+      "license_status": "public_non_phi_verify_document_terms",
+      "language": "en"
+    },
+    "recommended_use": [
+      "rag_corpus",
+      "seasonal_disease_context",
+      "public_health_context",
+      "doctor_decision_support_grounding",
+      "urgent_escalation_eval"
+    ],
+    "fine_tuning_use": "Use for safety/referral style only after license review; disease advisories and outbreak facts must stay in dated RAG.",
+    "patient_doctor_interaction_use": "Generate synthetic monsoon fever, heat wave, rabies exposure, snakebite, influenza, and outbreak counselling scenarios.",
+    "phi_status": "public_non_phi",
+    "commercial_use_status": "verify_document_level_terms",
+    "quality_gate": "Seasonal answers must include geography/date caveat, urgent danger signs, and public-health testing/reporting recommendations when relevant."
+  },
+  {
+    "id": "idsp_outbreak_surveillance_calendar",
+    "name": "Integrated Disease Surveillance Programme (IDSP)",
+    "url": "https://idsp.mohfw.gov.in/",
+    "publisher": "Integrated Disease Surveillance Programme / Ministry of Health and Family Welfare",
+    "source_family": "public_health_surveillance",
+    "priority": "P0",
+    "retrieved_date": "2026-07-01",
+    "last_verified_note": "Official IDSP portal links weekly outbreaks, disease alerts, seasonal influenza, disease-wise outbreaks, monthly outbreak calendar, and IHIP manuals. It describes IDSP as a decentralized laboratory-based disease surveillance system for epidemic-prone diseases.",
+    "india_relevance": "high",
+    "clinical_domains": [
+      "outbreaks",
+      "seasonal_disease",
+      "surveillance",
+      "disease_alerts",
+      "influenza",
+      "nipah",
+      "epidemic_response"
+    ],
+    "rag_manifest": {
+      "title": "Integrated Disease Surveillance Programme (IDSP)",
+      "source_type": "public_health_surveillance",
+      "publication_date": "2026-07-01",
+      "license_status": "public_non_phi_verify_document_terms",
+      "language": "en"
+    },
+    "recommended_use": [
+      "seasonal_disease_context",
+      "public_health_dashboard",
+      "rag_corpus",
+      "doctor_decision_support_grounding"
+    ],
+    "fine_tuning_use": "Do not train changing outbreak facts into the model; use as live/dateranged retrieval only.",
+    "patient_doctor_interaction_use": "Generate synthetic seasonal-risk questions that teach the assistant to ask location/date/travel/exposure and avoid unsupported outbreak claims.",
+    "phi_status": "public_non_phi_or_aggregate",
+    "commercial_use_status": "verify_site_terms",
+    "quality_gate": "Responses must distinguish patient-specific diagnosis from aggregate surveillance and should never claim a local outbreak unless a dated source supports it."
+  },
+  {
+    "id": "cdsco_drug_regulatory_sources",
+    "name": "CDSCO Drug Regulatory, Banned Drugs, Alerts, and Prescribing Information",
+    "url": "https://cdsco.gov.in/opencms/opencms/en/Home/",
+    "publisher": "Central Drugs Standard Control Organisation / Government of India",
+    "source_family": "drug_regulatory",
+    "priority": "P0",
+    "retrieved_date": "2026-07-01",
+    "last_verified_note": "Official CDSCO home page identifies CDSCO as India's National Regulatory Authority and links drugs, new drugs, fixed dose combinations, prescribing information, adverse drug reaction notifications, alerts, banned drugs, public notices, and medical devices/diagnostics.",
+    "india_relevance": "high",
+    "clinical_domains": [
+      "drug_safety",
+      "fixed_dose_combinations",
+      "banned_drugs",
+      "prescribing_information",
+      "adverse_drug_reactions",
+      "medical_devices"
+    ],
+    "rag_manifest": {
+      "title": "CDSCO Drug Regulatory Sources",
+      "source_type": "drug_regulatory_reference",
+      "publication_date": "2026-07-01",
+      "license_status": "public_non_phi_verify_document_terms",
+      "language": "en"
+    },
+    "recommended_use": [
+      "rag_corpus",
+      "prescription_safety_checks",
+      "doctor_decision_support_grounding",
+      "drug_regulatory_guardrails"
+    ],
+    "fine_tuning_use": "Use only for regulatory-answer style after review; drug approval, ban, and alert facts must remain live/dateranged RAG.",
+    "patient_doctor_interaction_use": "Generate synthetic examples for patient requests for Schedule H antibiotics, unsafe FDCs, banned drugs, ADR warnings, and prescription-only boundaries.",
+    "phi_status": "public_non_phi",
+    "commercial_use_status": "verify_site_terms",
+    "quality_gate": "Prescription answers must use generic names, check Schedule H/prescription-only boundaries, contraindications, interactions, pregnancy/lactation, renal/hepatic status, and CDSCO alerts when relevant."
+  },
+  {
+    "id": "jan_aushadhi_product_catalogue",
+    "name": "Pradhan Mantri Bhartiya Janaushadhi Pariyojana Product Catalogue",
+    "url": "https://janaushadhi.gov.in/ProductList.aspx",
+    "publisher": "Pharmaceuticals & Medical Devices Bureau of India / Government of India",
+    "source_family": "drug_availability",
+    "priority": "P1",
+    "retrieved_date": "2026-07-01",
+    "last_verified_note": "Use as India-relevant generic medicine availability/context. It is not a treatment guideline and must not be treated as prescribing truth.",
+    "india_relevance": "high",
+    "clinical_domains": [
+      "generic_medicines",
+      "drug_availability",
+      "affordability",
+      "pharmacy_context"
+    ],
+    "rag_manifest": {
+      "title": "Janaushadhi Product Catalogue",
+      "source_type": "drug_availability_reference",
+      "publication_date": "2026-07-01",
+      "license_status": "public_non_phi_verify_site_terms",
+      "language": "en"
+    },
+    "recommended_use": [
+      "drug_availability_context",
+      "generic_name_context",
+      "hospital_admin_workflows"
+    ],
+    "fine_tuning_use": "Not for treatment training. Use only for generic/availability vocabulary after terms review.",
+    "patient_doctor_interaction_use": "Generate synthetic examples teaching users to ask their doctor/pharmacist about generic equivalents rather than self-substituting.",
+    "phi_status": "public_non_phi",
+    "commercial_use_status": "verify_site_terms",
+    "quality_gate": "Never infer indication, dose, or suitability from catalogue presence."
+  },
+  {
+    "id": "nha_pmjay_health_benefit_packages",
+    "name": "Ayushman Bharat PM-JAY Health Benefit Packages and NHA Documents",
+    "url": "https://pmjay.gov.in/resources/documents",
+    "publisher": "National Health Authority / Government of India",
+    "source_family": "coverage_operations",
+    "priority": "P1",
+    "retrieved_date": "2026-07-01",
+    "last_verified_note": "Use for insurance/package/admin workflows, eligibility explanation, and hospital operations. It is not a clinical treatment guideline.",
+    "india_relevance": "high",
+    "clinical_domains": [
+      "coverage_matching",
+      "hospital_operations",
+      "package_rules",
+      "benefit_explanation"
+    ],
+    "rag_manifest": {
+      "title": "PM-JAY Health Benefit Packages and NHA Documents",
+      "source_type": "coverage_reference",
+      "publication_date": "2026-07-01",
+      "license_status": "public_non_phi_verify_document_terms",
+      "language": "en"
+    },
+    "recommended_use": [
+      "coverage_matching",
+      "hospital_admin_workflows",
+      "rag_corpus"
+    ],
+    "fine_tuning_use": "Not for medical treatment training.",
+    "patient_doctor_interaction_use": "Generate synthetic package-explanation dialogues for admin/support mode only.",
+    "phi_status": "public_non_phi",
+    "commercial_use_status": "verify_document_level_terms",
+    "quality_gate": "Keep clinical necessity separate from package eligibility and mark final insurance approval as payer/admin workflow."
+  },
+  {
+    "id": "data_gov_in_health_family_welfare",
+    "name": "Open Government Data Platform India - Health and Family Welfare",
+    "url": "https://data.gov.in/",
+    "publisher": "Open Government Data Platform India",
+    "source_family": "aggregate_public_data",
+    "priority": "P1",
+    "retrieved_date": "2026-07-01",
+    "last_verified_note": "Use dataset-level metadata and licenses. Freshness varies and must be stored per dataset.",
+    "india_relevance": "high",
+    "clinical_domains": [
+      "public_health_analytics",
+      "facility_context",
+      "aggregate_epidemiology",
+      "population_health"
+    ],
+    "rag_manifest": {
+      "title": "data.gov.in Health and Family Welfare Datasets",
+      "source_type": "aggregate_public_dataset",
+      "publication_date": "2026-07-01",
+      "license_status": "dataset_level_license_required",
+      "language": "en"
+    },
+    "recommended_use": [
+      "public_health_dashboards",
+      "aggregate_context",
+      "analytics"
+    ],
+    "fine_tuning_use": "Aggregate context only after dataset license review; never treat aggregate data as individual diagnosis.",
+    "patient_doctor_interaction_use": "Generate synthetic public-health context explanations only when the answer clearly says aggregate data cannot diagnose an individual.",
+    "phi_status": "aggregate_or_public_non_phi",
+    "commercial_use_status": "check_each_dataset_license",
+    "quality_gate": "Every dataset ingestion must store dataset URL, publisher, license, publication date, retrieval date, geography, and refresh cadence."
+  }
+]

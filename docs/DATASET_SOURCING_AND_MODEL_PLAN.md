@@ -7,6 +7,11 @@ approved for model development.
 
 ## Dataset Tiers
 
+The executable India-first source registry lives at
+`data/source_registry/indian_medical_ai_sources.json`. Build an ingestion manifest
+from it with `python scripts/build_indian_rag_manifest.py --include-p1`.
+See `docs/INDIAN_MEDICAL_AI_DATA_PIPELINE.md` for the RAG/fine-tuning boundary.
+
 ### Tier 1: Use First For RAG And Evaluation
 
 These sources are best for near-term investor demos and closed pilots because they
@@ -20,6 +25,9 @@ are authoritative and can be cited or audited.
 | PM-JAY Health Benefit Packages | Coverage matching, hospital package support, benefit explanation | High | Use as structured reference data, not as clinical treatment truth. |
 | ABDM / NHA consent and health data policy docs | Consent, privacy, audit workflow grounding | High | Use for app policy guidance and compliance explanations, not medical answers. |
 | CDSCO / MDR 2017 public guidance | Regulatory positioning and warning labels | High | Required for SaMD/CDSS positioning review. |
+| CDSCO prescribing information, alerts, banned drugs, and FDC pages | India-specific prescription safety and drug-regulatory guardrails | High | Use as dated RAG only. Do not train changing ban/approval facts into the model. |
+| ICMR-NIN Dietary Guidelines for Indians | Indian food habits, lifestyle counselling, pregnancy/child/elder nutrition, food safety | High | Use for patient education and doctor lifestyle plans. Keep numeric guidance source-cited. |
+| NCDC / IDSP seasonal and outbreak resources | Seasonal diseases, heat/air-pollution alerts, rabies/snakebite/influenza/outbreak context | High | Use as dated RAG. Answers must include location/date caveats. |
 
 ### Tier 2: Indian Public Health And Operations Data
 
@@ -79,16 +87,25 @@ scope must be reviewed carefully.
    licensed, institutionally licensed for this use, or explicitly approved by the
    rights holder. Do not commit copyrighted textbook text into this repository.
 
+7. Treat Indian prescription data as a safety resource, not a scraping target.
+   Do not collect real prescriptions from the internet or patient uploads for
+   fine-tuning unless formally consented, de-identified, and approved. Prefer
+   synthetic prescriptions and counselling dialogues generated from ICMR STWs,
+   ICMR AMR guidance, CDSCO/NLEM/NFI references, and clinician review.
+
 ## Dataset Acquisition Backlog
 
 | Priority | Task | Output |
 | --- | --- | --- |
 | P0 | Collect 20-50 official Indian guideline PDFs/pages across common primary-care, chronic disease, maternal-child health, infectious disease, and emergency topics | `data/source_registry/india_guidelines.json` |
+| P0 | Build and validate India-first source registry covering ICMR, NIN, NCDC, IDSP, CDSCO, Janaushadhi, PM-JAY, and data.gov.in | `data/source_registry/indian_medical_ai_sources.json` |
+| P0 | Generate India-first RAG manifest from reviewed registry rows | `apps/api/training/indian_rag_source_manifest.json` |
 | P0 | Ingest ICMR STWs for hypertension, diabetes, UTI, fever/dengue/diarrhea/sepsis/pneumonia pediatrics, asthma/COPD/ARI, TB, dermatology, CKD/AKI, OBGYN, and emergency red-flag workflows | RAG collection with source URL, publisher, retrieval date, document title |
 | P0 | Ingest ICMR antimicrobial and diabetes guidelines as high-priority doctor-decision support references | RAG collection plus locked antibiotic/diabetes eval cases |
 | P0 | Collect PM-JAY package references and normalize package names, codes, specialties, eligibility notes | `data/source_registry/pmjay_packages.json` |
 | P0 | Create 200 locked eval cases split by patient/doctor/admin/hospital role | `apps/api/training/clinical_quality_cases.jsonl` |
 | P1 | Create 1,000-3,000 SFT style examples from source-grounded guideline excerpts | `apps/api/training/medrag_sft.jsonl` |
+| P1 | Create synthetic Indian doctor-patient interaction examples from cited guideline excerpts, covering Hinglish phrasing, Indian diet, medicine affordability, seasonal fever, antibiotics, pregnancy, elderly care, and chronic disease follow-up | `apps/api/training/indian_interaction_sft.jsonl` |
 | P1 | Add 100 document-ingestion eval PDFs/images using synthetic or licensed samples | `data/eval_documents/` |
 | P2 | Add imaging datasets only after license review | `data/source_registry/imaging_sources.json` |
 

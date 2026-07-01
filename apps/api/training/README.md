@@ -52,9 +52,22 @@ python training/train_lora.py \
 Before training, load approved reference sources into RAG:
 
 ```bash
+python ../../scripts/build_indian_rag_manifest.py --validate-only
+python ../../scripts/build_indian_rag_manifest.py --include-p1
+python training/ingest_rag_sources.py --manifest training/indian_rag_source_manifest.json --dry-run
+python training/ingest_rag_sources.py --manifest training/indian_rag_source_manifest.json --dry-run --continue-on-error
+python training/ingest_rag_sources.py --manifest training/indian_rag_source_manifest.json
+
+# Older demo manifest:
 python training/ingest_rag_sources.py --manifest training/rag_source_manifest.json --dry-run
 python training/ingest_rag_sources.py --manifest training/rag_source_manifest.json
 ```
+
+The India-first registry is `../../data/source_registry/indian_medical_ai_sources.json`.
+It keeps treatment facts, drug alerts, outbreak updates, and nutrition facts in
+RAG with provenance. Fine-tuning should teach response structure, Indian clinical
+language, patient/doctor boundaries, and citation discipline, not memorize
+changing medical truth.
 
 Then set:
 

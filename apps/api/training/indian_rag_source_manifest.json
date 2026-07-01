@@ -1,0 +1,142 @@
+[
+  {
+    "id": "icmr_standard_treatment_workflows_stws",
+    "title": "ICMR Standard Treatment Workflows (STWs)",
+    "publisher": "Indian Council of Medical Research / Government of India",
+    "url": "https://www.icmr.gov.in/standard-treatment-workflows-stws",
+    "source_type": "guideline",
+    "publication_date": "2026-07-01",
+    "retrieved_date": "2026-07-01",
+    "license_status": "public_non_phi_verify_document_terms",
+    "language": "en",
+    "priority": "P0",
+    "source_family": "clinical_guideline",
+    "recommended_use": [
+      "rag_corpus",
+      "doctor_decision_support_grounding",
+      "clinical_eval_references",
+      "sft_style_context_after_license_review"
+    ],
+    "quality_gate": "Every answer using this source must cite document title/URL and include missing-data, contraindication, monitoring, and escalation language for doctor mode."
+  },
+  {
+    "id": "icmr_guidelines_consensus_documents",
+    "title": "ICMR Guidelines and Consensus Documents",
+    "publisher": "Indian Council of Medical Research / Government of India",
+    "url": "https://www.icmr.gov.in/guidelines",
+    "source_type": "guideline",
+    "publication_date": "2026-07-01",
+    "retrieved_date": "2026-07-01",
+    "license_status": "public_non_phi_verify_document_terms",
+    "language": "en",
+    "priority": "P0",
+    "source_family": "clinical_guideline",
+    "recommended_use": [
+      "rag_corpus",
+      "antibiotic_stewardship_guardrails",
+      "doctor_decision_support_grounding",
+      "clinical_eval_references"
+    ],
+    "quality_gate": "Doctor answers must explicitly check diagnosis, local resistance/guideline fit, allergies, pregnancy/lactation, renal/hepatic function, interactions, and review timing."
+  },
+  {
+    "id": "nin_icmr_dietary_guidelines_indians",
+    "title": "ICMR-NIN Dietary Guidelines for Indians",
+    "publisher": "ICMR - National Institute of Nutrition",
+    "url": "https://www.nin.res.in/dietaryguidelines/index.html",
+    "source_type": "nutrition_guideline",
+    "publication_date": "2024-01-01",
+    "retrieved_date": "2026-07-01",
+    "license_status": "public_non_phi_verify_document_terms",
+    "language": "en",
+    "priority": "P0",
+    "source_family": "nutrition_lifestyle",
+    "recommended_use": [
+      "rag_corpus",
+      "patient_education_grounding",
+      "indian_food_habits_context",
+      "sft_style_context_after_license_review"
+    ],
+    "quality_gate": "Patient answers may discuss diet/lifestyle and red flags, but must not replace clinician-prescribed diet plans for CKD, pregnancy complications, diabetes medication adjustment, or severe illness."
+  },
+  {
+    "id": "ncdc_technical_guidelines_public_health",
+    "title": "NCDC Technical Guidelines and Public Health Resources",
+    "publisher": "National Centre for Disease Control / Ministry of Health and Family Welfare",
+    "url": "https://ncdc.mohfw.gov.in/",
+    "source_type": "public_health_guideline",
+    "publication_date": "2026-06-19",
+    "retrieved_date": "2026-07-01",
+    "license_status": "public_non_phi_verify_document_terms",
+    "language": "en",
+    "priority": "P0",
+    "source_family": "public_health",
+    "recommended_use": [
+      "rag_corpus",
+      "seasonal_disease_context",
+      "public_health_context",
+      "doctor_decision_support_grounding",
+      "urgent_escalation_eval"
+    ],
+    "quality_gate": "Seasonal answers must include geography/date caveat, urgent danger signs, and public-health testing/reporting recommendations when relevant."
+  },
+  {
+    "id": "idsp_outbreak_surveillance_calendar",
+    "title": "Integrated Disease Surveillance Programme (IDSP)",
+    "publisher": "Integrated Disease Surveillance Programme / Ministry of Health and Family Welfare",
+    "url": "https://idsp.mohfw.gov.in/",
+    "source_type": "public_health_surveillance",
+    "publication_date": "2026-07-01",
+    "retrieved_date": "2026-07-01",
+    "license_status": "public_non_phi_verify_document_terms",
+    "language": "en",
+    "priority": "P0",
+    "source_family": "public_health_surveillance",
+    "recommended_use": [
+      "seasonal_disease_context",
+      "public_health_dashboard",
+      "rag_corpus",
+      "doctor_decision_support_grounding"
+    ],
+    "quality_gate": "Responses must distinguish patient-specific diagnosis from aggregate surveillance and should never claim a local outbreak unless a dated source supports it."
+  },
+  {
+    "id": "cdsco_drug_regulatory_sources",
+    "title": "CDSCO Drug Regulatory Sources",
+    "publisher": "Central Drugs Standard Control Organisation / Government of India",
+    "url": "https://cdsco.gov.in/opencms/opencms/en/Home/",
+    "source_type": "drug_regulatory_reference",
+    "publication_date": "2026-07-01",
+    "retrieved_date": "2026-07-01",
+    "license_status": "public_non_phi_verify_document_terms",
+    "language": "en",
+    "priority": "P0",
+    "source_family": "drug_regulatory",
+    "recommended_use": [
+      "rag_corpus",
+      "prescription_safety_checks",
+      "doctor_decision_support_grounding",
+      "drug_regulatory_guardrails"
+    ],
+    "quality_gate": "Prescription answers must use generic names, check Schedule H/prescription-only boundaries, contraindications, interactions, pregnancy/lactation, renal/hepatic status, and CDSCO alerts when relevant."
+  },
+  {
+    "id": "nha_pmjay_health_benefit_packages",
+    "title": "PM-JAY Health Benefit Packages and NHA Documents",
+    "publisher": "National Health Authority / Government of India",
+    "url": "https://pmjay.gov.in/resources/documents",
+    "source_type": "coverage_reference",
+    "publication_date": "2026-07-01",
+    "retrieved_date": "2026-07-01",
+    "license_status": "public_non_phi_verify_document_terms",
+    "language": "en",
+    "priority": "P1",
+    "source_family": "coverage_operations",
+    "recommended_use": [
+      "coverage_matching",
+      "hospital_admin_workflows",
+      "rag_corpus"
+    ],
+    "quality_gate": "Keep clinical necessity separate from package eligibility and mark final insurance approval as payer/admin workflow."
+  }
+]

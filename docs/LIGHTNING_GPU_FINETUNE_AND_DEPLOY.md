@@ -1,6 +1,8 @@
 # Lightning GPU Fine-Tune And Full Services Deploy
 
 This is the practical command sequence for Lightning AI.
+For a single clean fresh-run checklist with expected time ranges, use
+`docs/LIGHTNING_CLEAN_FRESH_RUN.md`.
 
 ## 0. Pull Latest Code
 

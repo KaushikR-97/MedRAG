@@ -1,5 +1,8 @@
 # Lightning Teamspace Setup For MedRAG India
 
+For a clean first run on a new Lightning AI GPU Studio or Job, including expected
+time ranges for each step, start with `docs/LIGHTNING_CLEAN_FRESH_RUN.md`.
+
 This guide uses the Lightning AI Teamspace areas cleanly:
 
 - Studios: interactive setup/debug

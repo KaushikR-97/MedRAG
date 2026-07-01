@@ -12,8 +12,7 @@ for path in (str(API_ROOT), str(TRAINING_ROOT)):
     if path not in sys.path:
         sys.path.insert(0, path)
 
-from app.rag.indexer import MedicalVectorIndexer
-from ingest_rag_sources import load_source_text, read_manifest
+from ingest_rag_sources import chunk_text, load_source_text, read_manifest
 
 
 def jsonl_write(path: Path, rows: list[dict]) -> None:
@@ -24,11 +23,10 @@ def jsonl_write(path: Path, rows: list[dict]) -> None:
 
 
 def build_examples(manifest_path: Path, *, max_chunks_per_source: int) -> list[dict]:
-    indexer = MedicalVectorIndexer.__new__(MedicalVectorIndexer)
     examples: list[dict] = []
     for item in read_manifest(manifest_path):
         text = load_source_text(item, manifest_path.parent)
-        chunks = indexer._chunk(text)[:max_chunks_per_source]
+        chunks = chunk_text(text)[:max_chunks_per_source]
         for idx, chunk in enumerate(chunks):
             context = (
                 f"Source: {item['title']}\n"
