@@ -14,8 +14,8 @@ are authoritative and can be cited or audited.
 
 | Source | Use | India relevance | Launch note |
 | --- | --- | --- | --- |
-| MoHFW / NHSRC standard treatment workflows | RAG guideline corpus, doctor decision-support grounding, evaluation references | High | Prefer RAG ingestion over fine-tuning so updates remain auditable. Verify each document license before redistribution. |
-| ICMR guidelines and consensus documents | RAG guideline corpus, patient education references, clinical eval references | High | Use excerpts with source metadata. Avoid implying ICMR endorsement. |
+| ICMR Standard Treatment Workflows (STWs) | RAG guideline corpus, doctor decision-support grounding, evaluation references | High | Use `data/source_registry/india_guidelines.json` as the curated ingestion queue. Prefer RAG ingestion over fine-tuning so updates remain auditable. Verify each document license before redistribution. |
+| ICMR guidelines and consensus documents | RAG guideline corpus, patient education references, clinical eval references | High | Use antimicrobial, diabetes, TB, rickettsial, cancer, and ethics documents with source metadata. Avoid implying ICMR endorsement. |
 | National Health Portal disease education pages | Patient education corpus and plain-language response style | High | Good for patient-facing education and lifestyle guidance. |
 | PM-JAY Health Benefit Packages | Coverage matching, hospital package support, benefit explanation | High | Use as structured reference data, not as clinical treatment truth. |
 | ABDM / NHA consent and health data policy docs | Consent, privacy, audit workflow grounding | High | Use for app policy guidance and compliance explanations, not medical answers. |
@@ -63,7 +63,10 @@ scope must be reviewed carefully.
 4. Separate patient and doctor behavior.
    - Patient: education, report explanation, lifestyle, red flags, clinician follow-up.
    - Doctor: clinician decision support, differentials, treatment options, dose-safety,
-     contraindications, monitoring, and escalation.
+     contraindications, monitoring, and escalation. Doctor answers should sound like
+     a senior Indian RMP/consultant decision-support note: India-relevant guideline
+     anchoring, generic medicine names, explicit missing data, prescription safety,
+     follow-up interval, and escalation criteria.
 
 5. Never train on unreviewed PHI.
    Patient-uploaded PDFs can be used for per-user RAG after consent, but not for
@@ -81,6 +84,8 @@ scope must be reviewed carefully.
 | Priority | Task | Output |
 | --- | --- | --- |
 | P0 | Collect 20-50 official Indian guideline PDFs/pages across common primary-care, chronic disease, maternal-child health, infectious disease, and emergency topics | `data/source_registry/india_guidelines.json` |
+| P0 | Ingest ICMR STWs for hypertension, diabetes, UTI, fever/dengue/diarrhea/sepsis/pneumonia pediatrics, asthma/COPD/ARI, TB, dermatology, CKD/AKI, OBGYN, and emergency red-flag workflows | RAG collection with source URL, publisher, retrieval date, document title |
+| P0 | Ingest ICMR antimicrobial and diabetes guidelines as high-priority doctor-decision support references | RAG collection plus locked antibiotic/diabetes eval cases |
 | P0 | Collect PM-JAY package references and normalize package names, codes, specialties, eligibility notes | `data/source_registry/pmjay_packages.json` |
 | P0 | Create 200 locked eval cases split by patient/doctor/admin/hospital role | `apps/api/training/clinical_quality_cases.jsonl` |
 | P1 | Create 1,000-3,000 SFT style examples from source-grounded guideline excerpts | `apps/api/training/medrag_sft.jsonl` |

@@ -1,6 +1,8 @@
 import uuid
-import traceback
+import logging
+import re
 from datetime import UTC, datetime, time
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
@@ -8,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.security import get_current_user, require_role, hash_password, generate_12_digit_id
 from app.db.session import get_db
 from app.models.user import User
-from app.models.feature_modules import Appointment, EmergencyDispatchRequest, Hospital, HospitalResourceBooking
+from app.models.feature_modules import Appointment, ConsultationSlot, EmergencyDispatchRequest, Hospital, HospitalResourceBooking
 from app.schemas.features import (
     AppointmentStatusUpdate,
     ConsultationBookingCreate,
@@ -26,12 +28,67 @@ from app.services.compliance_service import ComplianceService
 from app.services.preconsult_agent_service import PreConsultAgentService
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+PROFILE_IMAGE_DATA_URL_MAX_LENGTH = 120_000
+PROFILE_IMAGE_URL_MAX_LENGTH = 2048
+PROFILE_IMAGE_DATA_URL_RE = re.compile(r"^data:image/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=\s]+$")
 
 
 def _record(obj) -> dict:
     rec = {column.name: getattr(obj, column.name) for column in obj.__table__.columns}
     if isinstance(obj, Appointment):
         return _appointment_record(obj, rec)
+    if isinstance(obj, ConsultationSlot):
+        return _slot_record(obj, rec)
+    return rec
+
+
+def _doctor_metadata(doctor: User | None) -> dict:
+    if doctor is None:
+        return {
+            "doctor_name": "Unknown Doctor",
+            "doctor_age": None,
+            "doctor_gender": "",
+            "doctor_speciality": "General Physician",
+            "doctor_profile_image_url": "",
+            "doctor_registration_number": "N/A",
+        }
+    return {
+        "doctor_name": doctor.full_name,
+        "doctor_age": doctor.age,
+        "doctor_gender": doctor.gender or "",
+        "doctor_speciality": doctor.speciality or "General Physician",
+        "doctor_profile_image_url": doctor.profile_image_url or "",
+        "doctor_registration_number": doctor.registration_number or "N/A",
+    }
+
+
+def _is_trusted_profile_image(value: str) -> bool:
+    if not value:
+        return True
+    if len(value) > PROFILE_IMAGE_DATA_URL_MAX_LENGTH:
+        return False
+    if value.startswith("data:image/"):
+        return bool(PROFILE_IMAGE_DATA_URL_RE.fullmatch(value))
+    if len(value) > PROFILE_IMAGE_URL_MAX_LENGTH:
+        return False
+    parsed = urlparse(value)
+    return parsed.scheme == "https" or (
+        parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1"}
+    )
+
+
+def _safe_bad_request(message: str, exc: Exception) -> HTTPException:
+    logger.exception(message)
+    return HTTPException(400, message)
+
+
+def _slot_record(slot: ConsultationSlot, rec: dict) -> dict:
+    state = getattr(slot, "_sa_instance_state", None)
+    session = state.session if state is not None else None
+    doctor = session.get(User, slot.doctor_id) if session is not None and slot.doctor_id else None
+    rec.update(_doctor_metadata(doctor))
     return rec
 
 
@@ -43,9 +100,19 @@ def _appointment_record(appointment: Appointment, rec: dict) -> dict:
         doctor = session.get(User, appointment.doctor_id) if appointment.doctor_id else None
         rec["patient_name"] = patient.full_name if patient else appointment.patient_id
         rec["doctor_name"] = doctor.full_name if doctor else (appointment.doctor_id or "")
+        rec["doctor_age"] = doctor.age if doctor else None
+        rec["doctor_gender"] = doctor.gender if doctor else ""
+        rec["doctor_speciality"] = doctor.speciality or "General Physician" if doctor else ""
+        rec["doctor_profile_image_url"] = doctor.profile_image_url or "" if doctor else ""
+        rec["doctor_registration_number"] = doctor.registration_number or "" if doctor else ""
     else:
         rec["patient_name"] = appointment.patient_id
         rec["doctor_name"] = appointment.doctor_id or ""
+        rec["doctor_age"] = None
+        rec["doctor_gender"] = ""
+        rec["doctor_speciality"] = ""
+        rec["doctor_profile_image_url"] = ""
+        rec["doctor_registration_number"] = ""
     rec["confirmed_at"] = appointment.confirmed_at.isoformat() if appointment.confirmed_at else None
     rec["timezone"] = appointment.timezone or "Asia/Kolkata"
     start_at, end_at = _appointment_window(appointment.date, appointment.time_slot, rec["timezone"])
@@ -83,7 +150,7 @@ def create_hospital(
             db.rollback()
         except Exception:
             pass
-        raise HTTPException(400, f"Error creating hospital: {str(exc)}\n{traceback.format_exc()}") from exc
+        raise _safe_bad_request("Error creating hospital", exc) from exc
 
 
 
@@ -99,7 +166,7 @@ def list_hospitals(
             for item in HospitalService(db).list_hospitals(city=city, speciality=speciality)
         ]
     except Exception as exc:
-        raise HTTPException(400, f"Error listing hospitals: {str(exc)}\n{traceback.format_exc()}") from exc
+        raise _safe_bad_request("Error listing hospitals", exc) from exc
 
 
 @router.patch("/{hospital_id}/resources")
@@ -165,7 +232,7 @@ def request_hospital_resource(
             db.rollback()
         except Exception:
             pass
-        raise HTTPException(400, f"Error requesting hospital resource: {str(exc)}\n{traceback.format_exc()}") from exc
+        raise _safe_bad_request("Error requesting hospital resource", exc) from exc
 
 
 @router.get("/resource-bookings")
@@ -251,7 +318,7 @@ def create_department(
             db.rollback()
         except Exception:
             pass
-        raise HTTPException(400, f"Error creating department: {str(exc)}\n{traceback.format_exc()}") from exc
+        raise _safe_bad_request("Error creating department", exc) from exc
 
 
 @router.post("/doctors")
@@ -272,7 +339,7 @@ def assign_doctor(
             db.rollback()
         except Exception:
             pass
-        raise HTTPException(400, f"Error assigning doctor: {str(exc)}\n{traceback.format_exc()}") from exc
+        raise _safe_bad_request("Error assigning doctor", exc) from exc
 
 
 @router.post("/slots")
@@ -295,7 +362,7 @@ def create_consultation_slot(
             db.rollback()
         except Exception:
             pass
-        raise HTTPException(400, f"Error processing slot release: {str(exc)}\n{traceback.format_exc()}") from exc
+        raise _safe_bad_request("Error processing slot release", exc) from exc
 
 
 @router.get("/slots")
@@ -324,14 +391,20 @@ def list_consultation_slots(
                 rec["doctor_name"] = doc.full_name
                 rec["doctor_speciality"] = doc.speciality or "General Physician"
                 rec["doctor_registration_number"] = doc.registration_number or "N/A"
+                rec["doctor_age"] = doc.age
+                rec["doctor_gender"] = doc.gender or ""
+                rec["doctor_profile_image_url"] = doc.profile_image_url or ""
             else:
                 rec["doctor_name"] = "Unknown Doctor"
                 rec["doctor_speciality"] = "General Physician"
                 rec["doctor_registration_number"] = "N/A"
+                rec["doctor_age"] = None
+                rec["doctor_gender"] = ""
+                rec["doctor_profile_image_url"] = ""
             records.append(rec)
         return records
     except Exception as exc:
-        raise HTTPException(400, f"Error listing slots: {str(exc)}\n{traceback.format_exc()}") from exc
+        raise _safe_bad_request("Error listing slots", exc) from exc
 
 
 @router.post("/consultations/book")
@@ -362,7 +435,7 @@ def book_consultation(
             db.rollback()
         except Exception:
             pass
-        raise HTTPException(400, f"Error booking consultation: {str(exc)}\n{traceback.format_exc()}") from exc
+        raise _safe_bad_request("Error booking consultation", exc) from exc
 
 
 
@@ -395,7 +468,7 @@ def update_appointment_status(
             db.rollback()
         except Exception:
             pass
-        raise HTTPException(400, f"Error updating appointment status: {str(exc)}\n{traceback.format_exc()}") from exc
+        raise _safe_bad_request("Error updating appointment status", exc) from exc
 
 
 @router.post("/appointments/{appointment_id}/status")
@@ -427,7 +500,7 @@ def list_my_appointments(
     except HTTPException as http_exc:
         raise http_exc
     except Exception as exc:
-        raise HTTPException(400, f"Error listing appointments: {str(exc)}\n{traceback.format_exc()}") from exc
+        raise _safe_bad_request("Error listing appointments", exc) from exc
 
 
 @router.post("/create-doctor")
@@ -437,6 +510,9 @@ def create_doctor_profile(
     db: Session = Depends(get_db),
 ) -> dict:
     try:
+        profile_image_url = payload.profile_image_url.strip()
+        if not _is_trusted_profile_image(profile_image_url):
+            raise HTTPException(400, "Profile image must be a small PNG/JPEG/WebP/GIF data URL or trusted local/HTTPS URL")
         existing = db.query(User).filter(User.email == payload.email).first()
         if existing:
             raise HTTPException(400, "Email already registered")
@@ -450,6 +526,9 @@ def create_doctor_profile(
             phone=payload.phone,
             registration_number=payload.registration_number,
             speciality=payload.speciality,
+            age=payload.age,
+            gender=payload.gender,
+            profile_image_url=profile_image_url,
             city=db.get(Hospital, payload.hospital_id).city if db.get(Hospital, payload.hospital_id) else "",
         )
         db.add(doctor)
@@ -481,7 +560,7 @@ def create_doctor_profile(
             db.rollback()
         except Exception:
             pass
-        raise HTTPException(400, f"Error creating doctor: {str(exc)}\n{traceback.format_exc()}") from exc
+        raise _safe_bad_request("Error creating doctor", exc) from exc
 
 
 @router.get("/doctors")
@@ -506,14 +585,18 @@ def list_doctors_by_city(
                 "id": doc.id,
                 "full_name": doc.full_name,
                 "email": doc.email,
-                "phone": doc.phone,
-                "speciality": doc.speciality or "",
-                "city": doc.city or "",
-                "consultation_fee": fee
-            })
+            "phone": doc.phone,
+            "speciality": doc.speciality or "",
+            "city": doc.city or "",
+            "age": doc.age,
+            "gender": doc.gender or "",
+            "profile_image_url": doc.profile_image_url or "",
+            "registration_number": doc.registration_number or "",
+            "consultation_fee": fee
+        })
         return doctors_list
     except Exception as exc:
-        raise HTTPException(400, f"Error listing doctors by city: {str(exc)}\n{traceback.format_exc()}") from exc
+        raise _safe_bad_request("Error listing doctors by city", exc) from exc
 
 
 @router.get("/ambulance/requests")

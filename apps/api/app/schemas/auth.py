@@ -38,6 +38,7 @@ class AuthResponse(BaseModel):
     user_id: str
     role: str
     full_name: str = ""
+    profile_image_url: str = ""
 
 
 class LoginResponse(BaseModel):
@@ -76,6 +77,7 @@ class ProfileUpdateRequest(BaseModel):
     height_cm: float | None = None
     weight_kg: float | None = None
     speciality: str | None = None
+    profile_image_url: str | None = Field(default=None, max_length=120000)
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -89,4 +91,4 @@ class ResetPasswordRequest(BaseModel):
 
 
 class TokenRefreshRequest(BaseModel):
-    refresh_token: str
+    refresh_token: str = ""

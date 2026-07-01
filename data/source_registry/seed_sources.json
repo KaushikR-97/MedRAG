@@ -1,15 +1,15 @@
 [
   {
     "id": "nhsrc_standard_treatment_workflows",
-    "name": "NHSRC / MoHFW Standard Treatment Workflows and Guidelines",
-    "url": "https://nhsrcindia.org/practice-guidelines",
-    "publisher": "National Health Systems Resource Centre / Government of India",
+    "name": "ICMR Standard Treatment Workflows and Indian Guidelines",
+    "url": "https://www.icmr.gov.in/standard-treatment-workflows-stws",
+    "publisher": "Indian Council of Medical Research / Government of India",
     "india_relevance": "high",
     "recommended_use": ["rag_corpus", "clinical_eval_references", "doctor_decision_support_grounding"],
     "training_use": "style_examples_only_after_license_review",
     "phi_status": "public_non_phi",
     "commercial_use_status": "verify_document_level_terms",
-    "notes": "Use as auditable RAG source first. Do not bake changing clinical recommendations directly into the model."
+    "notes": "Use as auditable RAG source first. See data/source_registry/india_guidelines.json for the curated India-first ingestion queue. Do not bake changing clinical recommendations directly into the model."
   },
   {
     "id": "icmr_guidelines",

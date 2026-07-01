@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { User, Lock, KeyRound } from "lucide-react";
+import { User, Lock, ImagePlus } from "lucide-react";
 import { api, AuthResponse } from "../api/client";
 
 type UserProfileModuleProps = {
@@ -17,6 +17,7 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({ token, ses
   const [gender, setGender] = useState("");
   const [city, setCity] = useState("Bengaluru");
   const [speciality, setSpeciality] = useState("");
+  const [profileImageUrl, setProfileImageUrl] = useState("");
 
   // Change Password States
   const [currentPassword, setCurrentPassword] = useState("");
@@ -37,6 +38,7 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({ token, ses
         setGender(me.gender || "");
         setCity(me.city || "");
         setSpeciality(me.speciality || "");
+        setProfileImageUrl(me.profile_image_url || "");
       })
       .catch((err) => {
         console.warn("Profile details could not be loaded", err);
@@ -58,7 +60,8 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({ token, ses
         age: age ? parseInt(age) : undefined,
         gender: gender || undefined,
         city: city || undefined,
-        speciality: speciality || undefined
+        speciality: speciality || undefined,
+        profile_image_url: profileImageUrl || "",
       });
       setSuccess("Profile settings updated successfully.");
       onProfileUpdate(fullName);
@@ -67,6 +70,23 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({ token, ses
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleProfileImageFile = (file?: File) => {
+    setError("");
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Please choose an image file for the profile picture.");
+      return;
+    }
+    if (file.size > 90_000) {
+      setError("Profile image must be under 90 KB for this demo storage mode.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setProfileImageUrl(String(reader.result || ""));
+    reader.onerror = () => setError("Could not read the selected image.");
+    reader.readAsDataURL(file);
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -105,6 +125,29 @@ export const UserProfileModule: React.FC<UserProfileModuleProps> = ({ token, ses
         {success && <div className="toast toast-success" style={{ marginBottom: "12px" }}>{success}</div>}
 
         <form onSubmit={handleUpdateProfile} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {session.role === "doctor" && (
+            <div style={{ display: "grid", gridTemplateColumns: "76px 1fr", gap: "14px", alignItems: "center", padding: "12px", border: "1px solid var(--line)", borderRadius: "8px", background: "rgba(255,255,255,0.02)" }}>
+              <div style={{ width: "64px", height: "64px", borderRadius: "50%", overflow: "hidden", border: "1px solid var(--line)", display: "grid", placeItems: "center", background: "rgba(14,165,233,0.12)", color: "var(--primary)", fontWeight: 800 }}>
+                {profileImageUrl ? (
+                  <img src={profileImageUrl} alt="Doctor profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <span>{(fullName || "DR").slice(0, 2).toUpperCase()}</span>
+                )}
+              </div>
+              <div>
+                <label className="label">Doctor Profile Picture</label>
+                <input className="input" type="file" accept="image/*" onChange={(event) => handleProfileImageFile(event.target.files?.[0])} />
+                <div style={{ display: "flex", gap: "8px", marginTop: "8px", flexWrap: "wrap" }}>
+                  <button type="button" className="button-sec" onClick={() => setProfileImageUrl("")} style={{ minHeight: "30px", padding: "4px 10px", fontSize: "0.75rem" }}>
+                    Clear
+                  </button>
+                  <span style={{ color: "var(--muted)", fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <ImagePlus size={14} /> Used on patient booking cards and appointment lists.
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
           <div>
             <label className="label">Full Name</label>
             <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} className="input" required />

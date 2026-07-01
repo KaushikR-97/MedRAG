@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Building2, Stethoscope, CalendarCheck, Ambulance } from "lucide-react";
-import { api, AppointmentRecord } from "../api/client";
+import { Building2, Stethoscope, CalendarCheck, Ambulance, MapPin, Video, IndianRupee } from "lucide-react";
+import { api, AppointmentRecord, ConsultationSlotRecord } from "../api/client";
 import { RazorpayModal } from "./RazorpayModal";
 
 type HospitalSlotsModuleProps = {
@@ -9,6 +9,40 @@ type HospitalSlotsModuleProps = {
   sessionCity: string;
   onStartVideoCall: (appt: AppointmentRecord) => void;
 };
+
+const doctorInitials = (name = "Doctor") => {
+  const clean = name.replace(/^dr\.?\s+/i, "").trim();
+  return clean
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "DR";
+};
+
+const DoctorAvatar = ({ src, name, size = 52 }: { src?: string; name?: string; size?: number }) => (
+  <div style={{ width: size, height: size, borderRadius: "50%", overflow: "hidden", border: "1px solid var(--line)", display: "grid", placeItems: "center", flex: `0 0 ${size}px`, background: "rgba(14,165,233,0.12)", color: "var(--primary)", fontWeight: 800, fontSize: size > 50 ? "0.9rem" : "0.75rem" }}>
+    {src ? (
+      <img src={src} alt={name || "Doctor"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+    ) : (
+      <span>{doctorInitials(name)}</span>
+    )}
+  </div>
+);
+
+const DoctorMeta = ({ doctor, compact = false }: { doctor: any; compact?: boolean }) => (
+  <div style={{ minWidth: 0 }}>
+    <div style={{ fontWeight: 700, color: "white", fontSize: compact ? "0.85rem" : "0.95rem" }}>
+      Dr. {doctor.full_name || doctor.doctor_name || "Specialist"}
+    </div>
+    <div style={{ color: "var(--muted)", marginTop: "4px", fontSize: compact ? "0.72rem" : "0.78rem", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+      <span>{doctor.speciality || doctor.doctor_speciality || "General Physician"}</span>
+      {doctor.age || doctor.doctor_age ? <span>Age {doctor.age || doctor.doctor_age}</span> : null}
+      {doctor.gender || doctor.doctor_gender ? <span>{String(doctor.gender || doctor.doctor_gender).replace(/_/g, " ")}</span> : null}
+      {doctor.registration_number || doctor.doctor_registration_number ? <span>Reg: {doctor.registration_number || doctor.doctor_registration_number}</span> : null}
+    </div>
+  </div>
+);
 
 export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token, sessionRole, sessionCity, onStartVideoCall }) => {
   const [hospitals, setHospitals] = useState<any[]>([]);
@@ -117,6 +151,8 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
     }
   };
 
+  const selectedDoctor = doctors.find((doc) => doc.id === selectedDoctorId);
+
   const handleBookAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeSlotToBook) return;
@@ -138,7 +174,11 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
         insurance_provider: insuranceProvider,
         insurance_policy_number: insurancePolicyNo
       });
-      setSuccess("Booking request sent. The video room opens after the doctor confirms and the slot time begins.");
+      setSuccess(
+        activeSlotToBook.consultation_mode === "video"
+          ? "Booking request sent. The video room opens only after doctor confirmation and during the booked slot."
+          : "Offline consultation request sent. Use the booking token at the clinic/hospital; no video link will be created."
+      );
       setActiveSlotToBook(null);
       setShowRazorpay(false);
       refreshData();
@@ -222,17 +262,18 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
   };
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1.15fr 0.85fr", gap: "24px", alignItems: "start" }}>
       {/* Finding doctors and slots */}
-      <div className="card" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      <div className="card" style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
         <h3 style={{ fontSize: "1.1rem", display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
           <Stethoscope size={18} style={{ color: "var(--primary)" }} />
-          Find Doctors & Book Slots
+          Find Doctors
         </h3>
         
         {error && <div className="toast toast-error">{error}</div>}
         {success && <div className="toast toast-success">{success}</div>}
 
+        <div style={{ padding: "14px", border: "1px solid var(--line)", borderRadius: "8px", background: "rgba(255,255,255,0.015)" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
           <div>
             <label className="label">Search City</label>
@@ -248,22 +289,28 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
             </select>
           </div>
         </div>
-        <button onClick={handleSearchCatalog} className="button-sec" style={{ alignSelf: "flex-end" }}>Search Doctors</button>
+        <button onClick={handleSearchCatalog} className="button-sec" style={{ marginTop: "12px", alignSelf: "flex-end" }}>Search Doctors</button>
+        </div>
 
-        <h4 style={{ fontSize: "0.9rem", marginBottom: "4px" }}>Available Specialists ({doctors.length})</h4>
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "200px", overflowY: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h4 style={{ fontSize: "0.9rem" }}>Available Specialists ({doctors.length})</h4>
+          <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>Photo, identity and fee shown before booking</span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "10px", maxHeight: "310px", overflowY: "auto" }}>
           {doctors.map((doc) => (
             <button
               key={doc.id}
               onClick={() => handleSelectDoctor(doc)}
               className={selectedDoctorId === doc.id ? "button" : "button-sec"}
-              style={{ padding: "10px", justifyContent: "space-between", textAlign: "left", fontSize: "0.8rem" }}
+              style={{ padding: "12px", justifyContent: "flex-start", textAlign: "left", fontSize: "0.8rem", alignItems: "center", gap: "12px", minHeight: "92px" }}
             >
-              <div>
-              <div style={{ fontWeight: 600 }}>{doc.full_name}</div>
-              <div style={{ color: "var(--muted)", marginTop: "2px" }}>
-                {doc.speciality || selectedSpecialty} | INR {doc.consultation_fee} | {doc.city || searchCity}
-              </div>
+              <DoctorAvatar src={doc.profile_image_url} name={doc.full_name} />
+              <div style={{ minWidth: 0 }}>
+                <DoctorMeta doctor={doc} />
+                <div style={{ color: "var(--muted)", marginTop: "6px", display: "flex", gap: "10px", flexWrap: "wrap", fontSize: "0.75rem" }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}><IndianRupee size={12} />{doc.consultation_fee || 0}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}><MapPin size={12} />{doc.city || searchCity}</span>
+                </div>
               </div>
             </button>
           ))}
@@ -272,17 +319,30 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
         <h4 style={{ fontSize: "0.9rem", marginBottom: "4px" }}>
           {selectedDoctorId ? `Open Slots for ${selectedDoctorName} (${slots.length})` : "Select a doctor to view slots"}
         </h4>
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "250px", overflowY: "auto" }}>
+        {selectedDoctor && (
+          <div style={{ display: "flex", gap: "12px", alignItems: "center", padding: "12px", border: "1px solid rgba(14,165,233,0.18)", borderRadius: "8px", background: "rgba(14,165,233,0.045)" }}>
+            <DoctorAvatar src={selectedDoctor.profile_image_url} name={selectedDoctor.full_name} size={48} />
+            <DoctorMeta doctor={selectedDoctor} compact />
+          </div>
+        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "280px", overflowY: "auto" }}>
           {!selectedDoctorId ? (
             <p style={{ fontSize: "0.8rem", color: "var(--muted)", textAlign: "center" }}>Choose a doctor from the list above.</p>
           ) : slots.length === 0 ? (
             <p style={{ fontSize: "0.8rem", color: "var(--muted)", textAlign: "center" }}>No open slots for this doctor.</p>
-          ) : slots.map((s) => (
-            <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px", background: "rgba(255,255,255,0.02)", borderRadius: "8px", border: "1px solid var(--line)" }}>
-              <div>
-                <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>Dr. {s.doctor_name || "Specialist"}</span>
-                <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "2px" }}>
-                  Date: {s.date} | Time: {s.start_time} - {s.end_time} ({s.timezone || "Asia/Kolkata"}) | Fee: INR {s.consultation_fee}
+          ) : slots.map((s: ConsultationSlotRecord) => (
+            <div key={s.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "12px", alignItems: "center", padding: "12px", background: "rgba(255,255,255,0.02)", borderRadius: "8px", border: "1px solid var(--line)" }}>
+              <div style={{ display: "flex", gap: "10px", alignItems: "center", minWidth: 0 }}>
+                <DoctorAvatar src={s.doctor_profile_image_url || selectedDoctor?.profile_image_url} name={s.doctor_name || selectedDoctorName} size={42} />
+                <div>
+                  <span style={{ fontSize: "0.82rem", fontWeight: 700 }}>Dr. {s.doctor_name || selectedDoctorName || "Specialist"}</span>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "3px" }}>
+                    {s.date} | {s.start_time}-{s.end_time} | {s.timezone || "Asia/Kolkata"} | INR {s.consultation_fee || selectedDoctor?.consultation_fee || 0}
+                  </div>
+                  <div style={{ fontSize: "0.72rem", color: s.consultation_mode === "video" ? "#a7f3d0" : "#fde68a", marginTop: "3px", display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                    {s.consultation_mode === "video" ? <Video size={12} /> : <Building2 size={12} />}
+                    {s.consultation_mode === "video" ? "Video consultation" : "Offline / in-person consultation"}
+                  </div>
                 </div>
               </div>
               {sessionRole === "patient" && (
@@ -300,15 +360,31 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
         <div>
           <h3 style={{ fontSize: "1rem", display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
             <CalendarCheck size={18} style={{ color: "var(--primary)" }} />
-            My Encounters & Consultation Rooms
+            My Consultations
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "300px", overflowY: "auto" }}>
-            {appointments.map((appt) => (
-              <div key={appt.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px", background: "rgba(255,255,255,0.02)", borderRadius: "8px", border: "1px solid var(--line)", fontSize: "0.8rem" }}>
-                <div>
-                  <span style={{ fontWeight: 600 }}>Ref: {appt.booking_reference}</span>
-                  <div style={{ color: "var(--muted)", marginTop: "2px" }}>
-                    Date: {appt.date} | Slot: {appt.time_slot} | Mode: {appt.consultation_mode.toUpperCase()} | Status: {appt.status.toUpperCase()}
+            {appointments.map((appt: AppointmentRecord) => (
+              <div key={appt.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "12px", alignItems: "center", padding: "12px", background: "rgba(255,255,255,0.02)", borderRadius: "8px", border: "1px solid var(--line)", fontSize: "0.8rem" }}>
+                <div style={{ display: "flex", gap: "10px", alignItems: "center", minWidth: 0 }}>
+                  <DoctorAvatar src={appt.doctor_profile_image_url} name={appt.doctor_name || "Doctor"} size={44} />
+                  <div>
+                    <DoctorMeta
+                      doctor={{
+                        doctor_name: appt.doctor_name || "Specialist",
+                        doctor_age: appt.doctor_age,
+                        doctor_gender: appt.doctor_gender,
+                        doctor_speciality: appt.doctor_speciality,
+                        doctor_registration_number: appt.doctor_registration_number,
+                      }}
+                      compact
+                    />
+                    <div style={{ color: "var(--muted)", marginTop: "4px" }}>
+                      Ref: {appt.booking_reference} | {appt.date} | {appt.time_slot} | {appt.status.toUpperCase()}
+                    </div>
+                    <div style={{ color: appt.consultation_mode === "video" ? "#a7f3d0" : "#fde68a", marginTop: "3px", display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "0.72rem" }}>
+                      {appt.consultation_mode === "video" ? <Video size={12} /> : <Building2 size={12} />}
+                      {appt.consultation_mode === "video" ? "Video room opens only during slot" : "Offline visit: show token at clinic, no video link"}
+                    </div>
                   </div>
                 </div>
                 {isVideoJoinLive(appt) ? (
@@ -319,7 +395,11 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
                   <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>
                     {appt.status === "requested" ? "Awaiting doctor confirmation" : "Opens at slot time"}
                   </span>
-                ) : null}
+                ) : (
+                  <span style={{ color: "#fde68a", fontSize: "0.75rem" }}>
+                    {appt.status === "requested" ? "Awaiting confirmation" : "In-person token"}
+                  </span>
+                )}
               </div>
             ))}
             {appointments.length === 0 && (
@@ -331,7 +411,7 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
         {/* Emergency ambulance card */}
         {sessionRole === "patient" && (
           <>
-          <div style={{ background: "rgba(0,169,255,0.05)", padding: "16px", borderRadius: "12px", border: "1px solid rgba(0,169,255,0.2)" }}>
+          <div style={{ background: "rgba(0,169,255,0.05)", padding: "16px", borderRadius: "8px", border: "1px solid rgba(0,169,255,0.2)" }}>
             <h3 style={{ fontSize: "0.95rem", display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
               <Building2 size={18} style={{ color: "var(--primary)" }} />
               Book Bed / Room From Home
@@ -363,7 +443,7 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
             </div>
           </div>
 
-          <div style={{ background: "rgba(231,76,60,0.05)", padding: "16px", borderRadius: "12px", border: "1px solid rgba(231,76,60,0.2)" }}>
+          <div style={{ background: "rgba(231,76,60,0.05)", padding: "16px", borderRadius: "8px", border: "1px solid rgba(231,76,60,0.2)" }}>
             <h3 style={{ fontSize: "0.95rem", color: "#e74c3c", display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
               <Ambulance size={18} />
               Simulated Emergency Dispatch
@@ -410,8 +490,28 @@ export const HospitalSlotsModule: React.FC<HospitalSlotsModuleProps> = ({ token,
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100 }}>
           <div className="card" style={{ width: "400px", padding: "24px" }}>
             <h4 style={{ fontSize: "1rem", marginBottom: "16px" }}>Book Consultation Slot</h4>
-            <div style={{ color: "var(--muted)", fontSize: "0.8rem", marginBottom: "10px" }}>
-              Slot timezone: {activeSlotToBook.timezone || "Asia/Kolkata"}
+            <div style={{ display: "flex", gap: "10px", alignItems: "center", padding: "10px", border: "1px solid var(--line)", borderRadius: "8px", marginBottom: "12px", background: "rgba(255,255,255,0.02)" }}>
+              <DoctorAvatar src={activeSlotToBook.doctor_profile_image_url || selectedDoctor?.profile_image_url} name={activeSlotToBook.doctor_name || selectedDoctorName} size={44} />
+              <div>
+                <DoctorMeta
+                  doctor={{
+                    doctor_name: activeSlotToBook.doctor_name || selectedDoctorName,
+                    doctor_age: activeSlotToBook.doctor_age || selectedDoctor?.age,
+                    doctor_gender: activeSlotToBook.doctor_gender || selectedDoctor?.gender,
+                    doctor_speciality: activeSlotToBook.doctor_speciality || selectedDoctor?.speciality,
+                    doctor_registration_number: activeSlotToBook.doctor_registration_number || selectedDoctor?.registration_number,
+                  }}
+                  compact
+                />
+                <div style={{ color: "var(--muted)", fontSize: "0.74rem", marginTop: "4px" }}>
+                  {activeSlotToBook.date} | {activeSlotToBook.start_time}-{activeSlotToBook.end_time} | {activeSlotToBook.timezone || "Asia/Kolkata"}
+                </div>
+              </div>
+            </div>
+            <div style={{ color: activeSlotToBook.consultation_mode === "video" ? "#a7f3d0" : "#fde68a", fontSize: "0.8rem", marginBottom: "10px" }}>
+              {activeSlotToBook.consultation_mode === "video"
+                ? "Video consultation: link opens only after confirmation and during the slot."
+                : "Offline consultation: no video link will be created; patient receives an in-person booking token."}
             </div>
             <form onSubmit={handleBookAppointment} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               <div>

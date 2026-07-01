@@ -1,6 +1,8 @@
 import uuid
 import logging
+import re
 from typing import Annotated
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +33,57 @@ from app.schemas.documents import DocumentRecord, IngestionJobRecord
 from app.services.audit_service import AuditService
 from app.services.document_service import DocumentService
 from app.services.ingestion_service import IngestionService
+from app.core.config import settings
 
 router = APIRouter()
+
+PROFILE_IMAGE_DATA_URL_MAX_LENGTH = 120_000
+PROFILE_IMAGE_URL_MAX_LENGTH = 2048
+PROFILE_IMAGE_DATA_URL_RE = re.compile(r"^data:image/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=\s]+$")
+
+
+def _is_trusted_profile_image(value: str) -> bool:
+    if not value:
+        return True
+    if len(value) > PROFILE_IMAGE_DATA_URL_MAX_LENGTH:
+        return False
+    if value.startswith("data:image/"):
+        return bool(PROFILE_IMAGE_DATA_URL_RE.fullmatch(value))
+    if len(value) > PROFILE_IMAGE_URL_MAX_LENGTH:
+        return False
+    parsed = urlparse(value)
+    return parsed.scheme == "https" or (
+        parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1"}
+    )
+
+
+def _set_auth_cookies(response: Response, *, access_token: str, refresh_token: str) -> None:
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=settings.environment.lower() == "production",
+        samesite="lax",
+        max_age=settings.jwt_expire_minutes * 60,
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=settings.environment.lower() == "production",
+        samesite="lax",
+        max_age=7 * 86400,
+    )
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    cookie_kwargs = {
+        "httponly": True,
+        "secure": settings.environment.lower() == "production",
+        "samesite": "lax",
+    }
+    response.delete_cookie("access_token", **cookie_kwargs)
+    response.delete_cookie("refresh_token", **cookie_kwargs)
 
 
 def _ensure_role_directory_records(db: Session, user: User) -> None:
@@ -70,7 +121,7 @@ def _ensure_role_directory_records(db: Session, user: User) -> None:
 
 
 @router.post("/register", response_model=AuthResponse)
-def register(request: Request, payload: RegisterRequest, db: Session = Depends(get_db)) -> AuthResponse:
+def register(request: Request, response: Response, payload: RegisterRequest, db: Session = Depends(get_db)) -> AuthResponse:
     from app.services.auth_service import check_ip_rate_limit
     ip = request.client.host if request.client else "127.0.0.1"
     if not check_ip_rate_limit(ip, limit=60, period=60):
@@ -163,18 +214,23 @@ def register(request: Request, payload: RegisterRequest, db: Session = Depends(g
         logger.exception("Registration database failure for role %s", payload.role)
         raise HTTPException(400, f"Registration database error: {exc.__class__.__name__}") from exc
 
+    access_tok = create_access_token(user.id, user.role)
+    refresh_tok = create_refresh_token(user.id, user.role)
+    _set_auth_cookies(response, access_token=access_tok, refresh_token=refresh_tok)
     return AuthResponse(
-        access_token=create_access_token(user.id, user.role),
-        refresh_token=create_refresh_token(user.id, user.role),
+        access_token=access_tok,
+        refresh_token=refresh_tok,
         user_id=user.id,
         role=user.role,
         full_name=user.full_name,
+        profile_image_url=user.profile_image_url or "",
     )
 
 
 @router.post("/register/patient-intake", response_model=PatientIntakeResponse)
 async def register_patient_intake(
     request: Request,
+    response: Response,
     email: Annotated[str, Form()],
     password: Annotated[str, Form()],
     full_name: Annotated[str, Form()],
@@ -275,9 +331,12 @@ async def register_patient_intake(
             },
         },
     )
+    access_tok = create_access_token(user.id, user.role)
+    refresh_tok = create_refresh_token(user.id, user.role)
+    _set_auth_cookies(response, access_token=access_tok, refresh_token=refresh_tok)
     return PatientIntakeResponse(
-        access_token=create_access_token(user.id, user.role),
-        refresh_token=create_refresh_token(user.id, user.role),
+        access_token=access_tok,
+        refresh_token=refresh_tok,
         user_id=user.id,
         role=user.role,
         full_name=user.full_name,
@@ -355,22 +414,7 @@ def mfa_verify(
         access_tok = create_access_token(user.id, user.role)
         refresh_tok = create_refresh_token(user.id, user.role)
         
-        response.set_cookie(
-            key="access_token",
-            value=access_tok,
-            httponly=True,
-            secure=settings.environment.lower() == "production",
-            samesite="lax",
-            max_age=3600
-        )
-        response.set_cookie(
-            key="refresh_token",
-            value=refresh_tok,
-            httponly=True,
-            secure=settings.environment.lower() == "production",
-            samesite="lax",
-            max_age=7 * 86400
-        )
+        _set_auth_cookies(response, access_token=access_tok, refresh_token=refresh_tok)
         
         return AuthResponse(
             access_token=access_tok,
@@ -378,6 +422,7 @@ def mfa_verify(
             user_id=user.id,
             role=user.role,
             full_name=user.full_name,
+            profile_image_url=user.profile_image_url or "",
         )
     except JWTError as exc:
         raise HTTPException(401, "MFA session expired or invalid") from exc
@@ -415,6 +460,7 @@ def get_me(current_user: User = Depends(get_current_user)) -> dict:
         "height_cm": current_user.profile.height_cm if current_user.role == "patient" and current_user.profile else None,
         "weight_kg": current_user.profile.weight_kg if current_user.role == "patient" and current_user.profile else None,
         "speciality": current_user.speciality,
+        "profile_image_url": current_user.profile_image_url or "",
     }
 
 
@@ -452,6 +498,11 @@ def update_me(
             profile.weight_kg = payload.weight_kg
     if payload.speciality is not None:
         current_user.speciality = payload.speciality
+    if payload.profile_image_url is not None:
+        value = payload.profile_image_url.strip()
+        if not _is_trusted_profile_image(value):
+            raise HTTPException(400, "Profile image must be a small PNG/JPEG/WebP/GIF data URL or trusted local/HTTPS URL")
+        current_user.profile_image_url = value
     _ensure_role_directory_records(db, current_user)
     db.commit()
     return {
@@ -467,6 +518,7 @@ def update_me(
         "height_cm": current_user.profile.height_cm if current_user.role == "patient" and current_user.profile else None,
         "weight_kg": current_user.profile.weight_kg if current_user.role == "patient" and current_user.profile else None,
         "speciality": current_user.speciality,
+        "profile_image_url": current_user.profile_image_url or "",
     }
 
 
@@ -521,22 +573,7 @@ def refresh_token(
         access_tok = create_access_token(user.id, user.role)
         refresh_tok = create_refresh_token(user.id, user.role)
         
-        response.set_cookie(
-            key="access_token",
-            value=access_tok,
-            httponly=True,
-            secure=settings.environment.lower() == "production",
-            samesite="lax",
-            max_age=3600
-        )
-        response.set_cookie(
-            key="refresh_token",
-            value=refresh_tok,
-            httponly=True,
-            secure=settings.environment.lower() == "production",
-            samesite="lax",
-            max_age=7 * 86400
-        )
+        _set_auth_cookies(response, access_token=access_tok, refresh_token=refresh_tok)
         
         return AuthResponse(
             access_token=access_tok,
@@ -544,6 +581,7 @@ def refresh_token(
             user_id=user.id,
             role=user.role,
             full_name=user.full_name,
+            profile_image_url=user.profile_image_url or "",
         )
     except JWTError as exc:
         raise HTTPException(401, "Invalid or expired refresh token") from exc
@@ -552,6 +590,7 @@ def refresh_token(
 @router.post("/logout")
 def logout(
     request: Request,
+    response: Response,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
@@ -561,7 +600,11 @@ def logout(
         token = auth_header.split(" ")[1]
         from app.services.auth_service import revoke_token
         revoke_token(token, expires_in_seconds=settings.jwt_expire_minutes * 60)
-        
+    cookie_token = request.cookies.get("access_token")
+    if cookie_token:
+        from app.services.auth_service import revoke_token
+        revoke_token(cookie_token, expires_in_seconds=settings.jwt_expire_minutes * 60)
+    _clear_auth_cookies(response)
     return {"message": "Successfully logged out and session revoked"}
 
 

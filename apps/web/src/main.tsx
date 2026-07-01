@@ -22,10 +22,6 @@ import { FamilyConsentModule } from "./components/FamilyConsentModule";
 import { AdminHospitalModule } from "./components/AdminHospitalModule";
 import { translations, Language } from "./utils/translations";
 
-const SESSION_STORAGE_KEY = "medrag_session";
-const CONVERSATION_STORAGE_KEY = "medrag_conversation_id";
-const CHAT_STORAGE_VERSION = 2;
-const CHAT_STORAGE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const HD_VIDEO_CONSTRAINTS: MediaStreamConstraints = {
   video: {
     width: { ideal: 1280 },
@@ -66,13 +62,13 @@ type NavItem = {
 
 const patientNavItems: NavItem[] = [
   { tab: "home", label: "Patient Home", icon: Heart },
-  { tab: "clinical", label: "Clinical AI Hub", icon: Sparkles },
-  { tab: "documents", label: "Medical Vault", icon: FileText },
-  { tab: "care", label: "Care Reminders", icon: Clock },
-  { tab: "family", label: "Family & Consent", icon: Users },
-  { tab: "chat", label: "Chat With Doctors", icon: Users },
-  { tab: "hospitals", label: "Telehealth & Slots", icon: Building2 },
-  { tab: "trust", label: "Auditing & Trust", icon: ShieldCheck },
+  { tab: "hospitals", label: "Book A Doctor", icon: Building2 },
+  { tab: "clinical", label: "Ask Health AI", icon: Sparkles },
+  { tab: "chat", label: "Doctor Chat", icon: Users },
+  { tab: "documents", label: "My Reports", icon: FileText },
+  { tab: "care", label: "Medicines & Reminders", icon: Clock },
+  { tab: "family", label: "Family Care", icon: Users },
+  { tab: "trust", label: "Privacy & Access", icon: ShieldCheck },
 ];
 
 const doctorNavItems: NavItem[] = [
@@ -92,11 +88,11 @@ const adminNavItems: NavItem[] = [
 
 const tabTitles: Record<AppTab, string> = {
   home: "Patient Home",
-  clinical: "Clinical AI",
-  documents: "Medical Vault",
+  clinical: "Ask Health AI",
+  documents: "My Reports",
   care: "Care Reminders",
-  hospitals: "Telehealth & Slots",
-  trust: "Auditing & Trust",
+  hospitals: "Book A Doctor",
+  trust: "Privacy & Access",
   doctor: "Doctor Dashboard",
   profile: "Settings",
   "public-health": "Epidemiological Maps",
@@ -116,17 +112,6 @@ function getDefaultTab(role: string): AppTab {
   return "home";
 }
 
-function safeReadJson<T>(storage: Storage, key: string, fallback: T): T {
-  const raw = storage.getItem(key);
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    storage.removeItem(key);
-    return fallback;
-  }
-}
-
 function normalizeSession(session: AuthResponse): AuthResponse {
   return {
     ...session,
@@ -135,20 +120,7 @@ function normalizeSession(session: AuthResponse): AuthResponse {
   };
 }
 
-function safeWriteJson<T>(storage: Storage, key: string, value: T): boolean {
-  try {
-    storage.setItem(key, JSON.stringify(value));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function chatStorageKey(userId: string) {
-  return `medrag_chat_messages:${userId}`;
-}
-
-function readUserChatMessages(userId: string): ChatMessage[] {
+function readUserChatMessages(_userId: string): ChatMessage[] {
   // Chat history is strictly in-memory to prevent storing PHI in localStorage
   return [];
 }
@@ -225,10 +197,8 @@ function PatientOnboarding({
 }
 
 function App() {
-  const [session, setSession] = useState<AuthResponse | null>(() => {
-    const stored = safeReadJson<AuthResponse | null>(localStorage, SESSION_STORAGE_KEY, null);
-    return stored ? normalizeSession(stored) : null;
-  });
+  const [session, setSession] = useState<AuthResponse | null>(null);
+  const [restoringSession, setRestoringSession] = useState(true);
   const token = session?.access_token || "";
 
   // Navigation tab
@@ -251,7 +221,6 @@ function App() {
 
   useEffect(() => {
     const handleExpiredAuth = () => {
-      localStorage.removeItem(SESSION_STORAGE_KEY);
       setSession(null);
       setCurrentTab("home");
       setActiveVideoCall(null);
@@ -259,6 +228,23 @@ function App() {
     };
     window.addEventListener("medrag:auth-expired", handleExpiredAuth);
     return () => window.removeEventListener("medrag:auth-expired", handleExpiredAuth);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.refreshSession()
+      .then((restored) => {
+        if (!cancelled) setSession(normalizeSession(restored));
+      })
+      .catch(() => {
+        if (!cancelled) setSession(null);
+      })
+      .finally(() => {
+        if (!cancelled) setRestoringSession(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
   
   const [isMuted, setIsMuted] = useState(false);
@@ -348,9 +334,9 @@ function App() {
           age: me.age,
           city: me.city,
           gender: me.gender,
+          profile_image_url: me.profile_image_url,
         });
         setSession(refreshed);
-        safeWriteJson(localStorage, SESSION_STORAGE_KEY, refreshed);
       })
       .catch((err) => {
         console.warn("Could not refresh signed-in profile", err);
@@ -372,6 +358,14 @@ function App() {
   }, [session?.role, currentTab]);
 
   // WebRTC handlers
+  function handleStartVideoCall(appt: AppointmentRecord) {
+    if (appt.consultation_mode !== "video") {
+      setError("This is an offline consultation. No video room is created for in-person appointments.");
+      return;
+    }
+    setActiveVideoCall(appt);
+  }
+
   function stopConsultationMedia() {
     peerConnectionRef.current?.close();
     peerConnectionRef.current = null;
@@ -591,7 +585,6 @@ function App() {
         console.error("Logout request failed", e);
       }
     }
-    localStorage.removeItem(SESSION_STORAGE_KEY);
     setSession(null);
   };
 
@@ -599,9 +592,19 @@ function App() {
     if (session) {
       const updated = { ...session, full_name: newName };
       setSession(updated);
-      safeWriteJson(localStorage, SESSION_STORAGE_KEY, updated);
     }
   };
+
+  if (restoringSession) {
+    return (
+      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: "24px" }}>
+        <div className="card" style={{ width: "min(360px, 100%)", textAlign: "center" }}>
+          <Sparkles style={{ color: "var(--primary)", marginBottom: "12px" }} />
+          <div style={{ fontWeight: 700 }}>Restoring secure session...</div>
+        </div>
+      </div>
+    );
+  }
 
   if (!session) {
     return (
@@ -609,7 +612,6 @@ function App() {
         onLoginSuccess={(newSession, token) => {
           const normalized = normalizeSession(newSession);
           setSession(normalized);
-          safeWriteJson(localStorage, SESSION_STORAGE_KEY, normalized);
         }} 
       />
     );
@@ -623,7 +625,6 @@ function App() {
         onComplete={(next) => {
           const normalized = normalizeSession(next);
           setSession(normalized);
-          safeWriteJson(localStorage, SESSION_STORAGE_KEY, normalized);
         }}
       />
     );
@@ -631,18 +632,22 @@ function App() {
 
   const t = (key: string) => translations[lang][key] || key;
   const navItems = getRoleNavItems(session.role);
+  const currentPageTitle = navItems.find((item) => item.tab === currentTab)?.label || tabTitles[currentTab];
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
+    <div className="app-shell">
       {/* Sidebar Navigation */}
-      <aside style={{ width: "240px", background: "rgba(255,255,255,0.01)", borderRight: "1px solid var(--line)", padding: "20px", display: "flex", flexDirection: "column", gap: "8px" }}>
-        <div style={{ fontSize: "1.2rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", marginBottom: "20px" }}>
+      <aside className="app-sidebar">
+        <div className="app-brand">
           <Sparkles style={{ color: "var(--primary)" }} />
-          {t("dashboard_title")}
+          <div>
+            <strong>{t("dashboard_title")}</strong>
+            <span>Your health companion</span>
+          </div>
         </div>
 
         {/* Global Demo mode badge */}
-        <div style={{ padding: "6px 12px", background: "rgba(231,76,60,0.1)", border: "1px solid rgba(231,76,60,0.2)", borderRadius: "8px", color: "#e74c3c", fontSize: "0.7rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px", marginBottom: "16px" }}>
+        <div className="demo-badge">
           <AlertTriangle size={12} />
           DEMO MODE
         </div>
@@ -650,25 +655,28 @@ function App() {
         {navItems.map((item) => {
           const Icon = item.icon;
           return (
-            <button key={item.tab} onClick={() => setCurrentTab(item.tab)} className={`button-sec ${currentTab === item.tab ? "active" : ""}`} style={{ justifyContent: "flex-start", gap: "10px" }}>
+            <button key={item.tab} onClick={() => setCurrentTab(item.tab)} className={`button-sec nav-button ${currentTab === item.tab ? "active" : ""}`}>
               <Icon size={16} /> {item.label}
             </button>
           );
         })}
-        <button onClick={() => setCurrentTab("profile")} className={`button-sec ${currentTab === "profile" ? "active" : ""}`} style={{ justifyContent: "flex-start", gap: "10px", marginTop: "auto" }}>
+        <button onClick={() => setCurrentTab("profile")} className={`button-sec nav-button profile-nav ${currentTab === "profile" ? "active" : ""}`}>
           <User size={16} /> {t("settings_panel")}
         </button>
       </aside>
 
       {/* Main layout frame */}
-      <main style={{ flex: 1, padding: "30px", overflowY: "auto" }}>
-        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px", paddingBottom: "16px", borderBottom: "1px solid var(--line)" }}>
-          <h1 style={{ fontSize: "1.3rem", fontWeight: 600 }}>{tabTitles[currentTab].toUpperCase()}</h1>
-          <div style={{ display: "flex", alignItems: "center", gap: "16px", fontSize: "0.85rem" }}>
+      <main className="app-content">
+        <header className="app-header">
+          <div>
+            <div className="page-kicker">MedRAG India</div>
+            <h1>{currentPageTitle}</h1>
+          </div>
+          <div className="header-actions">
             <select 
               value={lang} 
               onChange={e => setLang(e.target.value as Language)} 
-              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--line)", color: "white", padding: "4px 8px", borderRadius: "6px", fontSize: "0.8rem", cursor: "pointer" }}
+              className="language-select"
             >
               <option value="en">English</option>
               <option value="hi">हिंदी (Hindi)</option>
@@ -676,7 +684,7 @@ function App() {
               <option value="te">తెలుగు (Telugu)</option>
               <option value="bn">বাংলা (Bengali)</option>
             </select>
-            <span>Signed in as: <strong style={{ color: "var(--primary)" }}>{session.full_name || session.role}</strong></span>
+            <span className="signed-in-pill">Signed in as <strong>{session.full_name || session.role}</strong></span>
           </div>
         </header>
 
@@ -693,13 +701,13 @@ function App() {
             chatMessages={chatMessages}
             setChatMessages={setChatMessages}
             appointments={myAppointmentsList}
-            onStartVideoCall={setActiveVideoCall}
+            onStartVideoCall={handleStartVideoCall}
           />
         )}
         {currentTab === "hospitals" && (
           session.role === "hospital_admin" || session.role === "admin"
             ? <AdminHospitalModule token={token} />
-            : <HospitalSlotsModule token={token} sessionRole={session.role} sessionCity={session.city || ""} onStartVideoCall={setActiveVideoCall} />
+            : <HospitalSlotsModule token={token} sessionRole={session.role} sessionCity={session.city || ""} onStartVideoCall={handleStartVideoCall} />
         )}
         {currentTab === "trust" && <ComplianceModule token={token} sessionRole={session.role} />}
         {currentTab === "public-health" && <PublicHealthModule token={token} />}
@@ -712,7 +720,7 @@ function App() {
             sessionUserId={session.user_id}
             sessionUserName={session.full_name || "Doctor"}
             myAppointments={myAppointmentsList}
-            onStartVideoCall={setActiveVideoCall}
+            onStartVideoCall={handleStartVideoCall}
             onAppointmentsChanged={refreshAppointments}
           />
         )}

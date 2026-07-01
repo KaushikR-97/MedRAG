@@ -272,7 +272,7 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
           department_id: "personal"
         });
       }
-      setSuccess("Availability released for selected video/offline modes. Offline bookings receive consultation tokens.");
+      setSuccess("Availability released for selected video/offline modes. Offline bookings receive in-person tokens only; no video room/link is created.");
       onAppointmentsChanged();
     } catch (err: any) {
       setError(err.message || "Slot creation failed");
@@ -310,7 +310,11 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
     setSuccess("");
     try {
       await api.updateAppointmentStatus(token, appt.id, { status: "confirmed" });
-      setSuccess("Booking confirmed. Patient can join video only during the booked slot window.");
+      setSuccess(
+        appt.consultation_mode === "video"
+          ? "Booking confirmed. Patient can join video only during the booked slot window."
+          : "Offline booking confirmed. Patient will use the in-person token; no video room is created."
+      );
       onAppointmentsChanged();
     } catch (err: any) {
       setError(err.message || "Could not confirm booking");
@@ -430,6 +434,9 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
+      <div style={{ gridColumn: "1 / -1", color: "var(--primary)", fontSize: "0.8rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: "1px solid var(--line)", paddingBottom: "8px" }}>
+        Clinic Operations
+      </div>
       <div className="card" style={{ gridColumn: "1 / -1" }}>
         <h3 style={{ fontSize: "1.1rem", display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
           <Building2 size={18} style={{ color: "var(--primary)" }} />
@@ -481,6 +488,10 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
           </div>
           <button className="button-sec" type="submit" disabled={!organizationId}>Delegate</button>
         </form>
+      </div>
+
+      <div style={{ gridColumn: "1 / -1", color: "var(--primary)", fontSize: "0.8rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: "1px solid var(--line)", paddingBottom: "8px" }}>
+        Patient Record And Prescribing
       </div>
 
       {/* Loading patient profiles & EMR access */}
@@ -627,6 +638,10 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
         </form>
       </div>
 
+      <div style={{ gridColumn: "1 / -1", color: "var(--primary)", fontSize: "0.8rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: "1px solid var(--line)", paddingBottom: "8px" }}>
+        Scheduling And Business
+      </div>
+
       {/* Release Slots */}
       <div className="card">
         <h3 style={{ fontSize: "1rem", marginBottom: "12px" }}>Release Availability Window</h3>
@@ -722,6 +737,10 @@ export const DoctorWorkspace: React.FC<DoctorWorkspaceProps> = ({
             ))}
           </div>
         )}
+      </div>
+
+      <div style={{ gridColumn: "1 / -1", color: "var(--primary)", fontSize: "0.8rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: "1px solid var(--line)", paddingBottom: "8px" }}>
+        Appointments And Communication
       </div>
 
       {/* Live Appointments & Local consult Chat */}

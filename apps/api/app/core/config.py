@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://medrag:medrag@postgres:5432/medrag"
     jwt_secret: str = Field(min_length=32)
     jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 60
+    jwt_expire_minutes: int = 240
     consultation_encryption_key: str = ""
     consultation_room_expire_minutes: int = 240
     allowed_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173", "http://localhost:8000"]

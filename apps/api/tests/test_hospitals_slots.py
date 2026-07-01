@@ -4,6 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 import uuid
+from datetime import date, timedelta
 
 from app.main import app
 from app.db.session import Base, get_db
@@ -110,6 +111,8 @@ def test_hospital_admin_flow() -> None:
         "phone": "+919999988888",
         "registration_number": "MCI-9999",
         "speciality": "Cardiology",
+        "age": 42,
+        "gender": "male",
         "hospital_id": hosp_id,
         "department_id": dept_id,
         "consultation_fee": 500.0
@@ -127,11 +130,17 @@ def test_hospital_admin_flow() -> None:
     doctor_user = db.query(User).filter(User.id == doc_id).first()
     db.close()
     assert doctor_user is not None
+    doctor_user.profile_image_url = "https://example.com/dr-kumar.png"
+    db = TestingSessionLocal()
+    db.merge(doctor_user)
+    db.commit()
+    db.close()
     
     current_mock_user = doctor_user
 
+    future_date = (date.today() + timedelta(days=3)).isoformat()
     slot_payload = {
-        "date": "2026-07-01",
+        "date": future_date,
         "start_time": "09:00",
         "end_time": "10:00",
         "consultation_mode": "video",
@@ -143,6 +152,13 @@ def test_hospital_admin_flow() -> None:
     print("CREATE SLOT STATUS:", slot_res.status_code)
     print("CREATE SLOT BODY:", slot_res.text)
     assert slot_res.status_code == 200
+    slot = slot_res.json()
+    assert slot["doctor_name"] == "Dr. Kumar"
+    assert slot["doctor_age"] == 42
+    assert slot["doctor_gender"] == "male"
+    assert slot["doctor_speciality"] == "Cardiology"
+    assert slot["doctor_profile_image_url"] == "https://example.com/dr-kumar.png"
+    assert slot["doctor_registration_number"] == "MCI-9999"
 
 
 def test_doctor_can_create_clinic_org_and_delegate_staff() -> None:

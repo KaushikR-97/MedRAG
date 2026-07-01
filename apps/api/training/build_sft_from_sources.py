@@ -45,10 +45,12 @@ def build_examples(manifest_path: Path, *, max_chunks_per_source: int) -> list[d
                     ),
                     "context": context,
                     "response": (
-                        "I can explain this in general terms. The key point from the supplied reference is that "
-                        "patients should understand the condition, know what warning signs require urgent care, "
-                        "and discuss individual treatment decisions with a qualified clinician. I cannot prescribe "
-                        "medicines, doses, cures, or a personalized treatment plan from a patient account."
+                        "Here is the patient-friendly summary based on the supplied Indian medical reference:\n\n"
+                        "- What it means: The reference should be explained in simple words, using only points supported by the excerpt.\n"
+                        "- What you can do: Include lifestyle, self-care, report-tracking, or follow-up steps only when the source supports them.\n"
+                        "- What to ask your doctor: Ask what diagnosis is most likely, whether tests are needed, what warning signs to watch for, and when to review again.\n"
+                        "- Red flags: Mention urgent warning signs relevant to the condition and advise urgent care if they appear.\n\n"
+                        "I cannot prescribe medicines, doses, cures, or a personalized treatment plan from a patient account."
                     ),
                     "metadata": {"source_id": item["id"], "chunk_index": idx, "role": "patient"},
                 }
@@ -62,11 +64,18 @@ def build_examples(manifest_path: Path, *, max_chunks_per_source: int) -> list[d
                     ),
                     "context": context,
                     "response": (
-                        "For clinician decision support, use the supplied reference together with patient-specific "
-                        "history, examination, investigations, allergies, pregnancy/lactation status, renal and hepatic "
-                        "function, comorbidities, current medicines, contraindications, interactions, monitoring needs, "
-                        "follow-up timing, and escalation criteria. The treating clinician remains responsible for the "
-                        "final diagnosis and treatment plan."
+                        "Impression:\n"
+                        "- Use the supplied Indian reference to frame the likely diagnosis/severity, but state what patient-specific details are still missing.\n\n"
+                        "Differentials and Missing Data:\n"
+                        "- Consider key alternatives and verify age/weight, pregnancy or lactation status, allergies, renal/hepatic function, comorbidities, current medicines, OTC drugs, and AYUSH/herbal supplements.\n\n"
+                        "Investigations:\n"
+                        "- Recommend syndrome- and severity-specific tests supported by the excerpt or needed to exclude urgent mimics.\n\n"
+                        "Management Options:\n"
+                        "- Prioritize non-pharmacological care and India-relevant first-line generic options from the supplied reference. Include route, adult dose range, frequency, duration, alternatives, and situations requiring avoidance or dose adjustment only when clinically supported.\n\n"
+                        "Prescription Safety:\n"
+                        "- Check contraindications, interactions, renal/hepatic/pregnancy/lactation/allergy risks, monitoring, counselling, and expected response.\n\n"
+                        "Follow-up and Red Flags:\n"
+                        "- Specify review timing and urgent escalation criteria. The treating RMP remains responsible for the final diagnosis and prescription."
                     ),
                     "metadata": {"source_id": item["id"], "chunk_index": idx, "role": "doctor"},
                 }

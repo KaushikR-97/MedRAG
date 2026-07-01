@@ -1,7 +1,11 @@
+import json
+from pathlib import Path
+
 import pytest
 from app.db.session import Base, engine
 from app.graphs.clinical_graph import ClinicalRagGraph
 from app.rag.retriever import RetrievedChunk
+from app.services.generation_service import ClinicalGenerationService
 from app.services.query_router_service import QueryRouterService
 
 @pytest.fixture(autouse=True)
@@ -172,3 +176,32 @@ def test_llm_query_router_falls_back_for_doctor() -> None:
     assert decision.route == "both_patient_record_and_guideline"
     assert decision.source_types == ["guideline", "verified_patient_document"]
     assert decision.used_fallback is True
+
+
+def test_doctor_fallback_uses_india_specific_consultant_structure() -> None:
+    answer = ClinicalGenerationService._doctor_framework_fallback(
+        question="Adult fever outpatient management",
+        source_text="",
+    )
+
+    assert "Impression:" in answer
+    assert "ICMR STWs" in answer
+    assert "AYUSH" in answer
+    assert "generic names" in answer
+    assert "Prescription Safety:" in answer
+    assert "Red Flags/Escalation:" in answer
+
+
+def test_india_guideline_registry_is_ingestion_ready() -> None:
+    registry_path = Path(__file__).resolve().parents[3] / "data" / "source_registry" / "india_guidelines.json"
+    sources = json.loads(registry_path.read_text(encoding="utf-8"))
+
+    assert len(sources) >= 5
+    ids = {source["id"] for source in sources}
+    assert "icmr_standard_treatment_workflows_index" in ids
+    assert "icmr_guidelines_index" in ids
+    for source in sources:
+        assert source["url"].startswith("https://")
+        assert source["publisher"]
+        assert source["phi_status"] == "public_non_phi"
+        assert "rag_corpus" in source["recommended_use"] or "patient_education_grounding" in source["recommended_use"]

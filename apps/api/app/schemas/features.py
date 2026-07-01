@@ -126,6 +126,9 @@ class HospitalDoctorRegister(BaseModel):
     phone: str = ""
     registration_number: str
     speciality: str = ""
+    age: int | None = Field(default=None, ge=18, le=100)
+    gender: str = Field(default="", max_length=32)
+    profile_image_url: str = Field(default="", max_length=120000)
     hospital_id: str
     department_id: str
     consultation_fee: float = 0.0

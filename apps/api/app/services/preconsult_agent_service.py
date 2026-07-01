@@ -12,7 +12,7 @@ from app.models.user import User
 from app.rag.retriever import RetrievedChunk
 from app.services.compliance_service import ComplianceService
 from app.services.consultation_service import ConsultationCrypto
-from app.services.generation_service import ClinicalGenerationService
+from app.services.generation_service import ClinicalGenerationService, DOCTOR_OUTPUT_CONTRACT, DOCTOR_SECTION_GUIDE
 
 
 class PreConsultAgentService:
@@ -99,8 +99,9 @@ class PreConsultAgentService:
         question = (
             "Prepare a doctor-only pre-consultation draft for the upcoming appointment. "
             "Use the patient's submitted symptoms/reason, appointment reason, secure chat symptoms, profile, and verified records. "
-            "Return concise sections: Possible diagnoses/differentials, relevant medical history, suggested assessment questions, "
-            "doctor-only treatment plan options with safety checks, red flags/escalation, and records used. "
+            "Return concise professional sections: Impression, differentials, missing critical data, relevant medical history, focused examination/questions, "
+            "investigations to consider, doctor-only management options with India-relevant guideline anchoring, prescription safety checks, "
+            "red flags/escalation, and records used. "
             "This draft is not a patient instruction and must be reviewed by the doctor."
         )
         intake.draft_summary = ClinicalGenerationService().generate(
@@ -110,8 +111,9 @@ class PreConsultAgentService:
             sources=sources,
             disclaimer=None,
             policy_instruction=(
-                "Doctor-facing pre-consult draft only. Include practical diagnosis and treatment considerations "
-                "when clinically relevant, but explicitly require doctor verification before use."
+                "Doctor-facing pre-consult draft only. Include practical diagnosis and management considerations "
+                "when clinically relevant, but explicitly require doctor verification before use. "
+                f"{DOCTOR_OUTPUT_CONTRACT} {DOCTOR_SECTION_GUIDE}"
             ),
             policy_mode="preconsult_doctor_agent",
         )

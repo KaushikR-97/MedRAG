@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Sparkles, FileText, Heart, Activity, Users, MessageSquare, Pill, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Sparkles, FileText, Heart, Activity, Users, MessageSquare, Pill, CheckCircle2, AlertTriangle, CalendarPlus } from "lucide-react";
 import { api, AuthResponse, FitnessActivityRecord, PatientCareBrief, PrescriptionRecord } from "../api/client";
 
 type PatientDashboardProps = {
@@ -118,11 +118,53 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ token, sessi
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {/* Welcome Hero Card */}
-      <div className="card" style={{ background: "linear-gradient(135deg, rgba(26,115,232,0.1) 0%, rgba(0,0,0,0) 100%)", borderLeft: "4px solid var(--primary)" }}>
-        <h2 style={{ fontSize: "1.4rem", marginBottom: "8px" }}>Hello, {session.full_name || "Patient"}</h2>
-        <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: 0 }}>
-          Your Patient ID: <span style={{ fontFamily: "monospace", color: "var(--primary)" }}>{session.user_id}</span>
+      <div className="card calm-hero">
+        <div>
+          <div className="page-kicker">Welcome back</div>
+          <h2 style={{ fontSize: "1.55rem", marginBottom: "8px" }}>Hello, {session.full_name || "Patient"}</h2>
+          <p style={{ color: "var(--muted)", fontSize: "0.92rem", margin: 0, maxWidth: "720px", lineHeight: 1.6 }}>
+            Take a breath. Your reports, appointments, doctors, and family access are in one place.
+            Choose what you need now.
+          </p>
+        </div>
+        <div className="patient-id-pill">Patient ID {session.user_id}</div>
+      </div>
+
+      <div className="card">
+        <h3 style={{ fontSize: "1.08rem", marginBottom: "6px" }}>What would you like to do?</h3>
+        <p style={{ color: "var(--muted)", fontSize: "0.86rem", marginBottom: "16px" }}>
+          Start with one of these common actions. You can always come back here.
         </p>
+        <div className="primary-action-grid">
+          <button onClick={() => onNavigate("hospitals")} className="button patient-action primary-action">
+            <CalendarPlus size={22} />
+            <span>
+              <strong>Book a doctor</strong>
+              <small>Video or clinic visit</small>
+            </span>
+          </button>
+          <button onClick={() => onNavigate("clinical")} className="button-sec patient-action">
+            <Sparkles size={22} />
+            <span>
+              <strong>Ask Health AI</strong>
+              <small>Get guidance before care</small>
+            </span>
+          </button>
+          <button onClick={() => onNavigate("documents")} className="button-sec patient-action">
+            <FileText size={22} />
+            <span>
+              <strong>Upload reports</strong>
+              <small>Keep records ready</small>
+            </span>
+          </button>
+          <button onClick={() => onNavigate("chat")} className="button-sec patient-action">
+            <MessageSquare size={22} />
+            <span>
+              <strong>Message doctor</strong>
+              <small>For booked consultations</small>
+            </span>
+          </button>
+        </div>
       </div>
 
       <div className="card">
@@ -155,45 +197,6 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ token, sessi
         {careBrief && careBrief.active_diseases.length > 0 && (
           <div style={{ marginTop: "12px", color: "var(--muted)", fontSize: "0.8rem" }}>
             Active treatment context: {careBrief.active_diseases.map((item) => item.diagnosis).join(", ")}
-          </div>
-        )}
-      </div>
-
-      <div className="card">
-        <h3 style={{ fontSize: "1rem", display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-          <Activity size={18} style={{ color: "var(--primary)" }} />
-          Fitness & Exercise Sync
-        </h3>
-        {fitnessError && <div className="toast toast-error" style={{ marginBottom: "10px" }}>{fitnessError}</div>}
-        {fitnessMessage && <div className="toast toast-success" style={{ marginBottom: "10px" }}>{fitnessMessage}</div>}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px" }}>
-          {["fitbit", "google_fit"].map((provider) => (
-            <div key={provider} style={{ border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", background: "rgba(255,255,255,0.02)" }}>
-              <strong>{provider === "google_fit" ? "Google Fit" : "Fitbit"}</strong>
-              <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
-                <button className="button-sec" onClick={() => connectFitness(provider)}>Connect</button>
-                <button className="button" onClick={() => syncFitness(provider)}>Sync</button>
-              </div>
-            </div>
-          ))}
-          <div style={{ border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", background: "rgba(255,255,255,0.02)" }}>
-            <strong>Apple Health</strong>
-            <p style={{ color: "var(--muted)", fontSize: "0.76rem", margin: "6px 0" }}>Use HealthKit bridge/export import.</p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "8px" }}>
-              <input className="input" value={appleSteps} onChange={(event) => setAppleSteps(event.target.value)} placeholder="Steps" />
-              <input className="input" value={appleMinutes} onChange={(event) => setAppleMinutes(event.target.value)} placeholder="Exercise min" />
-              <button className="button" onClick={importApple}>Import</button>
-            </div>
-          </div>
-        </div>
-        {fitnessActivities.length > 0 && (
-          <div style={{ marginTop: "12px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "8px" }}>
-            {fitnessActivities.map((item) => (
-              <div key={item.id} style={{ border: "1px solid var(--line)", borderRadius: "8px", padding: "10px", fontSize: "0.8rem" }}>
-                <strong>{item.activity_date}</strong>
-                <div style={{ color: "var(--muted)" }}>{item.provider} | {item.steps} steps | {item.exercise_minutes} min</div>
-              </div>
-            ))}
           </div>
         )}
       </div>
@@ -234,26 +237,23 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ token, sessi
       {/* Main quick-navigation grid */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
         <div className="card">
-          <h3 style={{ fontSize: "1rem", marginBottom: "12px" }}>Quick Health Navigation</h3>
+          <h3 style={{ fontSize: "1rem", marginBottom: "12px" }}>Other Helpful Areas</h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-            <button onClick={() => onNavigate("clinical")} className="button" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "20px", height: "auto" }}>
-              <Sparkles size={20} />
-              <span>Clinical AI Hub</span>
-            </button>
-            <button onClick={() => onNavigate("documents")} className="button-sec" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "20px", height: "auto" }}>
-              <FileText size={20} />
-              <span>Record Vault</span>
-            </button>
-            <button onClick={() => onNavigate("hospitals")} className="button-sec" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "20px", height: "auto", gridColumn: "span 2" }}>
-              <span>Book Appointment Slot</span>
-            </button>
             <button onClick={() => onNavigate("chat")} className="button-sec" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "20px", height: "auto" }}>
               <MessageSquare size={20} />
-              <span>Chat With Doctors</span>
+              <span>Doctor Chat</span>
             </button>
             <button onClick={() => onNavigate("family")} className="button-sec" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "20px", height: "auto" }}>
               <Users size={20} />
-              <span>Family & Consent</span>
+              <span>Family Care</span>
+            </button>
+            <button onClick={() => onNavigate("care")} className="button-sec" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "20px", height: "auto" }}>
+              <Pill size={20} />
+              <span>Medicines</span>
+            </button>
+            <button onClick={() => onNavigate("trust")} className="button-sec" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "20px", height: "auto" }}>
+              <CheckCircle2 size={20} />
+              <span>Privacy</span>
             </button>
           </div>
         </div>
@@ -275,6 +275,45 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ token, sessi
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="card">
+        <h3 style={{ fontSize: "1rem", display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+          <Activity size={18} style={{ color: "var(--primary)" }} />
+          Fitness & Exercise Sync
+        </h3>
+        {fitnessError && <div className="toast toast-error" style={{ marginBottom: "10px" }}>{fitnessError}</div>}
+        {fitnessMessage && <div className="toast toast-success" style={{ marginBottom: "10px" }}>{fitnessMessage}</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px" }}>
+          {["fitbit", "google_fit"].map((provider) => (
+            <div key={provider} style={{ border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", background: "rgba(255,255,255,0.5)" }}>
+              <strong>{provider === "google_fit" ? "Google Fit" : "Fitbit"}</strong>
+              <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+                <button className="button-sec" onClick={() => connectFitness(provider)}>Connect</button>
+                <button className="button" onClick={() => syncFitness(provider)}>Sync</button>
+              </div>
+            </div>
+          ))}
+          <div style={{ border: "1px solid var(--line)", borderRadius: "8px", padding: "12px", background: "rgba(255,255,255,0.5)" }}>
+            <strong>Apple Health</strong>
+            <p style={{ color: "var(--muted)", fontSize: "0.76rem", margin: "6px 0" }}>Use HealthKit bridge/export import.</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "8px" }}>
+              <input className="input" value={appleSteps} onChange={(event) => setAppleSteps(event.target.value)} placeholder="Steps" />
+              <input className="input" value={appleMinutes} onChange={(event) => setAppleMinutes(event.target.value)} placeholder="Exercise min" />
+              <button className="button" onClick={importApple}>Import</button>
+            </div>
+          </div>
+        </div>
+        {fitnessActivities.length > 0 && (
+          <div style={{ marginTop: "12px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "8px" }}>
+            {fitnessActivities.map((item) => (
+              <div key={item.id} style={{ border: "1px solid var(--line)", borderRadius: "8px", padding: "10px", fontSize: "0.8rem" }}>
+                <strong>{item.activity_date}</strong>
+                <div style={{ color: "var(--muted)" }}>{item.provider} | {item.steps} steps | {item.exercise_minutes} min</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="card">

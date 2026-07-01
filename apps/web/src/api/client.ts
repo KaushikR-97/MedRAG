@@ -7,6 +7,7 @@ export type AuthResponse = {
   age?: number;
   city?: string;
   gender?: string;
+  profile_image_url?: string;
 };
 
 export type LoginResponse = {
@@ -123,6 +124,13 @@ export type ConsultationSlotRecord = {
   capacity: number;
   booked_count: number;
   status: string;
+  consultation_fee?: number;
+  doctor_name?: string;
+  doctor_age?: number | null;
+  doctor_gender?: string;
+  doctor_speciality?: string;
+  doctor_profile_image_url?: string;
+  doctor_registration_number?: string;
 };
 
 export type HospitalDepartmentRecord = {
@@ -149,6 +157,11 @@ export type AppointmentRecord = {
   patient_name?: string;
   doctor_id: string | null;
   doctor_name?: string;
+  doctor_age?: number | null;
+  doctor_gender?: string;
+  doctor_speciality?: string;
+  doctor_profile_image_url?: string;
+  doctor_registration_number?: string;
   hospital_id: string;
   department_id: string;
   slot_id: string;
@@ -435,6 +448,7 @@ export const api = {
       city?: string;
       gender?: string;
       speciality?: string;
+      profile_image_url?: string;
     };
     try {
       return await request<MeResponse>("/auth/me", {}, token);
@@ -454,6 +468,7 @@ export const api = {
       city?: string;
       gender?: string;
       speciality?: string;
+      profile_image_url?: string;
     },
   ) {
     type MeResponse = {
@@ -467,6 +482,7 @@ export const api = {
       city?: string;
       gender?: string;
       speciality?: string;
+      profile_image_url?: string;
     };
     try {
       return await request<MeResponse>("/auth/me", { method: "PUT", body: JSON.stringify(payload) }, token);
@@ -488,6 +504,12 @@ export const api = {
     return request<{ message: string }>("/auth/reset-password", {
       method: "POST",
       body: JSON.stringify({ ...payload, new_password: hashedNew }),
+    });
+  },
+  async refreshSession() {
+    return request<AuthResponse>("/auth/refresh", {
+      method: "POST",
+      body: JSON.stringify({ refresh_token: "" }),
     });
   },
   async logout(token: string) {
