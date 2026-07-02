@@ -2,7 +2,8 @@
 
 This is the clean end-to-end runbook for a fresh Lightning AI GPU Studio or Job.
 Use a T4/A10/A100 GPU if available. On a single T4, keep the GPU for the 7B LLM
-and keep embeddings/reranking on CPU.
+and keep embeddings/reranking on CPU. This runbook assumes Qdrant is a managed
+external service because you already have a Qdrant URL and API key.
 
 ## Expected Time
 
@@ -11,7 +12,8 @@ and keep embeddings/reranking on CPU.
 | Clone/pull repo | 1-3 min | 1-3 min | 1-3 min | Depends on GitHub/network |
 | Python dependency install | 8-20 min | 8-20 min | 8-20 min | First run is slower because wheels/cache download |
 | Web dependency install/build | 3-8 min | 3-8 min | 3-8 min | `npm install` dominates |
-| Start infra + migrations | 3-10 min | 3-10 min | 3-10 min | Docker pulls can add 5-15 min on first run |
+| Start local infra + migrations | 3-10 min | 3-10 min | 3-10 min | Postgres/Redis/MinIO/ClamAV only; Qdrant is external |
+| Managed Qdrant connectivity check | <1 min | <1 min | <1 min | Fails fast if URL/key/firewall is wrong |
 | India RAG manifest validation | <1 min | <1 min | <1 min | Local JSON validation |
 | India RAG dry-run fetch/chunk | 2-8 min | 2-8 min | 2-8 min | Government portals may time out |
 | India RAG write to Qdrant | 5-25 min | 4-20 min | 3-15 min | CPU embeddings are slower but safer on single GPU |
@@ -30,7 +32,7 @@ are usually under one hour, excluding full training.
 ## 1. Create Persistent Drive Folders
 
 ```bash
-mkdir -p /teamspace/drive/medrag/{datasets,rag_sources,qdrant_snapshots,models,logs,eval_outputs,hf_cache}
+mkdir -p /teamspace/drive/medrag/{datasets,rag_sources,models,logs,eval_outputs,hf_cache}
 ```
 
 Expected time: under 1 minute.
@@ -59,7 +61,11 @@ ENVIRONMENT=local
 JWT_SECRET=replace-with-a-long-random-secret-32-plus-chars
 DATABASE_URL=postgresql+psycopg://medrag:medrag@localhost:5432/medrag
 REDIS_URL=redis://localhost:6379/0
-QDRANT_URL=http://localhost:6333
+QDRANT_URL=https://YOUR-QDRANT-CLUSTER-URL
+QDRANT_API_KEY=YOUR-QDRANT-API-KEY
+QDRANT_TIMEOUT_SECONDS=20
+QDRANT_COLLECTION=medical_guidelines
+QDRANT_IMAGE_COLLECTION=medical_image_embeddings
 S3_ENDPOINT_URL=http://localhost:9000
 CLAMD_HOST=localhost
 MODEL_PROVIDER=local_finetuned
@@ -103,13 +109,14 @@ npm install
 
 Expected time: 10-28 minutes on a cold machine; 3-10 minutes after caches warm.
 
-## 5. Start Infrastructure
+## 5. Start Local Infrastructure
 
-Preferred if Docker works in Studio:
+Preferred if Docker works in Studio. Do not start the local Qdrant container
+when using your managed Qdrant URL/key:
 
 ```bash
 cd /teamspace/studios/this_studio/MedRAG
-docker compose up postgres redis qdrant minio clamav
+docker compose up postgres redis minio clamav
 ```
 
 Keep this terminal running. In a new terminal:
@@ -120,19 +127,70 @@ alembic upgrade head
 ```
 
 Expected time: 3-10 minutes if images exist; 10-25 minutes if Docker images must
-download first.
+download first. Qdrant startup time is not included because it is external.
 
-## 6. Build And Validate India-First RAG Manifest
+## 6. Check Managed Qdrant Connectivity
+
+Set these variables in the shell or keep them in `apps/api/.env`:
+
+```bash
+export QDRANT_URL="https://YOUR-QDRANT-CLUSTER-URL"
+export QDRANT_API_KEY="YOUR-QDRANT-API-KEY"
+```
+
+Run a quick connection test:
+
+```bash
+cd /teamspace/studios/this_studio/MedRAG/apps/api
+python - <<'PY'
+import os
+from qdrant_client import QdrantClient
+
+client = QdrantClient(
+    url=os.environ["QDRANT_URL"],
+    api_key=os.environ.get("QDRANT_API_KEY") or None,
+    timeout=20,
+)
+collections = client.get_collections()
+print("Qdrant OK:", [c.name for c in collections.collections])
+PY
+```
+
+Expected time: under 1 minute. If this fails, fix the Qdrant URL/key before RAG
+ingestion or API startup.
+
+## 7. Build And Validate India-First RAG Manifest
 
 ```bash
 cd /teamspace/studios/this_studio/MedRAG
+test -f scripts/build_indian_rag_manifest.py
+test -f data/source_registry/indian_medical_ai_sources.json
 python scripts/build_indian_rag_manifest.py --validate-only
 python scripts/build_indian_rag_manifest.py --include-p1
+test -f apps/api/training/indian_rag_source_manifest.json
 ```
 
 Expected time: under 1 minute.
 
-## 7. Dry-Run RAG Source Fetch
+If either `test -f` command says the file does not exist, the Lightning checkout
+does not have the latest MedRAG commit that added the India RAG pipeline. Pull
+the latest pushed `main` first:
+
+```bash
+cd /teamspace/studios/this_studio/MedRAG
+git pull origin main
+git log -1 --oneline
+```
+
+The output should show the commit that added the India medical RAG source
+pipeline or a newer commit. The manifest path used in the next steps is generated
+by this step:
+
+```text
+apps/api/training/indian_rag_source_manifest.json
+```
+
+## 8. Dry-Run RAG Source Fetch
 
 ```bash
 cd /teamspace/studios/this_studio/MedRAG/apps/api
@@ -146,7 +204,7 @@ Expected time: 2-8 minutes. Some government portals can time out. If IDSP,
 PM-JAY, or NIN direct content fails, manually download the exact PDF/page into
 `apps/api/training/sources/`, add a `path` entry to the manifest, and rerun.
 
-## 8. Ingest RAG Sources Into Qdrant
+## 9. Ingest RAG Sources Into Managed Qdrant
 
 ```bash
 python training/ingest_rag_sources.py \
@@ -155,9 +213,11 @@ python training/ingest_rag_sources.py \
 ```
 
 Expected time: 5-25 minutes on a T4 with CPU embeddings for the initial broad
-source set. Larger document-level PDF ingestion can take 30-90 minutes.
+source set. Larger document-level PDF ingestion can take 30-90 minutes. Managed
+Qdrant avoids local container storage limits, but upload time still depends on
+network latency and cluster region.
 
-## 9. Build SFT Style Data
+## 10. Build SFT Style Data
 
 ```bash
 python training/build_sft_from_sources.py \
@@ -169,7 +229,7 @@ python training/build_sft_from_sources.py \
 Expected time: 1-5 minutes for the broad source manifest; longer if many PDFs are
 added.
 
-## 10. Run A Small Training Smoke Test First
+## 11. Run A Small Training Smoke Test First
 
 Use this before spending hours on the full run:
 
@@ -192,7 +252,7 @@ python training/train_lora.py \
 
 Expected time: 20-60 minutes on T4, 10-35 minutes on A10, 5-20 minutes on A100.
 
-## 11. Run Full LoRA Training As A Lightning Job
+## 12. Run Full LoRA Training As A Lightning Job
 
 Use a Lightning Job for the full run so it survives browser disconnects.
 
@@ -224,7 +284,7 @@ python training/train_lora.py \
 
 Expected time: 1.5-4 hours on T4, 45-120 minutes on A10, 20-60 minutes on A100.
 
-## 12. Smoke Test Adapter
+## 13. Smoke Test Adapter
 
 ```bash
 python training/evaluate_adapter.py \
@@ -237,7 +297,7 @@ python training/evaluate_adapter.py \
 
 Expected time: 1-5 minutes. The first run is slower because it loads the model.
 
-## 13. Run Clinical Quality Evaluation
+## 14. Run Clinical Quality Evaluation
 
 Quick 5-case smoke:
 
@@ -276,7 +336,7 @@ python apps/api/training/evaluate_clinical_quality.py \
 
 Expected time: 30-120 minutes on T4, 20-75 minutes on A10, 10-40 minutes on A100.
 
-## 14. Start API, Worker, And Web
+## 15. Start API, Worker, And Web
 
 API terminal:
 
@@ -303,7 +363,7 @@ PORT=5173 npm run start
 Expected time: 3-10 minutes. The first clinical AI request can take another
 1-5 minutes while the model loads.
 
-## 15. Final Smoke Checks
+## 16. Final Smoke Checks
 
 ```bash
 cd /teamspace/studios/this_studio/MedRAG
@@ -320,7 +380,7 @@ Expected time: 3-10 minutes.
 First clean T4 run:
 
 ```text
-Setup/install/infra: 30-60 min
+Setup/install/local infra/Qdrant check: 30-60 min
 RAG validation + ingestion: 10-35 min
 SFT build: 1-5 min
 Training smoke: 20-60 min
