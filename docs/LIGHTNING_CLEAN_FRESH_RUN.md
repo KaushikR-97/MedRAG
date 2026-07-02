@@ -223,11 +223,14 @@ network latency and cluster region.
 python training/build_sft_from_sources.py \
   --manifest training/indian_rag_source_manifest.json \
   --output training/indian_rag_templated_sft.jsonl \
-  --max-chunks-per-source 20
+  --max-chunks-per-source 20 \
+  --continue-on-error
 ```
 
 Expected time: 1-5 minutes for the broad source manifest; longer if many PDFs are
-added.
+added. If a government URL times out, the script still writes SFT examples from
+the reachable sources and prints a failure list. Move failed sources to the
+manual-download queue when you need full coverage.
 
 ## 11. Run A Small Training Smoke Test First
 

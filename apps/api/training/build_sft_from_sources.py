@@ -22,10 +22,23 @@ def jsonl_write(path: Path, rows: list[dict]) -> None:
             handle.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n")
 
 
-def build_examples(manifest_path: Path, *, max_chunks_per_source: int) -> list[dict]:
+def build_examples(
+    manifest_path: Path,
+    *,
+    max_chunks_per_source: int,
+    continue_on_error: bool = False,
+) -> tuple[list[dict], list[tuple[str, str]]]:
     examples: list[dict] = []
+    failures: list[tuple[str, str]] = []
     for item in read_manifest(manifest_path):
-        text = load_source_text(item, manifest_path.parent)
+        try:
+            text = load_source_text(item, manifest_path.parent)
+        except Exception as exc:
+            if not continue_on_error:
+                raise
+            failures.append((item.get("id", "<unknown>"), str(exc)))
+            print(f"{item.get('id', '<unknown>')}: failed: {exc}")
+            continue
         chunks = chunk_text(text)[:max_chunks_per_source]
         for idx, chunk in enumerate(chunks):
             context = (
@@ -78,7 +91,7 @@ def build_examples(manifest_path: Path, *, max_chunks_per_source: int) -> list[d
                     "metadata": {"source_id": item["id"], "chunk_index": idx, "role": "doctor"},
                 }
             )
-    return examples
+    return examples, failures
 
 
 def main() -> None:
@@ -86,10 +99,21 @@ def main() -> None:
     parser.add_argument("--manifest", default="training/rag_source_manifest.json")
     parser.add_argument("--output", default="training/generated_medrag_sft.jsonl")
     parser.add_argument("--max-chunks-per-source", type=int, default=20)
+    parser.add_argument("--continue-on-error", action="store_true")
     args = parser.parse_args()
-    rows = build_examples(Path(args.manifest), max_chunks_per_source=args.max_chunks_per_source)
+    rows, failures = build_examples(
+        Path(args.manifest),
+        max_chunks_per_source=args.max_chunks_per_source,
+        continue_on_error=args.continue_on_error,
+    )
+    if not rows:
+        raise RuntimeError("No SFT examples were generated")
     jsonl_write(Path(args.output), rows)
     print(f"Wrote {len(rows)} examples to {args.output}")
+    if failures:
+        print("Failures:")
+        for source_id, error in failures:
+            print(f"- {source_id}: {error}")
 
 
 if __name__ == "__main__":
